@@ -2,6 +2,7 @@
 //! tests use the plain-path implementation; sandboxed apps supply their own
 //! (security-scoped bookmarks on Apple).
 
+use std::any::Any;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -34,11 +35,27 @@ pub struct DirEntry {
     pub len: u64,
 }
 
-/// Keeps a watch alive; dropping it stops the watch. The base crate ships a
-/// no-op watch, the watcher itself arrives with the index persistence.
+/// Keeps a watch alive; dropping it stops the watch.
 #[derive(Debug)]
 pub struct WatchHandle {
-    _private: (),
+    _guard: Option<Box<dyn Any + Send>>,
+}
+
+impl WatchHandle {
+    /// A handle that keeps `guard` alive until it is dropped. Implementations
+    /// of [`FileAccess::watch`] put whatever owns their watch in the guard.
+    #[must_use]
+    pub fn new(guard: Box<dyn Any + Send>) -> WatchHandle {
+        WatchHandle {
+            _guard: Some(guard),
+        }
+    }
+
+    /// A handle for a watch that never fires.
+    #[must_use]
+    pub fn inert() -> WatchHandle {
+        WatchHandle { _guard: None }
+    }
 }
 
 /// Callback a watch fires with the changed path.
@@ -92,20 +109,37 @@ pub trait FileAccess: Send + Sync {
     /// Writes a file so that readers see either the old or the new content,
     /// never a partial write. The plain implementation writes a temporary file
     /// beside the target and renames it over, keeping the target's
-    /// permissions; a target that is a symlink is replaced by a regular file.
+    /// permissions; a target that is a symlink is written through to the file
+    /// it points at, so the link stays a link.
     ///
     /// # Errors
     /// I/O errors from the temporary file or the rename.
     fn write_atomic(&self, path: &Path, contents: &str) -> Result<(), FileAccessError>;
 
-    /// Starts watching a path. The base implementation never fires; the
-    /// returned handle is still the contract for callers.
+    /// Deletes a file. Removing a file that is already gone is not an error,
+    /// so a sync client that removed it first does not fail the caller.
+    ///
+    /// # Errors
+    /// I/O errors other than "not found".
+    fn remove_file(&self, path: &Path) -> Result<(), FileAccessError>;
+
+    /// Creates a directory and its missing parents; an existing directory is fine.
+    ///
+    /// # Errors
+    /// I/O errors from creating the directories.
+    fn create_dir_all(&self, path: &Path) -> Result<(), FileAccessError>;
+
+    /// Starts watching a path and everything below it; `on_change` receives
+    /// the path of every file system event, under the path that was passed in.
+    /// Events arrive in bursts and may repeat, so consumers debounce them (see
+    /// [`crate::watcher`]). Dropping the handle stops the watch. The default
+    /// implementation never fires, for ports with no change notification.
     ///
     /// # Errors
     /// Implementations may fail to register a watch.
     fn watch(&self, path: &Path, on_change: WatchCallback) -> Result<WatchHandle, FileAccessError> {
         let _ = (path, on_change);
-        Ok(WatchHandle { _private: () })
+        Ok(WatchHandle::inert())
     }
 }
 
@@ -155,6 +189,10 @@ impl FileAccess for PlainFileAccess {
     }
 
     fn write_atomic(&self, path: &Path, contents: &str) -> Result<(), FileAccessError> {
+        // A rename over a symlink would replace the link with a plain file and
+        // leave its target stale, so the write goes to the target.
+        let resolved = symlink_target(path).map_err(|source| io_error("write", path, source))?;
+        let path = resolved.as_path();
         let directory = path.parent().unwrap_or_else(|| Path::new("."));
         if path.file_name().is_none() {
             return Err(io_error(
@@ -182,6 +220,51 @@ impl FileAccess for PlainFileAccess {
             let _ = directory_handle.sync_all();
         }
         Ok(())
+    }
+
+    fn remove_file(&self, path: &Path) -> Result<(), FileAccessError> {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(io_error("remove", path, source)),
+        }
+    }
+
+    fn create_dir_all(&self, path: &Path) -> Result<(), FileAccessError> {
+        fs::create_dir_all(path).map_err(|source| io_error("create_dir_all", path, source))
+    }
+
+    fn watch(&self, path: &Path, on_change: WatchCallback) -> Result<WatchHandle, FileAccessError> {
+        // Some platforms report events under the resolved path (`/private/var`
+        // for `/var` on macOS); consumers get them under the path they passed.
+        let canonical = fs::canonicalize(path).map_err(|source| io_error("watch", path, source))?;
+        let requested = path.to_path_buf();
+        let handler = move |result: notify::Result<notify::Event>| {
+            let Ok(event) = result else {
+                return;
+            };
+            if matches!(event.kind, notify::EventKind::Access(_)) {
+                return;
+            }
+            for event_path in &event.paths {
+                match event_path.strip_prefix(&canonical) {
+                    Ok(relative) => on_change(&requested.join(relative)),
+                    Err(_) => on_change(event_path),
+                }
+            }
+        };
+        let mut watcher = notify::recommended_watcher(handler)
+            .map_err(|source| notify_error("watch", path, source))?;
+        notify::Watcher::watch(&mut watcher, path, notify::RecursiveMode::Recursive)
+            .map_err(|source| notify_error("watch", path, source))?;
+        Ok(WatchHandle::new(Box::new(watcher)))
+    }
+}
+
+fn symlink_target(path: &Path) -> io::Result<PathBuf> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => fs::canonicalize(path),
+        _ => Ok(path.to_path_buf()),
     }
 }
 
@@ -212,6 +295,14 @@ fn dir_entry(path: PathBuf, metadata: &fs::Metadata) -> DirEntry {
         kind,
         modified: metadata.modified().ok(),
         len: metadata.len(),
+    }
+}
+
+fn notify_error(operation: &'static str, path: &Path, source: notify::Error) -> FileAccessError {
+    FileAccessError::Io {
+        operation,
+        path: path.to_path_buf(),
+        source: io::Error::other(source),
     }
 }
 
@@ -276,11 +367,49 @@ mod tests {
         ));
     }
 
+    #[cfg(unix)]
     #[test]
-    fn the_default_watch_is_a_no_op() {
-        let handle = PlainFileAccess
-            .watch(std::path::Path::new("."), Box::new(|_| {}))
-            .expect("watch");
-        assert!(format!("{handle:?}").contains("WatchHandle"));
+    fn atomic_write_through_a_symlink_updates_the_target_and_keeps_the_link() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let access = PlainFileAccess;
+        let shared = directory.path().join("shared");
+        access.create_dir_all(&shared).expect("create");
+        let target = shared.join("note.md");
+        access.write_atomic(&target, "one\n").expect("write");
+        let link = directory.path().join("link.md");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink");
+
+        access
+            .write_atomic(&link, "two\n")
+            .expect("write through link");
+
+        let link_metadata = std::fs::symlink_metadata(&link).expect("link metadata");
+        assert!(link_metadata.file_type().is_symlink(), "the link survives");
+        assert_eq!(access.read_to_string(&target).expect("read"), "two\n");
+    }
+
+    #[test]
+    fn remove_file_is_idempotent_and_create_dir_all_nests() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let access = PlainFileAccess;
+        let nested = directory.path().join("a/b/c");
+        access.create_dir_all(&nested).expect("create");
+        access.create_dir_all(&nested).expect("create again");
+        let file = nested.join("note.md");
+        access.write_atomic(&file, "x\n").expect("write");
+        access.remove_file(&file).expect("remove");
+        access.remove_file(&file).expect("remove again");
+        assert!(access.stat(&file).expect("stat").is_none());
+    }
+
+    #[test]
+    fn watching_a_missing_path_fails() {
+        let missing = std::env::temp_dir().join("vaultday-definitely-missing-dir");
+        assert!(PlainFileAccess.watch(&missing, Box::new(|_| {})).is_err());
+    }
+
+    #[test]
+    fn an_inert_watch_handle_debugs_as_a_handle() {
+        assert!(format!("{:?}", super::WatchHandle::inert()).contains("WatchHandle"));
     }
 }

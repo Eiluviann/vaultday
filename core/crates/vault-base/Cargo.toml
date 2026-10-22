@@ -11,6 +11,8 @@ name = "vault_base"
 
 [dependencies]
 globset = "0.4"
+notify = "8.2.0"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 schemars = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

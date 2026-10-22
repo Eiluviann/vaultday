@@ -1,5 +1,6 @@
 //! `FileIndex`: the per-file modification-time cache the app refreshes
-//! before a query. It lives in memory here; persisting it is a later step.
+//! before a query. It lives in memory; [`crate::IndexStore`] persists it per
+//! device and [`crate::VaultWatcher`] keeps it current.
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
@@ -8,7 +9,7 @@ use std::time::{Duration, SystemTime};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use thiserror::Error;
 
-use crate::file_access::{EntryKind, FileAccess, FileAccessError};
+use crate::file_access::{DirEntry, EntryKind, FileAccess, FileAccessError};
 use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME};
 
 /// Which files an index covers. Globs match root-relative paths with `/`
@@ -186,8 +187,99 @@ impl FileIndex {
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<IndexDelta, FileAccessError> {
+        let seen = self.collect_below(&self.root, file_access, now)?;
+        let mut delta = IndexDelta::default();
+        for (path, stamp) in &seen {
+            match self.entries.get(path) {
+                None => delta.added.push(path.clone()),
+                Some(previous) if previous != stamp => delta.changed.push(path.clone()),
+                Some(_) => {}
+            }
+        }
+        for path in self.entries.keys() {
+            if !seen.contains_key(path) {
+                delta.removed.push(path.clone());
+            }
+        }
+        self.entries = seen;
+        Ok(delta)
+    }
+
+    /// Updates the stamps of just the given root-relative paths, the cheap
+    /// refresh a file watcher feeds. A path that is gone is dropped together
+    /// with anything below it; a folder is re-walked; a file is stamped when
+    /// it is in scope and dropped when it is not. As in [`FileIndex::refresh`],
+    /// nothing inside a nested workspace is indexed.
+    ///
+    /// # Errors
+    /// File errors other than a path vanishing mid-update.
+    pub fn apply_changes(
+        &mut self,
+        file_access: &dyn FileAccess,
+        relative_paths: &[PathBuf],
+        now: SystemTime,
+    ) -> Result<IndexDelta, FileAccessError> {
+        let mut delta = IndexDelta::default();
+        for relative in relative_paths {
+            let absolute = self.root.join(relative);
+            let seen = if self.is_inside_foreign_workspace(relative, file_access)? {
+                BTreeMap::new()
+            } else {
+                self.collect_changed(relative, &absolute, file_access, now)?
+            };
+            let stale: Vec<PathBuf> = self
+                .entries
+                .keys()
+                .filter(|known| known.starts_with(relative) && !seen.contains_key(*known))
+                .cloned()
+                .collect();
+            for path in stale {
+                self.entries.remove(&path);
+                delta.removed.push(path);
+            }
+            for (path, stamp) in seen {
+                match self.entries.insert(path.clone(), stamp) {
+                    None => delta.added.push(path),
+                    Some(previous) if previous != stamp => delta.changed.push(path),
+                    Some(_) => {}
+                }
+            }
+        }
+        Ok(delta)
+    }
+
+    /// Rebuilds an index from stamps read back from a store. Entries outside
+    /// the scope are dropped, so a stale store can never widen an index.
+    ///
+    /// # Errors
+    /// [`IndexError::InvalidGlob`] when a pattern does not compile.
+    pub fn from_entries(
+        root: &Path,
+        scope: IndexScope,
+        entries: impl IntoIterator<Item = (PathBuf, FileStamp)>,
+    ) -> Result<FileIndex, IndexError> {
+        let mut index = FileIndex::new(root, scope)?;
+        // The edited-within window depends on the clock and is re-applied by
+        // the next refresh; the globs are checked here.
+        index.entries = entries
+            .into_iter()
+            .filter(|(path, _)| {
+                let key = glob_key(path);
+                index.include.is_match(&key) && !index.exclude.is_match(&key)
+            })
+            .collect();
+        Ok(index)
+    }
+
+    /// Walks `start` (a folder below the root) and stamps every file in scope.
+    fn collect_below(
+        &self,
+        start: &Path,
+        file_access: &dyn FileAccess,
+        now: SystemTime,
+    ) -> Result<BTreeMap<PathBuf, FileStamp>, FileAccessError> {
         let mut seen: BTreeMap<PathBuf, FileStamp> = BTreeMap::new();
-        let mut pending = vec![self.root.clone()];
+        let mut pending = vec![start.to_path_buf()];
         while let Some(folder) = pending.pop() {
             let entries = match file_access.read_dir(&folder) {
                 Ok(entries) => entries,
@@ -207,34 +299,63 @@ impl FileIndex {
                     }
                     EntryKind::File => {
                         if self.is_in_scope(relative, entry.modified, now) {
-                            seen.insert(
-                                relative.to_path_buf(),
-                                FileStamp {
-                                    modified: entry.modified.unwrap_or(SystemTime::UNIX_EPOCH),
-                                    len: entry.len,
-                                },
-                            );
+                            seen.insert(relative.to_path_buf(), stamp_of(&entry));
                         }
                     }
                     EntryKind::Other => {}
                 }
             }
         }
-        let mut delta = IndexDelta::default();
-        for (path, stamp) in &seen {
-            match self.entries.get(path) {
-                None => delta.added.push(path.clone()),
-                Some(previous) if previous != stamp => delta.changed.push(path.clone()),
-                Some(_) => {}
+        Ok(seen)
+    }
+
+    /// The stamps a changed path contributes: a folder's files, a file's own
+    /// stamp when it is in scope, nothing when the path is gone.
+    fn collect_changed(
+        &self,
+        relative: &Path,
+        absolute: &Path,
+        file_access: &dyn FileAccess,
+        now: SystemTime,
+    ) -> Result<BTreeMap<PathBuf, FileStamp>, FileAccessError> {
+        let mut seen = BTreeMap::new();
+        match file_access.stat(absolute)? {
+            Some(entry) if entry.kind == EntryKind::Directory => {
+                seen = self.collect_below(absolute, file_access, now)?;
+            }
+            Some(entry) if entry.kind == EntryKind::File => {
+                if self.is_in_scope(relative, entry.modified, now) {
+                    seen.insert(relative.to_path_buf(), stamp_of(&entry));
+                }
+            }
+            _ => {}
+        }
+        Ok(seen)
+    }
+
+    /// True when `relative` or a folder above it, below the root, holds
+    /// another workspace's settings.
+    fn is_inside_foreign_workspace(
+        &self,
+        relative: &Path,
+        file_access: &dyn FileAccess,
+    ) -> Result<bool, FileAccessError> {
+        for folder in relative.ancestors() {
+            if folder.as_os_str().is_empty() {
+                break;
+            }
+            if is_foreign_workspace(&self.root.join(folder), file_access)? {
+                return Ok(true);
             }
         }
-        for path in self.entries.keys() {
-            if !seen.contains_key(path) {
-                delta.removed.push(path.clone());
-            }
-        }
-        self.entries = seen;
-        Ok(delta)
+        Ok(false)
+    }
+}
+
+fn stamp_of(entry: &DirEntry) -> FileStamp {
+    FileStamp {
+        modified: entry.modified.unwrap_or(SystemTime::UNIX_EPOCH),
+        len: entry.len,
     }
 }
 
