@@ -1,0 +1,112 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "description": "Schema version; this build reads version 1."
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the workspace."
+    },
+    "kind": {
+      "$ref": "#/$defs/WorkspaceKind",
+      "description": "Work or life."
+    },
+    "accent": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Accent colour token used by the apps."
+    },
+    "ticket_pattern": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Regular expression that recognises ticket numbers such as `WEB-142`."
+    },
+    "ticket_url": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "URL template for a ticket; `{ticket}` is replaced by the number."
+    },
+    "hosts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Hosts this workspace's links point at."
+    },
+    "browser": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Browser to open links with; `None` means the system default."
+    },
+    "hours_per_day": {
+      "type": "number",
+      "format": "double",
+      "description": "Working hours in a day, used by the day plan; above 0 and at most 24.",
+      "default": 8.0,
+      "exclusiveMinimum": 0.0,
+      "maximum": 24.0
+    },
+    "log_folder": {
+      "type": "string",
+      "description": "Folder that holds the day logs, relative to the workspace root.",
+      "default": "Log"
+    },
+    "story_template": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Template note for new stories, relative to the workspace root."
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Per-feature settings, keyed by feature id. Opaque in the base version;\neach feature validates its own entry against its settings schema.",
+      "default": {}
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "kind"
+  ],
+  "additionalProperties": true,
+  "title": "Vaultday workspace settings",
+  "description": "The manifest at .vaultday/settings.json that marks a folder as a Vaultday workspace. Unknown keys are preserved. The keys security, tokens, rates, models and integrations are refused at every depth and without case, as is any key that names a secret (token, password, api_key, ...); the reader enforces this, the schema can only state the top-level rule.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "WorkspaceKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "work",
+          "description": "A client workspace; two of these may not nest."
+        },
+        {
+          "type": "string",
+          "const": "life",
+          "description": "A personal workspace."
+        }
+      ],
+      "description": "Whether a workspace holds client work or the user's own life."
+    }
+  },
+  "propertyNames": {
+    "not": {
+      "pattern": "^([sS][eE][cC][uU][rR][iI][tT][yY]|[tT][oO][kK][eE][nN][sS]|[rR][aA][tT][eE][sS]|[mM][oO][dD][eE][lL][sS]|[iI][nN][tT][eE][gG][rR][aA][tT][iI][oO][nN][sS])$"
+    },
+    "description": "The forbidden keys, compared without case."
+  }
+}

@@ -9,5 +9,16 @@ publish.workspace = true
 [lib]
 name = "vault_base"
 
+[dependencies]
+globset = "0.4"
+schemars = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_norway = "0.9"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
 [lints]
 workspace = true

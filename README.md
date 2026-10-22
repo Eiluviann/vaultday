@@ -4,7 +4,7 @@ One app for the working day: tasks, time boxes, timer, rituals and the day log o
 
 ## Layout
 
-- `core/` Cargo workspace: `vault-base` (parser, writer, workspace resolution), `domain` (tasks, day plan, sessions, estimates). Planned: `app-state`, `features/*`, `ffi` (UniFFI) and `node` (napi-rs).
+- `core/` Cargo workspace: `vault-base` (parser, writer, workspace resolution, settings schema), `domain` (tasks, day plan, sessions, estimates); `core/fixtures/` holds the synthetic mock vaults the tests run against, nothing in them comes from a real vault. Planned: `app-state`, `features/*`, `ffi` (UniFFI) and `node` (napi-rs).
 - `tools/` `vault-migrate` (note system v1 migration), `provenance-core` (vendored AI-provenance engine), `names`, `figma`. Planned: `tokens`.
 - `design/` icon sources.
 - Planned: `apps/apple/` (the Mac app as an XcodeGen project, plus the `VaultdayCore` Swift package) and `cli/` (the `vaultday` CLI and stdio MCP server, TypeScript on the napi binding).

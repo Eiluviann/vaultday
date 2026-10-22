@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "Mock Studio",
+  "kind": "work",
+  "accent": "teal",
+  "ticket_pattern": "(WEB|ACME)-\\d+",
+  "ticket_url": "https://tracker.example.test/browse/{ticket}",
+  "hosts": [
+    "tracker.example.test"
+  ],
+  "browser": "default",
+  "hours_per_day": 8.0,
+  "log_folder": "Log",
+  "story_template": "_templates/story.md",
+  "features": {},
+  "x_future_setting": {
+    "kept": true,
+    "note": "an unknown key a newer build wrote; this build preserves it"
+  }
+}

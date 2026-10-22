@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "name": "Acme",
+  "kind": "work",
+  "ticket_pattern": "ACME-\\d+",
+  "hosts": [
+    "tracker.example.test"
+  ]
+}
