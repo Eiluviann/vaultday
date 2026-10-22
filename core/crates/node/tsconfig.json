@@ -1,0 +1,8 @@
+{
+	"extends": "../../../tsconfig.base.json",
+	"include": ["index.d.ts", "index.js"],
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": false
+	}
+}

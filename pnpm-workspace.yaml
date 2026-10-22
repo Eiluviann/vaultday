@@ -1,4 +1,6 @@
 packages:
   - tools/*
+  - core/crates/node
+  - cli
 allowBuilds:
   esbuild: true

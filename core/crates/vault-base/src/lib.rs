@@ -6,7 +6,8 @@
 //! - [`WorkspaceSettings`] is the `.vaultday/settings.json` schema.
 //! - [`Workspace`] and [`WorkspaceSet`] resolve paths to workspaces.
 //! - [`FileIndex`] caches modification times; [`Vault`] loads notes and
-//!   answers the queries the CLI and the app need.
+//!   answers the queries the CLI and the app need; [`TodayView`] is the
+//!   one the Today surfaces copy out.
 //! - [`FileAccess`] is the port to the file system; [`PlainFileAccess`] is the
 //!   plain-path implementation for tests and desktop.
 
@@ -21,6 +22,7 @@ mod line;
 pub mod note;
 pub mod scan;
 pub mod settings;
+pub mod today;
 pub mod vault;
 pub mod workspace;
 
@@ -37,6 +39,7 @@ pub use scan::{
     Section, Task, TaskStatus,
 };
 pub use settings::{SETTINGS_SCHEMA_VERSION, SettingsError, WorkspaceKind, WorkspaceSettings};
+pub use today::{TodayStory, TodayView};
 pub use vault::{
     LogEntry, Note, StoryEntry, TaskRef, UnreadableNote, Vault, VaultError, WaitingOn,
 };

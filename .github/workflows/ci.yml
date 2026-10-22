@@ -50,7 +50,7 @@ jobs:
   node:
     name: Node
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -58,7 +58,81 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - name: Read the pinned toolchain
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
       - run: pnpm install --frozen-lockfile
+      # The CLI's types and tests need the napi binding: build it on Linux here.
+      - run: pnpm --filter @vaultday/core-node build
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+
+  changes:
+    name: Changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      apple: ${{ steps.filter.outputs.apple }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Did core/, apps/, scripts/ or the workflow change?
+        id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE" 2>/dev/null; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE" "$HEAD" | grep -Eq '^(core/|apps/|scripts/|\.github/workflows/ci\.yml)'; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  apple:
+    name: Apple (macos-15-intel)
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    # Intel for capacity (see the Rust matrix); the XCFramework carries both
+    # arm64 and x86_64 slices, so the app builds and tests on either pool.
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the pinned toolchain
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: xcframework
+      - run: brew install xcodegen
+      - run: scripts/build-xcframework.sh
+      - run: xcodegen generate
+        working-directory: apps/apple
+      - run: >
+          xcodebuild build test
+          -project Vaultday.xcodeproj -scheme Vaultday
+          -destination 'platform=macOS' -derivedDataPath build
+          CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES
+          | tail -n 60
+        shell: bash -o pipefail {0}
+        working-directory: apps/apple
+      # The package's own tests (the FFI-to-model mapping) are not in the app scheme.
+      - run: swift test
+        working-directory: apps/apple/VaultdayCore

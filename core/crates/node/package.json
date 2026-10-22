@@ -1,0 +1,35 @@
+{
+	"name": "@vaultday/core-node",
+	"version": "0.1.0",
+	"private": true,
+	"description": "napi-rs binding of the Vaultday core: the vault parser and queries for the CLI, the MCP server and the Electron app.",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"files": [
+		"index.js",
+		"index.d.ts",
+		"*.node"
+	],
+	"engines": {
+		"node": ">=22.15"
+	},
+	"napi": {
+		"binaryName": "vaultday-core",
+		"targets": [
+			"aarch64-apple-darwin",
+			"x86_64-apple-darwin",
+			"x86_64-unknown-linux-gnu",
+			"aarch64-unknown-linux-gnu"
+		]
+	},
+	"scripts": {
+		"build": "napi build --platform --release",
+		"build:debug": "napi build --platform",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@napi-rs/cli": "^3.10.9",
+		"@types/node": "^22.20.5",
+		"typescript": "^7.0.2"
+	}
+}

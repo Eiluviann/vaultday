@@ -269,6 +269,35 @@ fn stories_come_with_next_steps_and_pending_input() {
 }
 
 #[test]
+fn the_today_view_keeps_only_stories_with_open_work_and_the_days_log() {
+    let vault = open_mock_vault();
+    let view = vault.today(date("2026-10-22"));
+
+    let numbers: Vec<Option<&str>> = view
+        .stories
+        .iter()
+        .map(|story| story.number.as_deref())
+        .collect();
+    assert_eq!(numbers, [Some("WEB-142"), Some("WEB-157"), Some("ACME-9")]);
+
+    let checkout = &view.stories[0];
+    assert_eq!(checkout.title.as_deref(), Some("Checkout redesign"));
+    assert_eq!(checkout.status, Some(StoryStatus::InProgress));
+    assert!(checkout.next_steps.iter().all(|task| task.is_open()));
+    assert_eq!(checkout.next_steps.len(), 4, "the in-progress task is open");
+    assert_eq!(
+        checkout.pending_input.len(),
+        1,
+        "the confirmed input is done"
+    );
+    assert_eq!(checkout.pending_input[0].id(), Some("task-6"));
+
+    let times: Vec<String> = view.log.iter().map(|line| line.time.to_string()).collect();
+    assert_eq!(times, ["08:45", "09:30", "11:15", "14:00"]);
+    assert!(vault.today(date("2026-10-23")).log.is_empty());
+}
+
+#[test]
 fn a_task_is_found_by_id() {
     let vault = open_mock_vault();
     let task = vault.task_by_id("task-3").unwrap();

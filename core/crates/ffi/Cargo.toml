@@ -1,0 +1,25 @@
+[package]
+name = "vaultday-ffi"
+description = "UniFFI exports of the Vaultday core for Swift (and Kotlin later)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "vaultday_ffi"
+# `staticlib` feeds the XCFramework; `lib` keeps the crate testable from Rust.
+crate-type = ["lib", "staticlib"]
+
+[dependencies]
+# Pinned exactly: the generated Swift and the scaffolding must come from the
+# same uniffi version, and `crates/uniffi-bindgen` builds the generator from
+# this very dependency.
+uniffi = "=0.32.2"
+# The bindings do IO, so the host time zone is theirs to read; the core crates stay pure.
+jiff = { version = "0.2", default-features = false, features = ["std", "tz-system"] }
+thiserror = "2"
+vaultday-vault-base = { path = "../vault-base" }
+
+[lints]
+workspace = true

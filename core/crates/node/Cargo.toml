@@ -1,0 +1,37 @@
+[package]
+name = "vaultday-node"
+description = "napi-rs binding of the Vaultday core for the CLI, the MCP server and the Electron app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "vaultday_node"
+crate-type = ["cdylib"]
+# The addon links against symbols Node provides at load time, so a Rust test
+# harness cannot link it; the binding is tested from Vitest in `cli/`.
+test = false
+doctest = false
+
+[dependencies]
+# The bindings do IO, so the host time zone is theirs to read; the core crates stay pure.
+jiff = { version = "0.2", default-features = false, features = ["std", "tz-system"] }
+napi = { version = "3", features = ["napi9"] }
+napi-derive = "3"
+vaultday-vault-base = { path = "../vault-base" }
+
+[build-dependencies]
+napi-build = "2"
+
+# Not `workspace = true`: the `#[napi]` expansion carries `#[allow(unsafe_code)]`
+# for the symbols Node calls, which the workspace's `forbid` would reject. Every
+# other workspace lint is repeated here; the crate's own code has no `unsafe`.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

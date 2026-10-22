@@ -1,0 +1,67 @@
+# XcodeGen spec for the Mac app. `xcodegen generate` in this folder writes
+# Vaultday.xcodeproj (gitignored). Run `scripts/build-xcframework.sh` first:
+# the VaultdayCore package needs the XCFramework and the generated Swift.
+name: Vaultday
+options:
+  bundleIdPrefix: local.vaultday
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: false
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    # Placeholder id and ad-hoc signing until PR 7a asks for the real domain.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+packages:
+  VaultdayCore:
+    path: VaultdayCore
+targets:
+  Vaultday:
+    type: application
+    platform: macOS
+    sources:
+      - path: Vaultday
+    dependencies:
+      - package: VaultdayCore
+    info:
+      path: Vaultday/Info.plist
+      properties:
+        CFBundleDisplayName: Vaultday
+        CFBundleName: Vaultday
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: ""
+        # The spike window reads the synthetic fixture vault; see LaunchConfiguration.swift.
+        VaultdayFixtureWorkspace: $(SRCROOT)/../../core/fixtures/mock-vault
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.vaultday.spike
+        GENERATE_INFOPLIST_FILE: NO
+  VaultdayTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VaultdayTests
+    dependencies:
+      - package: VaultdayCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.vaultday.spike.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Vaultday:
+    build:
+      targets:
+        Vaultday: all
+        VaultdayTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VaultdayTests

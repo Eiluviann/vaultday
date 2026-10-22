@@ -1,0 +1,20 @@
+[package]
+name = "vaultday-app-state"
+description = "Automerge app state of Vaultday: the document, its change files per device, and the ports around them"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "app_state"
+
+[dependencies]
+automerge = "0.12"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
