@@ -1,0 +1,12 @@
+{
+	"vaultKind": "personal",
+	"hubs": {},
+	"typeGuesses": [
+		{ "path": "Projects/Realname/Codename.md", "type": "project", "aliases": ["Codename"] },
+		{ "path": "Projects/Realname/Kickoff.md", "type": "note", "kind": "kickoff" },
+		{ "path": "Projects/Realname/reports/Research report.md", "type": "research", "status": "final", "project": "Realname" },
+		{ "path": "Projects/Realname/research_notes/Research report/raw.md", "type": "note", "kind": "research" },
+		{ "path": "Areas/Uni/Uni.md", "type": "area" }
+	],
+	"skipNotes": ["Home.md"]
+}

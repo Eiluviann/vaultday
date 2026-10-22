@@ -1,0 +1,8 @@
+[
+	{ "from": "Projects/Realname/Codename.md", "to": "Projects/Realname/Realname.md" },
+	{ "from": "Projects/Realname/reports/Research report.md", "to": "Projects/Realname/Research report.md" },
+	{ "from": "Projects/Realname/research_notes/Research report", "to": "Projects/Realname/_agent/research/report" },
+	{ "from": "Projects/Realname/research_notes", "to": "Projects/Realname/_agent/research" },
+	{ "from": "Daily", "to": "Log" },
+	{ "delete": "Inbox/TEST NOTE.md" }
+]

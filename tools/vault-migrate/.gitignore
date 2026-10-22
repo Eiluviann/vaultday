@@ -1,0 +1,4 @@
+node_modules
+dist
+# Vault content (diffs, check outputs, manifests) never goes into the repo; it stays on disk.
+state/

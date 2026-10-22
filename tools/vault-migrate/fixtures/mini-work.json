@@ -1,0 +1,10 @@
+{
+	"vaultKind": "work",
+	"togglProject": "Alpha Co",
+	"hubs": { "Alpha": "ALPHA" },
+	"typeGuesses": [
+		{ "path": "Projects/Alpha/Widget colour picker (new look)/Current widget.md", "type": "analysis", "kind": "audit", "status": "final", "story": "STRY0000001" },
+		{ "path": "Test users.md", "type": "note", "kind": "reference" }
+	],
+	"skipNotes": []
+}

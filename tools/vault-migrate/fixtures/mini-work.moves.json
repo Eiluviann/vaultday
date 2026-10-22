@@ -1,0 +1,7 @@
+[
+	{ "from": "Test users.md", "to": "Reference/Test users.md" },
+	{ "from": "probe.js", "to": "Reference/_agent/exploration/probe.js" },
+	{ "from": "Projects/*/*/exploration", "to": "Projects/{0}/{1}/_agent/exploration" },
+	{ "from": "Projects/Alpha/Unnumbered draft/Unnumbered draft.md", "toVault": "../mini-personal", "to": "Projects/Realname/_agent/prompts/unnumbered-draft.md" },
+	{ "delete": "Untitled.md" }
+]
