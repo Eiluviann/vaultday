@@ -127,7 +127,6 @@ function buildMigrationPlan(
 		birthtimes,
 		allocator,
 		hasher,
-		migrationDate: formatLocalDate(new Date()),
 	});
 }
 

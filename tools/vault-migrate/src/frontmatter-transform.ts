@@ -7,10 +7,8 @@ import {
 import type { TypeGuess } from './profile.ts';
 import {
 	FRONTMATTER_KEY_RENAMES,
-	LEGACY_KEY,
-	MIGRATED_KEY,
+	LEGACY_NOTE_SYSTEM_VERSION,
 	NOTE_SYSTEM_KEY,
-	NOTE_SYSTEM_VERSION,
 	parseTicketIdentity,
 	STORY_EMPTY_KEYS,
 } from './rules/frontmatter-keys.ts';
@@ -28,8 +26,6 @@ export type FrontmatterRuleContext = {
 	noteClass: NoteClass;
 	/** Birth date of the live file; undefined when unknown or for templates. */
 	birthDate: string | undefined;
-	/** Apply date written as `migrated`; templates get no legacy keys. */
-	migrationDate: string;
 	hub?: { key: string; togglProject: string | undefined };
 	guess?: TypeGuess;
 	/** Set when the story is renamed: the old title joins the aliases. */
@@ -59,9 +55,9 @@ export function transformFrontmatter(
 			);
 		else frontmatter.rename(oldKey, newKey);
 	}
-	frontmatter.setScalar(NOTE_SYSTEM_KEY, NOTE_SYSTEM_VERSION);
-	if (context.noteClass !== 'template')
-		markAsLegacy(frontmatter, context.migrationDate);
+	// The renamed key keeps its old value; notes without any version key are legacy too. Idempotence signal: note_system present, note-system-ver gone.
+	if (!frontmatter.has(NOTE_SYSTEM_KEY))
+		frontmatter.setScalar(NOTE_SYSTEM_KEY, LEGACY_NOTE_SYSTEM_VERSION);
 	normaliseStatusValue(frontmatter);
 
 	const isStoryShaped = frontmatter.has('number');
@@ -96,14 +92,6 @@ export function transformFrontmatter(
 		replaceLineRange(document, 0, blockEnd, newBlock, 'frontmatter');
 	}
 	return { reports };
-}
-
-/** `legacy: true` and `migrated: <date>` right after `note_system`; existing values are kept so a rerun changes nothing. */
-function markAsLegacy(frontmatter: Frontmatter, migrationDate: string): void {
-	if (!frontmatter.has(LEGACY_KEY))
-		frontmatter.setRaw(LEGACY_KEY, ' true', { after: NOTE_SYSTEM_KEY });
-	if (!frontmatter.has(MIGRATED_KEY))
-		frontmatter.setScalar(MIGRATED_KEY, migrationDate, { after: LEGACY_KEY });
 }
 
 function normaliseStatusValue(frontmatter: Frontmatter): void {

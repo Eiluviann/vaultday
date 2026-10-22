@@ -1,10 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ProvenanceHasher } from '../src/provenance-core.ts';
-import {
-	countBumpedNotes,
-	countLegacyMarkedNotes,
-	renderSummary,
-} from '../src/render-plan.ts';
+import { countVersionedNotes, renderSummary } from '../src/render-plan.ts';
 import {
 	changeFor,
 	copyFixtures,
@@ -13,7 +9,6 @@ import {
 	HUB,
 	LONG_STORY,
 	loadHasher,
-	MIGRATION_DATE,
 	planFixture,
 	UNNUMBERED_STORY,
 	WIDGET_STORY,
@@ -66,14 +61,14 @@ describe('story frontmatter rules', () => {
 		);
 	});
 
-	it('adds empty priority/due/estimate, created from the birthtime manifest and note_system 1.0', () => {
+	it('adds empty priority/due/estimate, created from the birthtime manifest and note_system 0.1', () => {
 		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
 		const frontmatter = frontmatterOf(changeFor(plan, WIDGET_STORY).after);
 		expect(frontmatter).toContain('priority:');
 		expect(frontmatter).toContain('due:');
 		expect(frontmatter).toContain('estimate:');
 		expect(frontmatter).toContain('created: 2025-10-09');
-		expect(frontmatter).toContain('note_system: 1.0');
+		expect(frontmatter).toContain('note_system: 0.1');
 		expect(frontmatter).toContain('sort_index: 1000');
 	});
 
@@ -105,13 +100,13 @@ describe('story frontmatter rules', () => {
 			'priority:',
 			'due:',
 			'estimate:',
-			'note_system: 1.0',
+			'note_system: 0.1',
 		]);
 	});
 });
 
-describe('note_system bump', () => {
-	it('every touched note in both fixtures ends with note_system: 1.0 and no note-system-ver, and the summary counts them', () => {
+describe('note_system version', () => {
+	it('every touched note ends with note_system: 0.1 (renamed or added), never note-system-ver, and the summary counts them', () => {
 		for (const [vault, profile] of [
 			[workspace.work, 'mini-work'],
 			[workspace.personal, 'mini-personal'],
@@ -119,47 +114,16 @@ describe('note_system bump', () => {
 			const { plan } = planFixture(vault, profile, workspace, hasher);
 			for (const change of plan.changes) {
 				expect(frontmatterOf(change.after), change.fromPath).toContain(
-					'note_system: 1.0',
+					'note_system: 0.1',
 				);
 				expect(change.after, change.fromPath).not.toContain('note-system-ver');
+				expect(change.after, change.fromPath).not.toMatch(
+					/^(legacy|migrated):/m,
+				);
 			}
-			expect(countBumpedNotes(plan)).toBe(plan.changes.length);
+			expect(countVersionedNotes(plan)).toBe(plan.changes.length);
 			expect(renderSummary(plan)).toContain(
-				`notes bumped to note_system: 1.0: ${plan.changes.length}`,
-			);
-		}
-	});
-});
-
-describe('legacy marking', () => {
-	it('adds legacy: true and migrated: <date> right after note_system on every touched note except templates', () => {
-		for (const [vault, profile] of [
-			[workspace.work, 'mini-work'],
-			[workspace.personal, 'mini-personal'],
-		] as const) {
-			const { plan } = planFixture(vault, profile, workspace, hasher);
-			const notes = plan.changes.filter(
-				(change) => change.noteClass !== 'template',
-			);
-			for (const change of notes) {
-				const frontmatter = frontmatterOf(change.after);
-				const versionIndex = frontmatter.indexOf('note_system: 1.0');
-				expect(
-					frontmatter.slice(versionIndex, versionIndex + 3),
-					change.fromPath,
-				).toEqual([
-					'note_system: 1.0',
-					'legacy: true',
-					`migrated: ${MIGRATION_DATE}`,
-				]);
-			}
-			if (profile === 'mini-work')
-				expect(
-					frontmatterOf(changeFor(plan, '_templates/story-template.md').after),
-				).not.toContain('legacy: true');
-			expect(countLegacyMarkedNotes(plan)).toBe(notes.length);
-			expect(renderSummary(plan)).toContain(
-				`notes marked legacy: true / migrated: ${notes.length}`,
+				`notes set to note_system 0.1: ${plan.changes.length}`,
 			);
 		}
 	});

@@ -68,8 +68,6 @@ export type BuildPlanOptions = {
 	birthtimes: ReadonlyMap<string, string>;
 	allocator: IdAllocator;
 	hasher: ProvenanceHasher;
-	/** YYYY-MM-DD written as `migrated` on every touched note. */
-	migrationDate: string;
 };
 
 export type FileChange = {
@@ -285,7 +283,6 @@ function applyFrontmatterRules(
 		vaultKind: options.profile.vaultKind,
 		noteClass: note.noteClass,
 		birthDate: birthDateFor(note, options.birthtimes, plan.reports),
-		migrationDate: options.migrationDate,
 	};
 	if (note.noteClass === 'hub') {
 		const key = options.profile.hubs[basenameWithoutExtension(relativePath)];

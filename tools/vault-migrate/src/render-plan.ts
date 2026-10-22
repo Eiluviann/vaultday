@@ -2,10 +2,8 @@ import { unifiedDiff } from './diff.ts';
 import { splitFrontmatterBlock } from './frontmatter.ts';
 import type { MigrationPlan } from './migration.ts';
 import {
-	LEGACY_KEY,
-	MIGRATED_KEY,
+	LEGACY_NOTE_SYSTEM_VERSION,
 	NOTE_SYSTEM_KEY,
-	NOTE_SYSTEM_VERSION,
 } from './rules/frontmatter-keys.ts';
 import { isNotePath } from './vault-scan.ts';
 
@@ -53,10 +51,7 @@ export function renderSummary(plan: MigrationPlan): string {
 		`deletes: ${plan.deletes.length}`,
 	);
 	lines.push(
-		`notes bumped to ${NOTE_SYSTEM_KEY}: ${NOTE_SYSTEM_VERSION}: ${countBumpedNotes(plan)}`,
-	);
-	lines.push(
-		`notes marked ${LEGACY_KEY}: true / ${MIGRATED_KEY}: ${countLegacyMarkedNotes(plan)}`,
+		`notes set to ${NOTE_SYSTEM_KEY} ${LEGACY_NOTE_SYSTEM_VERSION}: ${countVersionedNotes(plan)}`,
 	);
 	if (plan.allocatedIds.length > 0)
 		lines.push(
@@ -115,33 +110,15 @@ export function renderSummary(plan: MigrationPlan): string {
 	return lines.join('\n');
 }
 
-/** Notes whose frontmatter gains `note_system: 1.0` in this plan (replacing `note-system-ver` or added fresh). */
-export function countBumpedNotes(plan: MigrationPlan): number {
+/** Notes that gain the lowercase `note_system` key in this plan (renamed from `note-system-ver` or added fresh at 0.1). */
+export function countVersionedNotes(plan: MigrationPlan): number {
 	return plan.changes.filter(
-		(change) =>
-			!hasCurrentVersion(change.before) && hasCurrentVersion(change.after),
+		(change) => !hasVersionKey(change.before) && hasVersionKey(change.after),
 	).length;
 }
 
-function hasCurrentVersion(text: string): boolean {
-	return (
-		splitFrontmatterBlock(text.split('\n')).frontmatter.scalar(
-			NOTE_SYSTEM_KEY,
-		) === NOTE_SYSTEM_VERSION
-	);
-}
-
-/** Notes that gain `legacy: true` and a `migrated` date in this plan. */
-export function countLegacyMarkedNotes(plan: MigrationPlan): number {
-	return plan.changes.filter(
-		(change) => !isMarkedLegacy(change.before) && isMarkedLegacy(change.after),
-	).length;
-}
-
-function isMarkedLegacy(text: string): boolean {
-	const { frontmatter } = splitFrontmatterBlock(text.split('\n'));
-	return (
-		frontmatter.scalar(LEGACY_KEY) === 'true' &&
-		(frontmatter.scalar(MIGRATED_KEY) ?? '').length > 0
+function hasVersionKey(text: string): boolean {
+	return splitFrontmatterBlock(text.split('\n')).frontmatter.has(
+		NOTE_SYSTEM_KEY,
 	);
 }
