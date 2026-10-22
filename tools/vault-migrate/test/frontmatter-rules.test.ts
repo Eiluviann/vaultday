@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ProvenanceHasher } from '../src/provenance-core.ts';
+import { countBumpedNotes, renderSummary } from '../src/render-plan.ts';
 import {
 	changeFor,
 	copyFixtures,
@@ -101,6 +102,27 @@ describe('story frontmatter rules', () => {
 			'estimate:',
 			'note_system: 1.0',
 		]);
+	});
+});
+
+describe('note_system bump', () => {
+	it('every touched note in both fixtures ends with note_system: 1.0 and no note-system-ver, and the summary counts them', () => {
+		for (const [vault, profile] of [
+			[workspace.work, 'mini-work'],
+			[workspace.personal, 'mini-personal'],
+		] as const) {
+			const { plan } = planFixture(vault, profile, workspace, hasher);
+			for (const change of plan.changes) {
+				expect(frontmatterOf(change.after), change.fromPath).toContain(
+					'note_system: 1.0',
+				);
+				expect(change.after, change.fromPath).not.toContain('note-system-ver');
+			}
+			expect(countBumpedNotes(plan)).toBe(plan.changes.length);
+			expect(renderSummary(plan)).toContain(
+				`notes bumped to note_system: 1.0: ${plan.changes.length}`,
+			);
+		}
 	});
 });
 

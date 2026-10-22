@@ -1,5 +1,10 @@
 import { unifiedDiff } from './diff.ts';
+import { splitFrontmatterBlock } from './frontmatter.ts';
 import type { MigrationPlan } from './migration.ts';
+import {
+	NOTE_SYSTEM_KEY,
+	NOTE_SYSTEM_VERSION,
+} from './rules/frontmatter-keys.ts';
 import { isNotePath } from './vault-scan.ts';
 
 /** Dry-run output: unified diffs, renames, moves, deletes, then a summary block. Empty string for an empty plan. */
@@ -44,6 +49,9 @@ export function renderSummary(plan: MigrationPlan): string {
 		`folder renames: ${plan.renames.length}`,
 		`moves: ${plan.moves.length}`,
 		`deletes: ${plan.deletes.length}`,
+	);
+	lines.push(
+		`notes bumped to ${NOTE_SYSTEM_KEY}: ${NOTE_SYSTEM_VERSION}: ${countBumpedNotes(plan)}`,
 	);
 	if (plan.allocatedIds.length > 0)
 		lines.push(
@@ -100,4 +108,20 @@ export function renderSummary(plan: MigrationPlan): string {
 		for (const report of plan.reports) lines.push(`- ${report}`);
 	}
 	return lines.join('\n');
+}
+
+/** Notes whose frontmatter gains `note_system: 1.0` in this plan (replacing `note-system-ver` or added fresh). */
+export function countBumpedNotes(plan: MigrationPlan): number {
+	return plan.changes.filter(
+		(change) =>
+			!hasCurrentVersion(change.before) && hasCurrentVersion(change.after),
+	).length;
+}
+
+function hasCurrentVersion(text: string): boolean {
+	return (
+		splitFrontmatterBlock(text.split('\n')).frontmatter.scalar(
+			NOTE_SYSTEM_KEY,
+		) === NOTE_SYSTEM_VERSION
+	);
 }
