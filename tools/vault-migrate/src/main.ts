@@ -10,6 +10,7 @@ import {
 	USAGE,
 } from './cli-options.ts';
 import { IdAllocator } from './id-allocator.ts';
+import { lintLogs } from './lint-log.ts';
 import { buildPlan, isPlanEmpty, type MigrationPlan } from './migration.ts';
 import {
 	emptyProfile,
@@ -46,6 +47,7 @@ async function main(argv: string[]): Promise<number> {
 		console.error(guard.error);
 		return 2;
 	}
+	if (options.command === 'lint-log') return runLintLog(options.vaultRoot);
 	if (options.shouldVerifyLinks) return runVerifyLinks(options.vaultRoot);
 
 	const coreResult = await loadProvenanceCore(options.coreModulePath);
@@ -87,6 +89,16 @@ async function main(argv: string[]): Promise<number> {
 	);
 	if (options.tickId !== undefined) return 0;
 	return checkIdempotence(options, coreResult.value);
+}
+
+function runLintLog(vaultRoot: string): number {
+	const findings = lintLogs(vaultRoot);
+	for (const finding of findings)
+		console.log(
+			`${finding.relativePath}:${finding.line}  ${finding.rule}: ${finding.message}`,
+		);
+	console.log(`${findings.length} finding(s)`);
+	return findings.length === 0 ? 0 : 1;
 }
 
 function runVerifyLinks(vaultRoot: string): number {

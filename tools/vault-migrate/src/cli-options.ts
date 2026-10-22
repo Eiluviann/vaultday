@@ -3,7 +3,10 @@ import path from 'node:path';
 import { ALL_RULES, type RuleName } from './migration.ts';
 import { err, ok, type Result } from './result.ts';
 
+export type CliCommand = 'migrate' | 'lint-log';
+
 export type CliOptions = {
+	command: CliCommand;
 	vaultRoot: string;
 	mode: 'dry-run' | 'apply';
 	rules: Set<RuleName>;
@@ -20,6 +23,7 @@ export type CliOptions = {
 
 export const USAGE = [
 	'vault-migrate --vault <path> (--dry-run | --apply) [options]',
+	'vault-migrate lint-log --vault <path>            validate Log/*.md against the day-log grammar',
 	'',
 	'  --rules frontmatter,tasks,rename,queries,moves   rules to run (default: all)',
 	'  --profile <name>        config/<name>.json and config/<name>.moves.json (default: vault folder name, lowercased)',
@@ -39,7 +43,12 @@ export function parseCliOptions(
 ): Result<CliOptions> {
 	const values = new Map<string, string>();
 	const flags = new Set<string>();
-	for (let index = 0; index < argv.length; index++) {
+	const command: CliCommand = argv[0] === 'lint-log' ? 'lint-log' : 'migrate';
+	for (
+		let index = command === 'lint-log' ? 1 : 0;
+		index < argv.length;
+		index++
+	) {
 		const argument = argv[index] ?? '';
 		if (!argument.startsWith('--'))
 			return err(`unexpected argument: ${argument}`);
@@ -58,11 +67,16 @@ export function parseCliOptions(
 	if (vault === undefined) return err('--vault is required');
 	const hasDryRun = flags.has('dry-run');
 	const hasApply = flags.has('apply');
-	if (!flags.has('verify-links') && hasDryRun === hasApply)
+	if (
+		command === 'migrate' &&
+		!flags.has('verify-links') &&
+		hasDryRun === hasApply
+	)
 		return err('pass exactly one of --dry-run or --apply');
 	const rulesResult = parseRules(values.get('rules'));
 	if (!rulesResult.ok) return rulesResult;
 	return ok({
+		command,
 		vaultRoot: path.resolve(vault),
 		mode: hasApply ? 'apply' : 'dry-run',
 		rules: rulesResult.value,

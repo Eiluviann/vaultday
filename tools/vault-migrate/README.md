@@ -9,8 +9,11 @@ pnpm start -- --vault ~/Vaults/Preview/Work --dry-run --birthtimes state/Work.bi
 pnpm start -- --vault ~/Vaults/Preview/Work --apply   --birthtimes state/Work.birthtimes.tsv
 pnpm start -- --vault ~/Vaults/Preview/Work --verify-links
 pnpm start -- --vault ~/Vaults/Preview/Work --tick task-12 --dry-run
+pnpm start -- lint-log --vault ~/Vaults/Preview/Work
 ```
 
 Rules (`--rules frontmatter,tasks,rename,queries,moves`, default all): frontmatter key renames and catalogue keys, task ids and field normalisation, `STRY… Short title` folder renames, dataview/tasks query rewrites, layout moves from `config/<profile>.moves.json`. Wikilinks and quoted paths follow renames and moves. Units whose only changes are mechanical get their provenance fingerprint refreshed through the hook core at `~/.claude/hooks/lib/obsidian-ai-provenance-core.mjs`; everything after the hash on a marker line is kept.
+
+`lint-log` validates every `Log/*.md` against the day-log grammar (dated file name and frontmatter, `## Log` list items with `HH:MM`, exactly one `kind`, at most one existing `story` or `project`, existing `task`, single-word `agent`, no nesting, no `|`) and exits 1 on findings.
 
 `state/` (gitignored) holds birthtime manifests, before/after `check` outputs, dry-run diffs and apply manifests. Task-id counters live in `~/.local/state/vaultday/ids/`.
