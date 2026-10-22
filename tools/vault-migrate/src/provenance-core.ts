@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
-import path from 'node:path';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { err, ok, type Result } from './result.ts';
 
@@ -11,17 +10,18 @@ export type ProvenanceHasher = {
 	normalizeLines: (lines: string[], prefix?: string) => string;
 };
 
-export const DEFAULT_PROVENANCE_CORE_PATH = path.join(
-	homedir(),
-	'.claude',
-	'hooks',
-	'lib',
-	'obsidian-ai-provenance-core.mjs',
-);
+/**
+ * The provenance core vendored in the `@vaultday/provenance-core` workspace
+ * package, resolved through its `exports`; its parity check keeps it identical
+ * to the live hook at `~/.claude/hooks/lib`, so fingerprints match.
+ */
+export const DEFAULT_PROVENANCE_CORE_PATH = createRequire(
+	import.meta.url,
+).resolve('@vaultday/provenance-core');
 
 /**
- * Loads `hashText` and `normalizeLines` from the live hook core so fingerprints
- * the migration writes are exactly the ones `check` recomputes.
+ * Loads `hashText` and `normalizeLines` from the provenance core so fingerprints
+ * the migration writes are exactly the ones the hook's `check` recomputes.
  */
 export async function loadProvenanceCore(
 	modulePath: string = DEFAULT_PROVENANCE_CORE_PATH,

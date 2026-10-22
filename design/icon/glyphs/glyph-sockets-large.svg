@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 1024 1024">
+	<!-- Single-colour glyph with the socket bolts punched through the rim. Use it at 32 pt and up (widgets, About window); below that the holes close up, so use menubar-template.svg. -->
+	<defs>
+		<mask id="sockets" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+			<rect width="1024" height="1024" fill="#FFF"/>
+			<g fill="#000">
+				<circle cx="512" cy="112" r="40"/>
+				<circle cx="794.8" cy="229.2" r="40"/>
+				<circle cx="912" cy="512" r="40"/>
+				<circle cx="794.8" cy="794.8" r="40"/>
+				<circle cx="512" cy="912" r="40"/>
+				<circle cx="229.2" cy="794.8" r="40"/>
+				<circle cx="112" cy="512" r="40"/>
+				<circle cx="229.2" cy="229.2" r="40"/>
+			</g>
+		</mask>
+		<clipPath id="opening"><circle cx="512" cy="512" r="320"/></clipPath>
+		<clipPath id="above-horizon"><rect x="0" y="0" width="1024" height="535"/></clipPath>
+	</defs>
+	<circle cx="512" cy="512" r="400" fill="none" stroke="#000" stroke-width="160" mask="url(#sockets)"/>
+	<g clip-path="url(#opening)">
+		<circle cx="512" cy="620" r="180" fill="#000" clip-path="url(#above-horizon)"/>
+		<rect x="0" y="620" width="1024" height="404" fill="#000"/>
+	</g>
+</svg>

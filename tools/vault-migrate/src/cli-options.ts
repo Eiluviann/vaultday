@@ -31,7 +31,7 @@ export const USAGE = [
 	'  --birthtimes <tsv>      stat -f "%B%t%N" manifest of the live vault, source of `created`',
 	'  --state-dir <dir>       where apply manifests go (default: <package>/state)',
 	'  --id-state-dir <dir>    where task-id counters live (default: ~/.local/state/vaultday/ids)',
-	'  --core <path>           provenance core module (default: ~/.claude/hooks/lib/obsidian-ai-provenance-core.mjs)',
+	'  --core <path>           provenance core module (default: the copy vendored in tools/provenance-core)',
 	'  --verify-links          list unresolved wikilinks and exit',
 	'  --tick <id>             toggle the task line carrying [id:: <id>] (with --dry-run or --apply)',
 	'  --allow-live            permit --apply outside ~/Vaults/Preview',

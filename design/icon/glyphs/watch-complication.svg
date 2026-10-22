@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="62 62 900 900">
+	<!-- Single-colour complication glyph. watchOS tints it, so it is drawn in white. -->
+	<defs>
+		<clipPath id="opening"><circle cx="512" cy="512" r="340"/></clipPath>
+		<clipPath id="above-horizon"><rect x="0" y="0" width="1024" height="540"/></clipPath>
+	</defs>
+	<circle cx="512" cy="512" r="395" fill="none" stroke="#FFF" stroke-width="110"/>
+	<g clip-path="url(#opening)">
+		<circle cx="512" cy="620" r="190" fill="#FFF" clip-path="url(#above-horizon)"/>
+		<rect x="0" y="620" width="1024" height="404" fill="#FFF"/>
+	</g>
+</svg>

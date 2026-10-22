@@ -1,7 +1,24 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
-	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-	"files": { "ignoreUnknown": true },
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": [
+			"**",
+			"!!design",
+			"!!tools/figma",
+			"!!tools/provenance-core/vendor",
+			"!!**/fixtures",
+			"!!**/state",
+			"!!tools/vault-migrate/config",
+			"!pnpm-lock.yaml",
+			"!**/*.md"
+		]
+	},
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab"
@@ -29,11 +46,15 @@
 				"noEnum": "error",
 				"useNamingConvention": {
 					"level": "error",
-					"options": { "strictCase": false }
+					"options": {
+						"strictCase": false
+					}
 				},
 				"useFilenamingConvention": {
 					"level": "error",
-					"options": { "filenameCases": ["kebab-case"] }
+					"options": {
+						"filenameCases": ["kebab-case"]
+					}
 				},
 				"noRestrictedImports": {
 					"level": "error",
@@ -47,14 +68,18 @@
 			"complexity": {
 				"noExcessiveCognitiveComplexity": {
 					"level": "warn",
-					"options": { "maxAllowedComplexity": 15 }
+					"options": {
+						"maxAllowedComplexity": 15
+					}
 				}
 			}
 		}
 	},
 	"assist": {
 		"actions": {
-			"source": { "organizeImports": "on" }
+			"source": {
+				"organizeImports": "on"
+			}
 		}
 	}
 }

@@ -1,0 +1,13 @@
+[package]
+name = "vaultday-vault-base"
+description = "Markdown vault parser, writer and workspace resolution for Vaultday"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "vault_base"
+
+[lints]
+workspace = true

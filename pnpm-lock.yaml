@@ -7,14 +7,32 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.6.2
+        version: 2.6.2
+
+  tools/provenance-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  tools/vault-migrate:
     dependencies:
+      '@vaultday/provenance-core':
+        specifier: workspace:*
+        version: link:../provenance-core
       zod:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
-      '@biomejs/biome':
-        specifier: ^2.5.15
-        version: 2.6.2
       '@types/node':
         specifier: ^22.20.5
         version: 22.20.5

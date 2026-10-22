@@ -1,2 +1,7 @@
 node_modules
 dist
+target/
+*.xcframework
+.DS_Store
+# Teams intake agent: stays out of the repo until roadmap Phase 4 (signals).
+/agent/
