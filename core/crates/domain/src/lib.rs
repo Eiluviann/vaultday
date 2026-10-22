@@ -12,6 +12,14 @@
 //! [`estimate::SpentTime`] (real private time from sessions),
 //! [`estimate::LoggedTime`] (time allocated to a story per day) and
 //! [`estimate::Estimate`] (the budget). They cannot be added to each other.
+//!
+//! [`scheduler`] lays unlocked time boxes into the free slots of a working day,
+//! [`quick_add`] turns one typed line into a [`quick_add::ParsedEntry`] for the
+//! confirmation popover, and [`registry`] is the feature registry with nothing
+//! plugged in: the base version has no feature set, so it only defines the
+//! manifest, the slots and the enablement rules later feature sets use.
+//! [`ticket`] is the generic ticket provider every workspace gets from its
+//! settings.
 
 // The workspace lints forbid `unwrap`/`expect` in shipped code; tests may use them.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
@@ -59,7 +67,12 @@ pub mod day_plan;
 pub mod error;
 pub mod estimate;
 pub mod ports;
+pub mod quick_add;
+pub mod registry;
+pub mod scheduler;
 pub mod session;
 pub mod task;
+pub mod ticket;
+pub mod workspace;
 
 pub use error::{DomainError, Result};

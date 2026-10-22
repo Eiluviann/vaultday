@@ -5,9 +5,10 @@
 //! instead and are documented on the function that panics.
 
 use jiff::Timestamp;
-use jiff::civil::Date;
+use jiff::civil::{Date, DateTime};
 use thiserror::Error;
 
+use crate::registry::FeatureId;
 use crate::session::SessionId;
 use crate::task::{TaskId, TimeBoxId};
 
@@ -136,6 +137,55 @@ pub enum DomainError {
     NoTimeBox {
         /// The task without a time box.
         id: TaskId,
+    },
+    /// A span of local time ends before it starts, or a working day has no length.
+    #[error("the span from {start} to {end} runs backwards or is empty")]
+    ReversedSpan {
+        /// The start.
+        start: DateTime,
+        /// The end, which is not after the start.
+        end: DateTime,
+    },
+    /// A quick-add line holds no text once its tokens are taken out.
+    #[error("nothing to add: the line holds no text")]
+    EmptyEntry,
+    /// A workspace's `ticket_pattern` is not a valid regular expression.
+    #[error("the ticket pattern `{pattern}` is not a valid regular expression: {reason}")]
+    InvalidTicketPattern {
+        /// The pattern as configured.
+        pattern: String,
+        /// What the regex engine refused.
+        reason: String,
+    },
+    /// A `ticket_url` template names a `{field}` the story's frontmatter lacks.
+    #[error("the ticket URL needs the field `{field}`, which the story does not have")]
+    MissingTicketField {
+        /// The field named between braces.
+        field: String,
+    },
+    /// A feature with this id is already registered.
+    #[error("feature {id} is already registered")]
+    DuplicateFeature {
+        /// The id registered twice.
+        id: FeatureId,
+    },
+    /// A contribution enhances a feature its manifest does not list under `enhances`.
+    #[error("feature {feature} contributes to {enhances} without declaring it in `enhances`")]
+    UndeclaredEnhancement {
+        /// The contributing feature.
+        feature: FeatureId,
+        /// The feature the contribution claimed to enhance.
+        enhances: FeatureId,
+    },
+    /// Two features claim the same frontmatter key.
+    #[error("feature {feature} claims the frontmatter key `{key}`, which {holder} already owns")]
+    OwnedKeyClaimed {
+        /// The feature being registered.
+        feature: FeatureId,
+        /// The key both want.
+        key: String,
+        /// The feature that owns it.
+        holder: FeatureId,
     },
 }
 
