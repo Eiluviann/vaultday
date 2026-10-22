@@ -100,13 +100,13 @@ describe('story frontmatter rules', () => {
 			'priority:',
 			'due:',
 			'estimate:',
-			'note_system: 0.1',
+			'note_system: 1.0',
 		]);
 	});
 });
 
 describe('note_system version', () => {
-	it('every touched note ends with note_system: 0.1 (renamed or added), never note-system-ver, and the summary counts them', () => {
+	it('content notes end with note_system: 0.1 and templates with 1.0, never note-system-ver, and the summary counts them', () => {
 		for (const [vault, profile] of [
 			[workspace.work, 'mini-work'],
 			[workspace.personal, 'mini-personal'],
@@ -114,7 +114,9 @@ describe('note_system version', () => {
 			const { plan } = planFixture(vault, profile, workspace, hasher);
 			for (const change of plan.changes) {
 				expect(frontmatterOf(change.after), change.fromPath).toContain(
-					'note_system: 0.1',
+					change.noteClass === 'template'
+						? 'note_system: 1.0'
+						: 'note_system: 0.1',
 				);
 				expect(change.after, change.fromPath).not.toContain('note-system-ver');
 				expect(change.after, change.fromPath).not.toMatch(

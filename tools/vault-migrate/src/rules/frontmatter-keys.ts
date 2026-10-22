@@ -10,6 +10,8 @@ export const FRONTMATTER_KEY_RENAMES: ReadonlyArray<readonly [string, string]> =
 export const NOTE_SYSTEM_KEY = 'note_system';
 /** Migrated notes stay on the old system version: their facts weigh less than new notes until the user bumps them by hand. */
 export const LEGACY_NOTE_SYSTEM_VERSION = '0.1';
+/** Templates seed new notes, so they carry the current version. */
+export const TEMPLATE_NOTE_SYSTEM_VERSION = '1.0';
 export const STORY_EMPTY_KEYS = ['priority', 'due', 'estimate'] as const;
 export const DEFAULT_SOURCE_KIND = 'rm_story';
 

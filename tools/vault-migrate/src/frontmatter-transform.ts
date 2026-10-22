@@ -11,6 +11,7 @@ import {
 	NOTE_SYSTEM_KEY,
 	parseTicketIdentity,
 	STORY_EMPTY_KEYS,
+	TEMPLATE_NOTE_SYSTEM_VERSION,
 } from './rules/frontmatter-keys.ts';
 import { normaliseStatus } from './rules/status-vocabulary.ts';
 
@@ -55,8 +56,10 @@ export function transformFrontmatter(
 			);
 		else frontmatter.rename(oldKey, newKey);
 	}
-	// The renamed key keeps its old value; notes without any version key are legacy too. Idempotence signal: note_system present, note-system-ver gone.
-	if (!frontmatter.has(NOTE_SYSTEM_KEY))
+	// Content notes keep their old version (or get 0.1 when they had none): their facts weigh less until the user bumps them by hand. Templates seed new notes and carry 1.0.
+	if (context.noteClass === 'template')
+		frontmatter.setScalar(NOTE_SYSTEM_KEY, TEMPLATE_NOTE_SYSTEM_VERSION);
+	else if (!frontmatter.has(NOTE_SYSTEM_KEY))
 		frontmatter.setScalar(NOTE_SYSTEM_KEY, LEGACY_NOTE_SYSTEM_VERSION);
 	normaliseStatusValue(frontmatter);
 
