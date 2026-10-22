@@ -123,9 +123,12 @@ describe('note_system version', () => {
 					/^(legacy|migrated):/m,
 				);
 			}
-			expect(countVersionedNotes(plan)).toBe(plan.changes.length);
+			const contentNotes = plan.changes.filter(
+				(change) => change.noteClass !== 'template',
+			).length;
+			expect(countVersionedNotes(plan)).toBe(contentNotes);
 			expect(renderSummary(plan)).toContain(
-				`notes set to note_system 0.1: ${plan.changes.length}`,
+				`notes set to note_system 0.1: ${contentNotes}`,
 			);
 		}
 	});

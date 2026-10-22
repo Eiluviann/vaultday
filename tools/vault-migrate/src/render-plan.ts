@@ -110,15 +110,17 @@ export function renderSummary(plan: MigrationPlan): string {
 	return lines.join('\n');
 }
 
-/** Notes that gain the lowercase `note_system` key in this plan (renamed from `note-system-ver` or added fresh at 0.1). */
+/** Content notes that end up at `note_system: 0.1` in this plan (renamed from `note-system-ver` or added fresh). */
 export function countVersionedNotes(plan: MigrationPlan): number {
 	return plan.changes.filter(
-		(change) => !hasVersionKey(change.before) && hasVersionKey(change.after),
+		(change) =>
+			versionOf(change.before) === undefined &&
+			versionOf(change.after) === LEGACY_NOTE_SYSTEM_VERSION,
 	).length;
 }
 
-function hasVersionKey(text: string): boolean {
-	return splitFrontmatterBlock(text.split('\n')).frontmatter.has(
+function versionOf(text: string): string | undefined {
+	return splitFrontmatterBlock(text.split('\n')).frontmatter.scalar(
 		NOTE_SYSTEM_KEY,
 	);
 }
