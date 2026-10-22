@@ -1,0 +1,19 @@
+[package]
+name = "vaultday-domain"
+description = "Tasks, day plans, timer sessions and estimate maths for Vaultday"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "domain"
+
+[dependencies]
+# No default features: `tz-system` and the bundled zone database would read the
+# host's time zone from disk, and this crate does no IO. Callers supply the `Clock`.
+jiff = { version = "0.2", default-features = false, features = ["std"] }
+thiserror = "2"
+
+[lints]
+workspace = true
