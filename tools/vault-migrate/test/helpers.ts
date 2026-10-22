@@ -21,6 +21,7 @@ export const PACKAGE_ROOT = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	'..',
 );
+export const MIGRATION_DATE = '2026-10-22';
 export const FIXTURES_ROOT = path.join(PACKAGE_ROOT, 'fixtures');
 
 export type FixtureWorkspace = {
@@ -91,6 +92,7 @@ export function planFixture(
 		birthtimes,
 		allocator,
 		hasher,
+		migrationDate: MIGRATION_DATE,
 	});
 	if (!result.ok) throw new Error(result.error);
 	return { plan: result.value, allocator };

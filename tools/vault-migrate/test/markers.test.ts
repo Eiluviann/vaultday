@@ -83,15 +83,15 @@ describe('provenance markers', () => {
 				]),
 			),
 		);
-		expect(kinds[`${HUB}:17`]).toMatchObject({
+		expect(kinds[`${HUB}:19`]).toMatchObject({
 			result: 'refreshed',
 			edits: ['task'],
 		});
-		expect(kinds[`${CURRENT_WIDGET}:9`]).toMatchObject({
+		expect(kinds[`${CURRENT_WIDGET}:11`]).toMatchObject({
 			result: 'refreshed',
 			edits: ['link'],
 		});
-		expect(kinds[`${WIDGET_STORY}:29`]).toMatchObject({
+		expect(kinds[`${WIDGET_STORY}:31`]).toMatchObject({
 			result: 'refreshed',
 			edits: ['task'],
 		});

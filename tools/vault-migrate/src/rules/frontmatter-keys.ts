@@ -9,6 +9,9 @@ export const FRONTMATTER_KEY_RENAMES: ReadonlyArray<readonly [string, string]> =
 
 export const NOTE_SYSTEM_KEY = 'note_system';
 export const NOTE_SYSTEM_VERSION = '1.0';
+/** Every note the migration touches is marked as legacy content with a lower fact weight than new notes. */
+export const LEGACY_KEY = 'legacy';
+export const MIGRATED_KEY = 'migrated';
 export const STORY_EMPTY_KEYS = ['priority', 'due', 'estimate'] as const;
 export const DEFAULT_SOURCE_KIND = 'rm_story';
 

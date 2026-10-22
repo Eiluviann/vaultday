@@ -2,6 +2,8 @@ import { unifiedDiff } from './diff.ts';
 import { splitFrontmatterBlock } from './frontmatter.ts';
 import type { MigrationPlan } from './migration.ts';
 import {
+	LEGACY_KEY,
+	MIGRATED_KEY,
 	NOTE_SYSTEM_KEY,
 	NOTE_SYSTEM_VERSION,
 } from './rules/frontmatter-keys.ts';
@@ -52,6 +54,9 @@ export function renderSummary(plan: MigrationPlan): string {
 	);
 	lines.push(
 		`notes bumped to ${NOTE_SYSTEM_KEY}: ${NOTE_SYSTEM_VERSION}: ${countBumpedNotes(plan)}`,
+	);
+	lines.push(
+		`notes marked ${LEGACY_KEY}: true / ${MIGRATED_KEY}: ${countLegacyMarkedNotes(plan)}`,
 	);
 	if (plan.allocatedIds.length > 0)
 		lines.push(
@@ -123,5 +128,20 @@ function hasCurrentVersion(text: string): boolean {
 		splitFrontmatterBlock(text.split('\n')).frontmatter.scalar(
 			NOTE_SYSTEM_KEY,
 		) === NOTE_SYSTEM_VERSION
+	);
+}
+
+/** Notes that gain `legacy: true` and a `migrated` date in this plan. */
+export function countLegacyMarkedNotes(plan: MigrationPlan): number {
+	return plan.changes.filter(
+		(change) => !isMarkedLegacy(change.before) && isMarkedLegacy(change.after),
+	).length;
+}
+
+function isMarkedLegacy(text: string): boolean {
+	const { frontmatter } = splitFrontmatterBlock(text.split('\n'));
+	return (
+		frontmatter.scalar(LEGACY_KEY) === 'true' &&
+		(frontmatter.scalar(MIGRATED_KEY) ?? '').length > 0
 	);
 }
