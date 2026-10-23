@@ -13,7 +13,7 @@ struct WelcomeStep: View {
 
 	var body: some View {
 		StepPane(title: "Everything in one app", lede: "Notes, tasks, reminders, calendar, mail and more, in one place for work and for life. One day plan holds all of it") {
-			Image(nsImage: NSApplication.shared.applicationIconImage)
+			Image("InAppPorthole")
 				.resizable()
 				.frame(width: 64, height: 64)
 				.accessibilityLabel("Vaultday app icon")

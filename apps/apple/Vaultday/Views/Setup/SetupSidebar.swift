@@ -49,7 +49,7 @@ struct SetupSidebar: View {
 
 	private var brandRow: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
-			Image(nsImage: NSApplication.shared.applicationIconImage)
+			Image("InAppPorthole")
 				.resizable()
 				.frame(width: 34, height: 34)
 				.accessibilityHidden(true)
