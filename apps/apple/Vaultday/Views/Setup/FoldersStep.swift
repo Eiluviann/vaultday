@@ -91,16 +91,26 @@ struct FoldersStep: View {
 					targetedWorkspace = nil
 				}
 			}
-			.setupDropZone(isTargeted: targetedWorkspace == entry.id)
+			.dropIndicator(isActive: targetedWorkspace == entry.id)
 	}
 
 	private func workspaceCard(_ entry: WorkspaceEntry) -> some View {
 		VStack(spacing: 0) {
+			// The badge and every folder icon share one 18 pt icon column, 16 pt in from the card's edge.
 			HStack(spacing: Tokens.Spacing.space8) {
-				if let index = workspaces.activeEntries.firstIndex(of: entry) {
-					WorkspaceBadge(number: index + 1, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
+				// Only active workspaces have a number: it is their ⌘ key in the sidebar.
+				Group {
+					if let index = workspaces.activeEntries.firstIndex(of: entry) {
+						WorkspaceBadge(number: index + 1, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
+					}
 				}
-				Text(entry.name).font(Tokens.Typography.headline.font).foregroundStyle(Tokens.Colors.ink)
+				.frame(width: IconBox.menu.size, height: IconBox.menu.size)
+				.padding(.leading, Tokens.Spacing.space4)
+				Text(entry.name)
+					.textStyle(Tokens.Typography.headline)
+					.foregroundStyle(Tokens.Colors.ink)
+					.lineLimit(1)
+					.layoutPriority(-1)
 				if entry.isActive {
 					SetupTag(text: "Active", tone: .on, icon: "checkmark")
 				} else {
@@ -156,26 +166,30 @@ struct FoldersStep: View {
 
 	private func folderRow(_ folder: FolderEntry, in entry: WorkspaceEntry) -> some View {
 		let path = folder.path.abbreviatedPath as NSString
-		return HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-			Image(systemName: "folder").frame(width: 18).foregroundStyle(Tokens.Colors.inkMuted)
-			VStack(alignment: .leading, spacing: 2) {
-				(Text(path.deletingLastPathComponent + "/").foregroundStyle(Tokens.Colors.inkMuted) + Text(path.lastPathComponent).foregroundStyle(Tokens.Colors.ink).bold())
-					.font(Tokens.Typography.mono.font)
-					.lineLimit(1)
-					.truncationMode(.middle)
+		return HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
+			Image(systemName: "folder")
+				.textStyle(Tokens.Typography.mono)
+				.frame(width: IconBox.menu.size)
+				.foregroundStyle(Tokens.Colors.inkMuted)
+				.padding(.leading, Tokens.Spacing.space4)
+			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 				HStack(spacing: Tokens.Spacing.space8) {
-					Text(folder.kindLabel).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					(Text(path.deletingLastPathComponent + "/").foregroundStyle(Tokens.Colors.inkMuted) + Text(path.lastPathComponent).foregroundStyle(Tokens.Colors.ink).bold())
+						.textStyle(Tokens.Typography.mono)
+						.lineLimit(1)
+						.truncationMode(.middle)
+					// The folder new notes, captures and the day log go to.
 					if folder.isWorkspaceRoot {
-						Label("New notes go here", systemImage: "square.and.pencil")
+						SetupTag(text: "Primary")
 					}
 				}
-				.font(Tokens.Typography.caption.font)
-				.foregroundStyle(Tokens.Colors.inkMuted)
-				.labelStyle(.titleAndIcon)
+				Text(folder.kindLabel)
+					.textStyle(Tokens.Typography.caption)
+					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer(minLength: 0)
 			if !folder.isWorkspaceRoot {
-				Menu {
+				RowOptionsMenu(label: "Folder options for \(folder.name)") {
 					moveMenu(.linked(folderId: folder.id), from: entry)
 					if folder.role == .unlinked {
 						Button("Link again") { workspaces.relinkFolder(folder.id, in: entry.id) }
@@ -183,13 +197,7 @@ struct FoldersStep: View {
 					} else {
 						Button("Unlink folder", role: .destructive) { workspaces.unlinkFolder(folder.id, from: entry.id) }
 					}
-				} label: {
-					Image(systemName: "ellipsis")
 				}
-				.menuStyle(.borderlessButton)
-				.menuIndicator(.hidden)
-				.frame(width: Tokens.Size.sizeControlSm)
-				.accessibilityLabel("Folder options for \(folder.name)")
 			}
 		}
 		.padding(.vertical, Tokens.Spacing.space8)
@@ -197,29 +205,27 @@ struct FoldersStep: View {
 
 	/// A plain folder inside the workspace's folder: made or moved in here, or there from the start.
 	private func subfolderRow(_ name: String, in entry: WorkspaceEntry) -> some View {
-		HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-			Image(systemName: "folder").frame(width: 18).foregroundStyle(Tokens.Colors.inkMuted)
-			VStack(alignment: .leading, spacing: 2) {
+		HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
+			Image(systemName: "folder")
+				.textStyle(Tokens.Typography.mono)
+				.frame(width: IconBox.menu.size)
+				.foregroundStyle(Tokens.Colors.inkMuted)
+				.padding(.leading, Tokens.Spacing.space4)
+			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 				Text(name)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.ink)
 					.lineLimit(1)
 					.truncationMode(.middle)
 				Text("Folder in \(entry.name)")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer(minLength: 0)
 			if workspaces.entries.count > 1 {
-				Menu {
+				RowOptionsMenu(label: "Folder options for \(name)") {
 					moveMenu(.inside(name: name), from: entry)
-				} label: {
-					Image(systemName: "ellipsis")
 				}
-				.menuStyle(.borderlessButton)
-				.menuIndicator(.hidden)
-				.frame(width: Tokens.Size.sizeControlSm)
-				.accessibilityLabel("Folder options for \(name)")
 			}
 		}
 		.padding(.vertical, Tokens.Spacing.space8)

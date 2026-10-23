@@ -71,11 +71,11 @@ struct RhythmSections: View {
 					ForEach(WeekdayChoice.allCases) { day in
 						Toggle(day.shortTitle, isOn: Binding(get: { rhythm.workingHours.days.contains(day) }, set: { rhythm.setWorkDay(day, isOn: $0) }))
 							.toggleStyle(.checkbox)
-							.font(Tokens.Typography.callout.font)
+							.textStyle(Tokens.Typography.callout)
 					}
 				}
 				if let issue = rhythm.issues["workingHours"] {
-					Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+					Text(issue).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 				}
 			}
 		}

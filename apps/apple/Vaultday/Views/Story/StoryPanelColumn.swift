@@ -18,7 +18,7 @@ struct StoryPanelColumn: View {
 			HStack(spacing: 0) {
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 					Text(story.panelTab.rawValue)
-						.font(Tokens.Typography.heading.font)
+						.textStyle(Tokens.Typography.heading)
 						.foregroundStyle(Tokens.Colors.ink)
 					tabBody
 					Spacer(minLength: 0)
@@ -57,7 +57,7 @@ private struct StoryFactsBlock: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			Text("Story")
-				.font(Tokens.Typography.heading.font)
+				.textStyle(Tokens.Typography.heading)
 				.foregroundStyle(Tokens.Colors.ink)
 			Grid(alignment: .leading, horizontalSpacing: Tokens.Spacing.space12, verticalSpacing: Tokens.Spacing.space6) {
 				ForEach(content.facts) { fact in
@@ -67,7 +67,7 @@ private struct StoryFactsBlock: View {
 						HStack(spacing: Tokens.Spacing.space4) {
 							if fact.isModelText {
 								Image(systemName: "sparkle")
-									.font(.system(size: 10))
+									.iconGlyph(.tag)
 									.foregroundStyle(Tokens.Colors.ai)
 									.accessibilityLabel("Model text in the note")
 							}
@@ -79,7 +79,7 @@ private struct StoryFactsBlock: View {
 					}
 				}
 			}
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.accessibilityElement(children: .contain)
@@ -102,30 +102,29 @@ private struct StoryHoursTab: View {
 					row("Estimate", hours.estimateText)
 					row("Remaining", hours.remainingText, isCaution: hours.isOver)
 					if let share = hours.loggedShare {
-						ProgressView(value: share)
-							.tint(hours.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
-							.progressDraw(value: share)
+						ProgressTrack(value: share, tint: hours.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
 							.accessibilityLabel("Logged against the estimate")
 					}
-					Rectangle().fill(Tokens.Colors.lineFaint).frame(height: 1)
-					HStack {
-						PrivateTracked(text: "Tracked")
-							.foregroundStyle(Tokens.Colors.inkMuted)
-						Spacer()
-						if screenShare?.hides(.storyHours) != true {
+					// Tracked time is private: while sharing the row is simply not there.
+					if screenShare?.hides(.storyHours) != true {
+						Rectangle().fill(Tokens.Colors.lineFaint).frame(height: 1)
+						HStack {
+							PrivateTracked(text: "Tracked")
+								.foregroundStyle(Tokens.Colors.inkMuted)
+							Spacer()
 							Text(hours.trackedText)
 								.fontWeight(.semibold)
 								.foregroundStyle(Tokens.Colors.ink)
 						}
 					}
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.padding(Tokens.Spacing.space12)
 				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
 				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line))
 			} else {
 				Text("Hours need the workspace's app state")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			TogglWeekCard(week: togglWeek)

@@ -66,7 +66,7 @@ struct ConfigureSheet: View {
 	private var header: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			Text("Configure \(model.name)")
-				.font(Tokens.Typography.title.font)
+				.textStyle(Tokens.Typography.title)
 				.foregroundStyle(Tokens.Colors.ink)
 				.accessibilityAddTraits(.isHeader)
 			SetupTag(text: model.sphere == .work ? "Work sphere" : "Life sphere", tone: model.sphere == .work ? .work : .life, icon: model.sphere == .work ? "briefcase" : "leaf")
@@ -125,7 +125,7 @@ struct ConfigureSheet: View {
 			}
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text("Security, integrations and AI for this workspace are kept in Vaultday, not in the file, so an edit to settings.json can never loosen them")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.fixedSize(horizontal: false, vertical: true)
 				Spacer(minLength: Tokens.Spacing.space16)
@@ -182,7 +182,7 @@ struct ConfigureSheet: View {
 						.accessibilityAddTraits(isChosen ? .isSelected : [])
 					}
 					if !model.accent.isEmpty, WorkspaceColor(rawValue: model.accent) == nil {
-						Text(model.accent).font(Tokens.Typography.mono.font).foregroundStyle(Tokens.Colors.inkMuted)
+						Text(model.accent).textStyle(Tokens.Typography.mono).foregroundStyle(Tokens.Colors.inkMuted)
 					}
 				}
 			}
@@ -195,17 +195,17 @@ struct ConfigureSheet: View {
 	private var folders: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 			Text("The workspace's folder")
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 			HStack(spacing: Tokens.Spacing.space8) {
 				Image(systemName: "folder").foregroundStyle(Tokens.Colors.inkMuted)
-				Text(model.root.abbreviatedPath).font(Tokens.Typography.mono.font).foregroundStyle(Tokens.Colors.ink)
+				Text(model.root.abbreviatedPath).textStyle(Tokens.Typography.mono).foregroundStyle(Tokens.Colors.ink)
 			}
 			.padding(Tokens.Spacing.space12)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.background(Tokens.Colors.surfaceSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
 			Text("Further folders are added on the Folders step")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 	}
@@ -213,14 +213,14 @@ struct ConfigureSheet: View {
 	private var tasks: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space16) {
 			field("Ticket ids", key: "ticket_pattern", note: "A regular expression; it finds ids such as WEB-142 in notes and mail", isMono: true) {
-				TextField("[A-Z]+-\\d+", text: $model.ticketPattern).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+				TextField("[A-Z]+-\\d+", text: $model.ticketPattern).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 			field("Ticket link", key: "ticket_url", note: "Where {ticket} is the id", isMono: true) {
-				TextField("https://tracker.example.com/browse/{ticket}", text: $model.ticketLink).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+				TextField("https://tracker.example.com/browse/{ticket}", text: $model.ticketLink).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 			field("Hosts", key: "hosts", note: "One per line; links to these hosts belong to this workspace", isMono: true) {
 				TextEditor(text: $model.hosts)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.frame(height: 72)
 					.scrollContentBackground(.hidden)
 					.padding(4)
@@ -228,7 +228,7 @@ struct ConfigureSheet: View {
 					.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm).strokeBorder(Tokens.Colors.lineControl, lineWidth: 1))
 			}
 			field("Story template", key: "story_template", note: "A note inside the workspace that new stories start from", isMono: true) {
-				TextField("_templates/story.md", text: $model.storyTemplate).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+				TextField("_templates/story.md", text: $model.storyTemplate).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 		}
 	}
@@ -239,7 +239,7 @@ struct ConfigureSheet: View {
 				TextField("8", text: $model.hoursPerDay).textFieldStyle(.roundedBorder).frame(width: 80)
 			}
 			field("Log folder", key: "log_folder", note: "Holds the day logs, inside the workspace folder", isMono: true) {
-				TextField("Log", text: $model.logFolder).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+				TextField("Log", text: $model.logFolder).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 			if let closeOut {
 				CloseOutFields(closeOut: closeOut, leaveSources: leaveSources)
@@ -248,8 +248,8 @@ struct ConfigureSheet: View {
 				BillingFields(billing: billing)
 			} else {
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-					Text("Billing").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.inkMuted)
-					Text("Appears once the Toggl and billing feature set is on").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					Text("Billing").textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.inkMuted)
+					Text("Appears once the Toggl and billing feature set is on").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
 		}
@@ -260,18 +260,18 @@ struct ConfigureSheet: View {
 	private func field(_ label: String, key: String, note: String? = nil, isMono: Bool = false, @ViewBuilder control: () -> some View) -> some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			HStack(spacing: 6) {
-				Text(label).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+				Text(label).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 				Image(systemName: "doc.text").imageScale(.small).foregroundStyle(Tokens.Colors.inkMuted)
 					.accessibilityLabel("Saved to settings.json")
 			}
 			control()
 			if let issue = model.issues[key] {
 				Label(issue, systemImage: "exclamationmark.circle.fill")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 					.accessibilityLabel("\(label): \(issue)")
 			} else if let note {
-				Text(note).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text(note).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
 	}
@@ -304,7 +304,7 @@ private struct CloseOutFields: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 				HStack(spacing: 6) {
-					Text("Week close-out").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+					Text("Week close-out").textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 					Image(systemName: "doc.text").imageScale(.small).foregroundStyle(Tokens.Colors.inkMuted)
 						.accessibilityLabel("Saved to settings.json")
 				}
@@ -320,17 +320,17 @@ private struct CloseOutFields: View {
 						.frame(width: 90)
 						TextField("08:00", text: $closeOut.deadlineTime)
 							.textFieldStyle(.roundedBorder)
-							.font(Tokens.Typography.mono.font)
+							.textStyle(Tokens.Typography.mono)
 							.frame(width: 70)
 							.accessibilityLabel("Deadline time")
 					}
 				}
 				Text("The close-out opens Friday at 14:00 and alerts Monday at 07:30 when something is missing")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-				Text("Leave and holidays").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+				Text("Leave and holidays").textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 				Picker("Leave source", selection: $closeOut.leaveSource) {
 					Text("Life workspace").tag(String?.none)
 					ForEach(leaveSources, id: \.self) { name in
@@ -340,12 +340,12 @@ private struct CloseOutFields: View {
 				.labelsHidden()
 				.frame(width: 220)
 				Text("Read from Leave.md in that workspace, one date or range per line")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			if let error = closeOut.errorMessage {
 				Label(error, systemImage: "exclamationmark.circle.fill")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 		}
@@ -361,19 +361,17 @@ private struct BillingFields: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 				HStack(spacing: 6) {
-					Text("Billing").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+					Text("Billing").textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 					Image(systemName: "doc.text").imageScale(.small).foregroundStyle(Tokens.Colors.inkMuted)
 						.accessibilityLabel("Saved to settings.json")
 				}
-				Picker("Billing model", selection: $billing.model) {
-					ForEach(BillingModelChoice.allCases, id: \.self) { choice in
-						Text(choice.title).tag(choice)
-					}
-				}
-				.pickerStyle(.segmented)
-				.labelsHidden()
-				.frame(maxWidth: 420)
-				Text(billing.model.note).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				SegmentedChoice(
+					label: "Billing model",
+					options: BillingModelChoice.allCases.map { ($0, $0.title) },
+					selection: $billing.model,
+				)
+				.fixedSize()
+				Text(billing.model.note).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			switch billing.model {
 			case .hourly:
@@ -394,13 +392,13 @@ private struct BillingFields: View {
 					Text("Toggl hours a day").foregroundStyle(Tokens.Colors.inkSecondary)
 					TextField("8", text: $billing.flatHours).textFieldStyle(.roundedBorder).frame(width: 80)
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 			case .none:
 				EmptyView()
 			}
 			if let error = billing.errorMessage {
 				Label(error, systemImage: "exclamationmark.circle.fill")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 		}
@@ -411,10 +409,10 @@ private struct BillingFields: View {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text("Rate per hour").foregroundStyle(Tokens.Colors.inkSecondary)
 				TextField("None", text: $billing.rate).textFieldStyle(.roundedBorder).frame(width: 100)
-				TextField("EUR", text: $billing.currency).textFieldStyle(.roundedBorder).frame(width: 60).font(Tokens.Typography.mono.font)
+				TextField("EUR", text: $billing.currency).textFieldStyle(.roundedBorder).frame(width: 60).textStyle(Tokens.Typography.mono)
 			}
-			.font(Tokens.Typography.callout.font)
-			Text("Kept in Vaultday's signed store, never in settings.json or Toggl").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+			.textStyle(Tokens.Typography.callout)
+			Text("Kept in Vaultday's signed store, never in settings.json or Toggl").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 		}
 	}
 }

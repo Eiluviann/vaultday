@@ -25,7 +25,7 @@ struct BrowseColumn: View {
 			QueryLine(app: app, browse: browse)
 			if let message = browse.errorMessage {
 				Text(message)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 			TableHeader()
@@ -62,10 +62,10 @@ struct BrowseColumn: View {
 	private var header: some View {
 		HStack(alignment: .firstTextBaseline, spacing: 12) {
 			Text("Browse")
-				.font(Tokens.Typography.titleLarge.font)
+				.textStyle(Tokens.Typography.titleLarge)
 				.foregroundStyle(Tokens.Colors.ink)
 			Text(browse.summary)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Spacer()
 			Button {
@@ -73,7 +73,7 @@ struct BrowseColumn: View {
 			} label: {
 				Label("Today", systemImage: "chevron.left")
 					.labelStyle(TightLabelStyle())
-					.font(Tokens.Typography.callout.font.weight(.semibold))
+					.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 			}
 			.buttonStyle(.plain)
 			.foregroundStyle(Tokens.Colors.inkSecondary)
@@ -82,16 +82,12 @@ struct BrowseColumn: View {
 	}
 
 	private var emptyState: some View {
-		VStack(spacing: Tokens.Spacing.space4) {
-			Text(browse.appliedQuery.isEmpty ? "No open tasks" : "Nothing matches")
-				.font(Tokens.Typography.headline.font)
-				.foregroundStyle(Tokens.Colors.ink)
-			Text(browse.appliedQuery.isEmpty ? "Tasks under Next Steps and Pending Input of a story show here" : "Change the query or pick another preset")
-				.font(Tokens.Typography.callout.font)
-				.foregroundStyle(Tokens.Colors.inkMuted)
-		}
-		.frame(maxWidth: .infinity)
-		.padding(.top, 48)
+		EmptyState(
+			icon: browse.appliedQuery.isEmpty ? "tablecells" : "magnifyingglass",
+			text: browse.appliedQuery.isEmpty ? "No open tasks" : "Nothing matches",
+			detail: browse.appliedQuery.isEmpty ? "Tasks under Next Steps and Pending Input of a story show here" : "Change the query or pick another preset",
+		)
+		.padding(.top, Tokens.Spacing.space40)
 	}
 
 	private var footer: some View {
@@ -99,7 +95,7 @@ struct BrowseColumn: View {
 			ForEach(tips, id: \.keys) { tip in
 				HStack(spacing: Tokens.Spacing.space4) {
 					Text(tip.keys)
-						.font(Tokens.Typography.kbd.font)
+						.textStyle(Tokens.Typography.kbd)
 						.padding(.horizontal, 4)
 						.padding(.vertical, 2)
 						.background(Tokens.Colors.fillControl, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXs))
@@ -108,7 +104,7 @@ struct BrowseColumn: View {
 			}
 			Spacer()
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.lineLimit(1)
 	}
@@ -176,7 +172,7 @@ private struct PresetRow: View {
 						app.syncTodayItemCount()
 					} label: {
 						Text(chipLabel(preset, isActive: isActive))
-							.font(Tokens.Typography.callout.font.weight(.semibold))
+							.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 							.foregroundStyle(isActive ? Tokens.Colors.onPrimary : Tokens.Colors.inkSecondary)
 							.padding(.horizontal, 10)
 							.padding(.vertical, 4)
@@ -195,7 +191,7 @@ private struct PresetRow: View {
 				} label: {
 					Label("Save current query as preset", systemImage: "plus")
 						.labelStyle(TightLabelStyle())
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.padding(.horizontal, 8)
 						.padding(.vertical, 4)
@@ -244,11 +240,11 @@ private struct QueryLine: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text("/")
-					.font(.custom(Tokens.Typography.mono.family, size: 13))
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				TextField("status:open story:WEB-142 due:<=week section:pending estimate:none", text: Bindable(browse).queryText)
 					.textFieldStyle(.plain)
-					.font(.custom(Tokens.Typography.mono.family, size: 12))
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.ink)
 					.focused($isFocused)
 					.onSubmit {
@@ -273,7 +269,7 @@ private struct QueryLine: View {
 					.accessibilityLabel("Clear the query")
 				}
 				Text("\(browse.taskCount) match\(browse.taskCount == 1 ? "" : "es")")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			.padding(.horizontal, 10)
@@ -282,7 +278,7 @@ private struct QueryLine: View {
 			.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(browse.queryMessage == nil ? Tokens.Colors.line : Tokens.Colors.danger))
 			if let message = browse.queryMessage {
 				Text(message)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 		}
@@ -305,8 +301,7 @@ private struct TableHeader: View {
 			Text("Story").frame(width: BrowseColumns.story, alignment: .leading)
 			Text("Id").frame(width: BrowseColumns.id, alignment: .leading)
 		}
-		.font(Tokens.Typography.eyebrow.font)
-		.tracking(Tokens.Typography.eyebrow.tracking)
+		.textStyle(Tokens.Typography.eyebrow)
 		.textCase(.uppercase)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.padding(.horizontal, 10)
@@ -328,25 +323,25 @@ private struct GroupHeader: View {
 		let isFolded = browse.isFolded(group)
 		HStack(spacing: Tokens.Spacing.space8) {
 			Image(systemName: isFolded ? "chevron.right" : "chevron.down")
-				.font(.system(size: 10, weight: .semibold))
+				.iconGlyph(.tag, weight: .semibold)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.frame(width: 14)
 			if let number = group.storyNumber {
 				MonoChip(text: number)
 			}
 			Text(group.title)
-				.font(Tokens.Typography.headline.font)
+				.textStyle(Tokens.Typography.headline)
 				.foregroundStyle(Tokens.Colors.ink)
 				.lineLimit(1)
 			Text(isFolded ? "\(group.countLabel) · folded" : group.countLabel)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Spacer()
 		}
 		.padding(.horizontal, 10)
 		.padding(.top, 14)
 		.padding(.bottom, Tokens.Spacing.space6)
-		.background(isSelected ? accent.opacity(0.10) : .clear)
+		.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusMd)
 		.contentShape(Rectangle())
 		.onTapGesture {
 			app.focus.select(index, in: .today)
@@ -384,7 +379,7 @@ private struct TaskRow: View {
 					app.completeBrowseTask(row.id)
 				} label: {
 					Image(systemName: row.isDone ? "checkmark.square.fill" : "square")
-						.font(.system(size: 14))
+						.iconGlyph(.menu)
 						.foregroundStyle(row.isDone ? accent : Tokens.Colors.lineControl)
 				}
 				.buttonStyle(.plain)
@@ -415,7 +410,7 @@ private struct TaskRow: View {
 			Group {
 				if let number = row.storyNumber {
 					Text(number)
-						.font(.custom(Tokens.Typography.mono.family, size: 11))
+						.textStyle(Tokens.Typography.mono)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				} else {
 					dash
@@ -423,17 +418,14 @@ private struct TaskRow: View {
 			}
 			.frame(width: BrowseColumns.story, alignment: .leading)
 			Text(row.id)
-				.font(.custom(Tokens.Typography.mono.family, size: 11))
+				.textStyle(Tokens.Typography.mono)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.frame(width: BrowseColumns.id, alignment: .leading)
 		}
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 		.padding(.horizontal, 10)
 		.padding(.vertical, 5)
-		.background(isSelected ? accent.opacity(0.10) : .clear)
-		.overlay(alignment: .leading) {
-			if isSelected { Rectangle().fill(accent).frame(width: 2) }
-		}
+		.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusMd)
 		.contentShape(Rectangle())
 		.onTapGesture(count: 2) { app.openPreview(taskId: row.id) }
 		.onTapGesture { app.focus.select(index, in: .today) }
@@ -450,7 +442,7 @@ private struct TaskRow: View {
 	private func cell(_ text: String?, color: Color = Tokens.Colors.inkSecondary) -> some View {
 		if let text {
 			Text(text)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(color)
 				.monospacedDigit()
 		} else {

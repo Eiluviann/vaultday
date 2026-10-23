@@ -37,7 +37,7 @@ struct WorkspacesStep: View {
 						let inSphere = workspaces.entries(in: sphere)
 						if inSphere.isEmpty {
 							Text(sphere == .work ? "No work workspace yet" : "No life workspace yet")
-								.font(Tokens.Typography.callout.font)
+								.textStyle(Tokens.Typography.callout)
 								.foregroundStyle(Tokens.Colors.inkMuted)
 								.padding(.vertical, Tokens.Spacing.space8)
 						}
@@ -55,7 +55,7 @@ struct WorkspacesStep: View {
 							targetedSphere = nil
 						}
 					}
-					.setupDropZone(isTargeted: targetedSphere == sphere)
+					.dropIndicator(isActive: targetedSphere == sphere)
 				}
 			}
 		}
@@ -125,7 +125,12 @@ struct WorkspacesStep: View {
 	}
 
 	private func card(_ entry: WorkspaceEntry) -> some View {
-		SetupCard(
+		// Only active workspaces have a number: it is their ⌘ key in the sidebar.
+		let badge = workspaces.activeEntries.firstIndex(of: entry).map { index in
+			WorkspaceBadge(number: index + 1, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
+		}
+		return SetupCard(
+			badge: badge,
 			title: entry.name,
 			tags: [entry.isActive ? SetupTag(text: "Active", tone: .on, icon: "checkmark") : SetupTag(text: "Inactive")],
 		) {
@@ -136,7 +141,7 @@ struct WorkspacesStep: View {
 					SetupLabel(title: "Configure", icon: "gearshape")
 				}
 				.buttonStyle(SetupButtonStyle(isSmall: true))
-				Menu {
+				RowOptionsMenu(label: "Options for \(entry.name)") {
 					let otherSphere: WorkspaceSphere = entry.sphere == .work ? .life : .work
 					Button(otherSphere == .work ? "Move to Work" : "Move to Life") { move(entry, to: otherSphere) }
 					if entry.isActive {
@@ -146,26 +151,14 @@ struct WorkspacesStep: View {
 					}
 					Divider()
 					Button("Remove workspace…", role: .destructive) { removing = entry }
-				} label: {
-					Image(systemName: "ellipsis")
 				}
-				.menuStyle(.borderlessButton)
-				.menuIndicator(.hidden)
-				.frame(width: Tokens.Size.sizeControlSm)
-				.accessibilityLabel("Options for \(entry.name)")
 			}
 		} extra: {
-			HStack(spacing: Tokens.Spacing.space8) {
-				// Only active workspaces have a number: it is their ⌘ key in the sidebar.
-				if let index = workspaces.activeEntries.firstIndex(of: entry) {
-					WorkspaceBadge(number: index + 1, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
-				}
-				Text(entry.rootPath.abbreviatedPath)
-					.font(Tokens.Typography.mono.font)
-					.foregroundStyle(Tokens.Colors.inkSecondary)
-					.lineLimit(1)
-					.truncationMode(.middle)
-			}
+			Text(entry.rootPath.abbreviatedPath)
+				.textStyle(Tokens.Typography.mono)
+				.foregroundStyle(Tokens.Colors.inkSecondary)
+				.lineLimit(1)
+				.truncationMode(.middle)
 		}
 	}
 
@@ -244,19 +237,19 @@ struct AddFolderPopover: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
 			Text(title)
-				.font(Tokens.Typography.heading.font)
+				.textStyle(Tokens.Typography.heading)
 				.foregroundStyle(Tokens.Colors.ink)
 				.padding(.horizontal, Tokens.Spacing.space12)
-				.padding(.top, 6)
+				.padding(.top, Tokens.Spacing.space6)
 				.padding(.bottom, Tokens.Spacing.space4)
 			ForEach(options) { option in
 				row(option)
 			}
 			Text(footnote)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.padding(.horizontal, Tokens.Spacing.space12)
-				.padding(.vertical, 6)
+				.padding(.vertical, Tokens.Spacing.space6)
 		}
 		.padding(Tokens.Spacing.space8)
 		.frame(width: 360)
@@ -267,11 +260,11 @@ struct AddFolderPopover: View {
 			option.choose()
 		} label: {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-				Image(systemName: option.icon).frame(width: 18).foregroundStyle(Tokens.Colors.primary)
-				VStack(alignment: .leading, spacing: 2) {
-					Text(option.title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+				Image(systemName: option.icon).iconBox(.menu).foregroundStyle(Tokens.Colors.primary)
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
+					Text(option.title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 					Text(option.detail)
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.fixedSize(horizontal: false, vertical: true)
 				}

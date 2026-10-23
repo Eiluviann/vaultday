@@ -35,7 +35,7 @@ struct StoryScreen: View {
 		} else {
 			VStack(spacing: Tokens.Spacing.space12) {
 				Text(story.errorMessage ?? "The story could not be read")
-					.font(Tokens.Typography.body.font)
+					.textStyle(Tokens.Typography.body)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 				Button("Back to the planner") { app.leaveStory() }
 			}
@@ -58,7 +58,7 @@ private struct StoryHeader: View {
 					app.leaveStory()
 				} label: {
 					Label(app.screenBeforeStory == .browse ? "Browse" : "Planner", systemImage: "chevron.left")
-						.font(Tokens.Typography.callout.font.weight(.medium))
+						.textStyle(Tokens.Typography.callout).fontWeight(.medium)
 						.foregroundStyle(Tokens.Colors.inkSecondary)
 				}
 				.buttonStyle(.plain)
@@ -72,11 +72,11 @@ private struct StoryHeader: View {
 				}
 			}
 			Text(content.numberLine)
-				.font(Tokens.Typography.mono.font)
+				.textStyle(Tokens.Typography.mono)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.textSelection(.enabled)
 			Text(content.title ?? content.number)
-				.font(Tokens.Typography.titleLarge.font)
+				.textStyle(Tokens.Typography.titleLarge)
 				.tracking(Tokens.Typography.titleLarge.tracking)
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
@@ -98,7 +98,7 @@ struct StoryOpenButton: View {
 			HStack(spacing: 6) {
 				Text(title)
 				Image(systemName: symbol)
-					.font(.system(size: 10))
+					.iconGlyph(.tag)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			.padding(.horizontal, 10)
@@ -108,7 +108,7 @@ struct StoryOpenButton: View {
 			.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm).strokeBorder(Tokens.Colors.lineButton))
 		}
 		.buttonStyle(.plain)
-		.font(Tokens.Typography.body.font.weight(.medium))
+		.textStyle(Tokens.Typography.body).fontWeight(.medium)
 		.help(help)
 	}
 }
@@ -124,19 +124,19 @@ private struct StoryBodyColumn: View {
 		VStack(alignment: .leading, spacing: 0) {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text("Read-only · free text is edited in Obsidian")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				Spacer()
 				if let message = story.writeMessage {
 					Label(message, systemImage: "exclamationmark.triangle")
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.caution)
 				}
 				Button {
 					if let link = story.editLink(section: story.currentSection) { NSWorkspace.shared.open(link) }
 				} label: {
 					Label(story.currentSection.map { "Edit in Obsidian · \($0)" } ?? "Edit in Obsidian", systemImage: "square.and.pencil")
-						.font(Tokens.Typography.callout.font.weight(.medium))
+						.textStyle(Tokens.Typography.callout).fontWeight(.medium)
 				}
 				.buttonStyle(.link)
 				.help("Opens the note in Obsidian at the section under the pointer")

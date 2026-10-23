@@ -41,7 +41,7 @@ struct SidePanelColumn: View {
 		HStack(spacing: 0) {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 				Text(app.sidePanelTab.rawValue)
-					.font(Tokens.Typography.heading.font)
+					.textStyle(Tokens.Typography.heading)
 					.foregroundStyle(Tokens.Colors.ink)
 				tabBody
 				if app.sidePanelTab.isPlanned {
