@@ -34,6 +34,7 @@ struct SignalCardView: View {
 				app.inbox.openPreview(signalId: card.id)
 			} label: {
 				Text(shown.headline)
+					.textStyle(Tokens.Typography.body)
 					.fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 					.multilineTextAlignment(.leading)
@@ -54,10 +55,11 @@ struct SignalCardView: View {
 			}
 			secondaryRow
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
-		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(isSelected ? accent : Tokens.Colors.line, lineWidth: isSelected ? 2 : 1))
+		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
+		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line, lineWidth: 1))
+		.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusLg)
 		.lift(isHovered || isSelected)
 		.contentShape(Rectangle())
 		.onHover { hovering in
@@ -88,7 +90,7 @@ struct SignalCardView: View {
 				.help(shown.senderAddress)
 			Spacer(minLength: Tokens.Spacing.space4)
 			Text(shown.timeLabel)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.monospacedDigit()
 		}
@@ -100,7 +102,7 @@ struct SignalCardView: View {
 				begin(.task)
 			} label: {
 				HStack(spacing: 5) {
-					Image(systemName: "plus").font(.system(size: 9, weight: .semibold))
+					Image(systemName: "plus").iconGlyph(.tag, weight: .semibold)
 					Text("Task")
 					ActionCap(app: app, action: .signalTask, onFill: Tokens.Colors.onWs)
 				}
@@ -120,7 +122,7 @@ struct SignalCardView: View {
 				app.perform(.openItemMenu)
 			} label: {
 				HStack(spacing: 6) {
-					Image(systemName: "ellipsis").font(.system(size: 12))
+					Image(systemName: "ellipsis").iconGlyph(.row)
 					ActionCap(app: app, action: .openItemMenu)
 				}
 				.foregroundStyle(Tokens.Colors.inkSecondary)
@@ -155,7 +157,7 @@ struct SignalCardView: View {
 			Spacer(minLength: 0)
 			Button("Reply") { _ = app.inbox.replyInMailApp(signalId: card.id) }
 				.buttonStyle(.plain)
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.link)
 				.help("Reply in the mail app")
 		}

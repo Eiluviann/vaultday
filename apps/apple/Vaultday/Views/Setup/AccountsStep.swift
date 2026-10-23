@@ -69,7 +69,7 @@ struct AccountsPanel: View {
 		return VStack(spacing: 0) {
 			HStack(spacing: Tokens.Spacing.space8) {
 				WorkspaceBadge(number: number, color: color)
-				Text(entry.name).font(Tokens.Typography.headline.font).foregroundStyle(Tokens.Colors.ink)
+				Text(entry.name).textStyle(Tokens.Typography.headline).foregroundStyle(Tokens.Colors.ink)
 				SetupTag(text: "Active", tone: .on, icon: "checkmark")
 				Spacer()
 				Button { accounts.beginAdding(workspace: entry.id) } label: { SetupLabel(title: "Add", icon: "plus") }
@@ -86,14 +86,14 @@ struct AccountsPanel: View {
 			}
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 				Text("What \(entry.name) brings in")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				ForEach(parts, id: \.0) { part in
 					Toggle(isOn: Binding(get: { accounts.isOn(part.0, workspace: entry.id) }, set: { accounts.set(part.0, isOn: $0, workspace: entry.id) })) {
 						HStack(spacing: Tokens.Spacing.space8) {
 							Image(systemName: part.1).frame(width: 16).foregroundStyle(Tokens.Colors.inkMuted)
-							Text(part.0.title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
-							Text(part.2).font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkMuted)
+							Text(part.0.title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
+							Text(part.2).textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkMuted)
 						}
 					}
 					.toggleStyle(.checkbox)
@@ -113,7 +113,7 @@ struct AccountsPanel: View {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Image(systemName: "envelope").foregroundStyle(color)
 				Text(account.address)
-					.font(Tokens.Typography.body.font.weight(.semibold))
+					.textStyle(Tokens.Typography.body).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 					.lineLimit(1)
 				Spacer()
@@ -127,7 +127,7 @@ struct AccountsPanel: View {
 				.accessibilityLabel("Account options for \(account.address)")
 			}
 			Text(account.detail)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(account.hasCredential ? Tokens.Colors.inkMuted : Tokens.Colors.caution)
 		}
 		.padding(Tokens.Spacing.space8)
@@ -147,9 +147,9 @@ struct AddMailAccountSheet: View {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space12) {
 				Image(systemName: "envelope").foregroundStyle(Tokens.Colors.primary).imageScale(.large)
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-					Text("Add a mail account").font(Tokens.Typography.headline.font)
+					Text("Add a mail account").textStyle(Tokens.Typography.headline)
 					Text("Vaultday reads new mail from the folders you pick and never marks it read")
-						.font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkSecondary)
+						.textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkSecondary)
 				}
 			}
 			if accounts.draft != nil {
@@ -184,7 +184,7 @@ struct AddMailAccountSheet: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space12) {
 				field("Server") {
-					VimTextField("imap.example.com", text: binding(\.host)).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+					VimTextField("imap.example.com", text: binding(\.host)).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 				}
 				field("Port") {
 					VimTextField("993", text: portText).textFieldStyle(.roundedBorder).frame(width: 80)
@@ -192,13 +192,13 @@ struct AddMailAccountSheet: View {
 			}
 			Toggle("The server signs in with Microsoft (XOAUTH2)", isOn: binding(\.usesMicrosoftSignIn))
 				.toggleStyle(.checkbox)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 			if accounts.draft?.usesMicrosoftSignIn == false {
 				field("App password") {
 					SecureField("From your provider's security settings", text: binding(\.password)).textFieldStyle(.roundedBorder)
 				}
 				Text("Stored in this Mac's Keychain when you test the connection")
-					.font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					.textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
 	}
@@ -216,17 +216,17 @@ struct AddMailAccountSheet: View {
 				case let .waiting(userCode, verificationURL):
 					HStack(spacing: Tokens.Spacing.space8) {
 						Text("Enter").foregroundStyle(Tokens.Colors.inkSecondary)
-						Text(userCode).font(Tokens.Typography.mono.font.weight(.semibold)).textSelection(.enabled)
+						Text(userCode).textStyle(Tokens.Typography.mono).fontWeight(.semibold).textSelection(.enabled)
 						Text("at").foregroundStyle(Tokens.Colors.inkSecondary)
 						if let url = URL(string: verificationURL) {
 							Link(verificationURL, destination: url)
 						}
 					}
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 				case .signedIn:
 					SetupTag(text: "Signed in", tone: .on, icon: "checkmark")
 				case let .failed(message):
-					Text(message).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+					Text(message).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 				}
 			}
 		}
@@ -245,12 +245,12 @@ struct AddMailAccountSheet: View {
 				}
 				if let result = accounts.testResult {
 					Text(result.summary)
-						.font(Tokens.Typography.callout.font.weight(.medium))
+						.textStyle(Tokens.Typography.callout).fontWeight(.medium)
 						.foregroundStyle(result.isConnected ? Tokens.Colors.positive : Tokens.Colors.caution)
 				}
 			}
 			if let detail = accounts.testResult?.detail {
-				Text(detail).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted).lineLimit(3)
+				Text(detail).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted).lineLimit(3)
 			}
 		}
 	}
@@ -259,7 +259,7 @@ struct AddMailAccountSheet: View {
 		let offered = accounts.offeredFolders
 		if !offered.isEmpty {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
-				Text("Folders to read").font(Tokens.Typography.callout.font.weight(.semibold))
+				Text("Folders to read").textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				ForEach(offered) { folder in
 					Toggle(folder.name, isOn: Binding(get: { accounts.selectedFolders.contains(folder.id) }, set: { isOn in
 						if isOn { accounts.selectedFolders.insert(folder.id) } else { accounts.selectedFolders.remove(folder.id) }
@@ -295,7 +295,7 @@ struct AddMailAccountSheet: View {
 
 	private func field(_ title: String, @ViewBuilder content: () -> some View) -> some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-			Text(title).font(Tokens.Typography.callout.font.weight(.semibold))
+			Text(title).textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 			content()
 		}
 	}

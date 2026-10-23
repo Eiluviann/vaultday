@@ -10,6 +10,9 @@ enum SetupLayout {
 	static let gutter: CGFloat = Tokens.Spacing.space32
 	/// The widest a lede or paragraph runs.
 	static let measure: CGFloat = Tokens.Size.sizeMeasure
+	/// The widest a step's content runs: the boards' content pane, 1100 less
+	/// the rail and both gutters. A wider window leaves the room on the right.
+	static let contentMaxWidth: CGFloat = boardSize.width - sidebarWidth - 2 * gutter
 	/// The narrowest content pane the steps lay out in.
 	static let contentMinWidth: CGFloat = 560
 	/// The Configure sheet (board 2a).

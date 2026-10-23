@@ -14,6 +14,11 @@ final class SetupSnapshotTests: XCTestCase {
 		.deletingLastPathComponent()
 		.appendingPathComponent("core/fixtures/mock-vault")
 
+	override func setUp() async throws {
+		// Measure and draw with the faces the app ships, not the system fallback.
+		DesignFonts.registerBundledFonts(in: Bundle(for: SetupSnapshotTests.self))
+	}
+
 	func testRenderEveryStepAndTheConfigureSheet() throws {
 		guard let path = ProcessInfo.processInfo.environment["VAULTDAY_SNAPSHOT_DIR"] else {
 			throw XCTSkip("set VAULTDAY_SNAPSHOT_DIR to write the snapshots")

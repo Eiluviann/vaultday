@@ -13,7 +13,7 @@ struct QuickAddField: View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			VimTextField("Add a task · a day, a time, an estimate and a story route it", text: $quickAdd.text, focusRequest: app.quickAddFocusRequest, onEscape: closeConfirmation)
 				.textFieldStyle(.plain)
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 				.padding(.horizontal, 10)
 				.frame(height: 32)
 				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
@@ -44,7 +44,7 @@ struct QuickAddField: View {
 					.offset(y: 38)
 			} else if let message = quickAdd.message {
 				Text(message)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.caution)
 					.offset(y: 36)
 			}
@@ -96,7 +96,7 @@ private struct Confirmation: View {
 				.buttonStyle(.plain)
 				Spacer()
 				Text(entry.id)
-					.font(.custom(Tokens.Typography.mono.family, size: 11))
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.textSelection(.enabled)
 			}
@@ -108,7 +108,7 @@ private struct Confirmation: View {
 				HStack(spacing: Tokens.Spacing.space6) {
 					ForEach(Array(entry.chips.enumerated()), id: \.offset) { index, chip in
 						Text(chip)
-							.font(index == 0 && entry.storyNumber != nil ? .custom(Tokens.Typography.mono.family, size: 11) : Tokens.Typography.caption.font)
+							.font(index == 0 && entry.storyNumber != nil ? Tokens.Typography.mono.font : Tokens.Typography.caption.font)
 							.padding(.horizontal, Tokens.Spacing.space8)
 							.padding(.vertical, Tokens.Spacing.space2)
 							.background(Tokens.Colors.fillControl, in: Capsule())
@@ -117,7 +117,7 @@ private struct Confirmation: View {
 			}
 			ForEach(entry.warnings, id: \.self) { warning in
 				Label(warning, systemImage: "exclamationmark.triangle")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.caution)
 			}
 			HStack(spacing: Tokens.Spacing.space6) {
@@ -127,7 +127,7 @@ private struct Confirmation: View {
 					HStack(spacing: 5) {
 						Text("Save").fontWeight(.semibold)
 						Text("⏎")
-							.font(Tokens.Typography.kbd.font)
+							.textStyle(Tokens.Typography.kbd)
 							.padding(.horizontal, 4)
 							.padding(.vertical, 2)
 							.background(Tokens.Colors.onWs.opacity(0.28), in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXs))
@@ -152,13 +152,13 @@ private struct Confirmation: View {
 				.disabled(quickAdd.isAdjusting)
 				Spacer()
 				Text(quickAdd.message ?? entry.saveBlocker ?? cancelHint)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(entry.saveBlocker == nil && quickAdd.message == nil ? Tokens.Colors.inkMuted : Tokens.Colors.caution)
 					.lineLimit(2)
 			}
 			.padding(.top, Tokens.Spacing.space2)
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.foregroundStyle(Tokens.Colors.ink)
 		.padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
 		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
@@ -222,15 +222,15 @@ private struct AdjustFields: View {
 			GridRow {
 				Text("Section").foregroundStyle(Tokens.Colors.inkMuted)
 				HStack {
-					Picker("Section", selection: Binding(
-						get: { entry.isPendingInput },
-						set: { quickAdd.setPendingInput($0, waitingOn: waitingOn) },
-					)) {
-						Text("Next Steps").tag(false)
-						Text("Pending Input").tag(true)
-					}
-					.labelsHidden()
-					.pickerStyle(.segmented)
+					SegmentedChoice(
+						label: "Section",
+						options: [(false, "Next Steps"), (true, "Pending Input")],
+						selection: Binding(
+							get: { entry.isPendingInput },
+							set: { quickAdd.setPendingInput($0, waitingOn: waitingOn) },
+						),
+					)
+					.fixedSize()
 					if entry.isPendingInput {
 						VimTextField("Waiting on", text: $waitingOn)
 							.focused($focusedField, equals: .waitingOn)

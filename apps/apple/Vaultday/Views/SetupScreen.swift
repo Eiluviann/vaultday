@@ -43,7 +43,7 @@ struct SetupScreen: View {
 
 	private var titleBar: some View {
 		Text("Set up Vaultday")
-			.font(Tokens.Typography.heading.font)
+			.textStyle(Tokens.Typography.heading)
 			.foregroundStyle(Tokens.Colors.ink)
 			.frame(maxWidth: .infinity)
 			.frame(height: SetupLayout.titleBarHeight)
@@ -51,7 +51,7 @@ struct SetupScreen: View {
 			.overlay(alignment: .trailing) {
 				Button("Close") { app.mainWindow.showHome() }
 					.buttonStyle(.plain)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.padding(.trailing, Tokens.Spacing.space16)
 					.help("Leave setup for Home; Set up Vaultday… in the Vaultday menu comes back")

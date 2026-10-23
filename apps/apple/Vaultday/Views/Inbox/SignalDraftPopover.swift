@@ -28,7 +28,7 @@ struct SignalDraftPopover: View {
 				if let section = draft.sectionLabel {
 					row("Section") {
 						Text(section)
-							.font(.custom(Tokens.Typography.mono.family, size: 11))
+							.textStyle(Tokens.Typography.mono)
 							.foregroundStyle(Tokens.Colors.inkSecondary)
 					}
 				}
@@ -38,7 +38,7 @@ struct SignalDraftPopover: View {
 					} label: {
 						HStack(spacing: 5) {
 							Text("Save")
-							Text("⏎").font(Tokens.Typography.kbd.font)
+							Text("⏎").textStyle(Tokens.Typography.kbd)
 						}
 						.fontWeight(.semibold)
 						.foregroundStyle(Tokens.Colors.onWs)
@@ -54,13 +54,13 @@ struct SignalDraftPopover: View {
 						.keyboardShortcut(.cancelAction)
 					Spacer(minLength: 0)
 					Text("Esc cancels · nothing is written until Save")
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.lineLimit(1)
 				}
 				.padding(.top, 2)
 			}
-			.font(Tokens.Typography.caption.font)
+			.textStyle(Tokens.Typography.caption)
 			.padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
 			.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
 			.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.line))
@@ -106,7 +106,7 @@ struct SignalDraftPopover: View {
 						Button("\(story.number) · \(story.title)") { inbox.draft?.story = story.number }
 					}
 				} label: {
-					Image(systemName: "chevron.down").font(.system(size: 10))
+					Image(systemName: "chevron.down").iconGlyph(.tag)
 				}
 				.menuStyle(.borderlessButton)
 				.menuIndicator(.hidden)
@@ -124,7 +124,7 @@ struct SignalDraftPopover: View {
 		VimTextField(placeholder, text: text)
 			.textFieldStyle(.plain)
 			.focused($focusedField, equals: field)
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 			.padding(.horizontal, 8)
 			.frame(height: 24)
 			.background(Tokens.Colors.surface, in: RoundedRectangle(cornerRadius: 6))

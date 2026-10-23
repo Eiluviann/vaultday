@@ -39,13 +39,13 @@ struct CloseOutScreen: View {
 	private var header: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			Text(model.title)
-				.font(Tokens.Typography.title.font)
+				.textStyle(Tokens.Typography.title)
 				.foregroundStyle(Tokens.Colors.ink)
 				.accessibilityAddTraits(.isHeader)
 			Spacer()
 			if let deadline = model.snapshot?.deadline {
 				Text("Due \(CloseOutText.deadlineTitle(deadline))")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
@@ -98,7 +98,7 @@ struct CloseOutScreen: View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			if let missing = model.snapshot?.missing, !missing.isEmpty, !model.isFinished {
 				Text("Still open: \(missing.count)")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer()
@@ -148,10 +148,10 @@ private struct StepHeading: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			Text(title)
-				.font(Tokens.Typography.heading.font)
+				.textStyle(Tokens.Typography.heading)
 				.foregroundStyle(Tokens.Colors.ink)
 			Text(note)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -179,7 +179,7 @@ private struct TogglStep: View {
 								.fontWeight(.semibold)
 								.foregroundStyle(day.state == .failed ? Tokens.Colors.danger : Tokens.Colors.inkSecondary)
 						}
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.accessibilityElement(children: .combine)
 					}
 				}
@@ -188,7 +188,7 @@ private struct TogglStep: View {
 			} else {
 				StepHeading(title: "Toggl entries", note: "Every tracked session of the week goes to the Toggl queue with the billing rule applied")
 				Text(snapshot.unqueuedSessions == 0 ? "Every session is queued" : "\(snapshot.unqueuedSessions) sessions not queued yet")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.ink)
 			}
 			if snapshot.isTogglOn {
@@ -196,7 +196,7 @@ private struct TogglStep: View {
 					.buttonStyle(SetupButtonStyle(kind: .primary))
 					.disabled(model.steps.first?.status != .open)
 				Text("Entries wait in the Toggl queue; the queue sends them when live access is allowed")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			} else {
 				SetupCallout(tone: .neutral, icon: "eye", text: "Dry run: Toggl is off for this workspace, so nothing is queued or sent")
@@ -222,39 +222,39 @@ private struct AllocationStep: View {
 			ForEach(snapshot.allocation) { day in
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 					HStack {
-						Text(CloseOutText.dayTitle(day.date)).font(Tokens.Typography.body.font.weight(.semibold))
+						Text(CloseOutText.dayTitle(day.date)).textStyle(Tokens.Typography.body).fontWeight(.semibold)
 						if day.isConfirmed {
 							Image(systemName: "checkmark.circle.fill").foregroundStyle(Tokens.Colors.positive).accessibilityLabel("Confirmed")
 						}
 						Spacer()
 						Text("\(CloseOutText.hours(day.totalMinutes)) of \(CloseOutText.hours(day.targetMinutes)) h")
-							.font(Tokens.Typography.callout.font)
+							.textStyle(Tokens.Typography.callout)
 							.foregroundStyle(day.totalMinutes == day.targetMinutes ? Tokens.Colors.inkSecondary : Tokens.Colors.caution)
 					}
 					if day.rows.isEmpty {
 						Text("No story touched")
-							.font(Tokens.Typography.callout.font)
+							.textStyle(Tokens.Typography.callout)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 					}
 					ForEach(day.rows) { row in
 						HStack(spacing: Tokens.Spacing.space8) {
-							Text(row.story).font(Tokens.Typography.mono.font).foregroundStyle(Tokens.Colors.ink)
-							Text(row.title).font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkSecondary).lineLimit(1)
+							Text(row.story).textStyle(Tokens.Typography.mono).foregroundStyle(Tokens.Colors.ink)
+							Text(row.title).textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkSecondary).lineLimit(1)
 							if !row.hasEstimate {
 								Text("No estimate")
-									.font(Tokens.Typography.caption.font)
+									.textStyle(Tokens.Typography.caption)
 									.foregroundStyle(Tokens.Colors.caution)
 							}
 							Spacer()
 							Text("tracked \(DurationText.minutes(row.trackedMinutes))")
-								.font(Tokens.Typography.caption.font)
+								.textStyle(Tokens.Typography.caption)
 								.foregroundStyle(Tokens.Colors.inkMuted)
 							Stepper(
 								"\(CloseOutText.hours(row.minutes)) h",
 								onIncrement: { model.setMinutes(row.minutes + 15, story: row.story, day: day.date) },
 								onDecrement: { model.setMinutes(max(0, row.minutes - 15), story: row.story, day: day.date) },
 							)
-							.font(Tokens.Typography.callout.font.monospacedDigit())
+							.textStyle(Tokens.Typography.callout).monospacedDigit()
 							.fixedSize()
 							.disabled(day.isConfirmed)
 							.accessibilityLabel("\(row.story) on \(CloseOutText.dayTitle(day.date))")
@@ -272,7 +272,7 @@ private struct AllocationStep: View {
 				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line))
 			}
 			Text("Tracked time is private and never leaves this Mac")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Button("Confirm allocation") { model.confirmAllocation() }
 				.buttonStyle(SetupButtonStyle(kind: .primary))
@@ -296,7 +296,7 @@ private struct ReviewStep: View {
 					: "Billed time stops at each task's estimate; what goes past it is an unpaid overrun",
 			)
 			if snapshot.review.isEmpty {
-				Text("No session this week").font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text("No session this week").textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			ForEach(snapshot.review) { row in
 				HStack(spacing: Tokens.Spacing.space8) {
@@ -311,7 +311,7 @@ private struct ReviewStep: View {
 						Text("overrun \(DurationText.minutes(row.overrunMinutes)), unpaid").foregroundStyle(Tokens.Colors.danger)
 					}
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.accessibilityElement(children: .combine)
 			}
 			Button("Confirm review") { model.confirmReview() }
@@ -336,7 +336,7 @@ private struct TableStep: View {
 					Text("")
 					ForEach(Array(snapshot.table.columns.enumerated()), id: \.offset) { _, column in
 						Text(column)
-							.font(Tokens.Typography.caption.font.weight(.semibold))
+							.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 					}
 				}
@@ -348,7 +348,7 @@ private struct TableStep: View {
 							.accessibilityLabel("\(row.key) entered")
 						ForEach(Array(row.cells.enumerated()), id: \.offset) { _, cell in
 							Text(cell)
-								.font(Tokens.Typography.callout.font.monospacedDigit())
+								.textStyle(Tokens.Typography.callout).monospacedDigit()
 								.foregroundStyle(row.isTicked ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
 								.lineLimit(1)
 						}
@@ -366,7 +366,7 @@ private struct TableStep: View {
 				.buttonStyle(SetupButtonStyle(kind: .primary))
 				.disabled(snapshot.table.rows.isEmpty)
 				if model.isTableCopied {
-					Text("Copied as tab-separated text").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					Text("Copied as tab-separated text").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
 		}
@@ -386,7 +386,7 @@ private struct CloseStep: View {
 			StepHeading(title: "Close the \(noun)", note: "Appends status · \(noun) closed to the day log of the \(noun)'s last working day")
 			if snapshot.isClosed {
 				Label(model.closedLine ?? "The \(noun) is closed", systemImage: "checkmark.seal.fill")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.positive)
 			} else {
 				let open = snapshot.missing.filter { !$0.hasPrefix("The \(noun)") }
@@ -394,7 +394,7 @@ private struct CloseStep: View {
 					VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 						ForEach(open, id: \.self) { line in
 							Label(line, systemImage: "circle")
-								.font(Tokens.Typography.callout.font)
+								.textStyle(Tokens.Typography.callout)
 								.foregroundStyle(Tokens.Colors.inkSecondary)
 						}
 					}
@@ -417,10 +417,10 @@ struct CloseOutAlertBanner: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Image(systemName: "bell.badge").foregroundStyle(Tokens.Colors.caution)
-				Text(alert.title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+				Text(alert.title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 			}
 			ForEach(alert.missing, id: \.self) { line in
-				Text(line).font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkSecondary)
+				Text(line).textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkSecondary)
 			}
 			HStack(spacing: Tokens.Spacing.space8) {
 				Spacer()

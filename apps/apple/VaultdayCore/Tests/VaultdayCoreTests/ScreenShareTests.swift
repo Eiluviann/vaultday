@@ -55,16 +55,30 @@ final class ScreenShareTests: XCTestCase {
 		XCTAssertFalse(ScreenShareSurface.allCases.map { "\($0)" }.contains { $0.contains("miniTracker") || $0 == "menuBar" })
 	}
 
-	func testAPrivateTimeValueIsReplacedByThePrivateCaptionWhileHidden() {
+	func testAPrivateValueShowsNothingWhileHidden() {
 		XCTAssertEqual(PrivateTimeMark.displayedText(value: "3h 10m", label: nil, isHidden: false), "3h 10m")
 		XCTAssertEqual(PrivateTimeMark.displayedText(value: "3h 10m", label: "Tracked", isHidden: false), "Tracked 3h 10m")
-		XCTAssertEqual(PrivateTimeMark.displayedText(value: "3h 10m", label: nil, isHidden: true), "Private")
-		XCTAssertEqual(PrivateTimeMark.displayedText(value: "3h 10m", label: "Tracked", isHidden: true), "Tracked · private")
-		for hidden in [true, false] {
-			XCTAssertFalse(PrivateTimeMark.displayedText(value: "3h 10m", label: "Tracked", isHidden: hidden).isEmpty)
-		}
-		XCTAssertTrue(PrivateTimeMark.displayedText(value: "3h 10m", label: "Tracked", isHidden: true).contains("3h") == false)
+		// Nothing takes the value's place: a "Private" caption would tell the watchers something is withheld.
+		XCTAssertNil(PrivateTimeMark.displayedText(value: "3h 10m", label: nil, isHidden: true))
+		XCTAssertNil(PrivateTimeMark.displayedText(value: "3h 10m", label: "Tracked", isHidden: true))
 		XCTAssertEqual(PrivateTimeMark.mark.symbol, "hand.raised")
+	}
+
+	func testNothingOnScreenSaysSomethingIsHiddenWhileSharing() {
+		// Every notice the mode raises while it is on, and the toggle's tooltip.
+		let shown = [
+			ScreenShareModel.hiddenWorkspaceNotice,
+			ScreenShareModel.closeOutNotice,
+			ScreenShareModel.noWorkWorkspaceNotice,
+			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: "⇧⌘S"),
+			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: nil),
+		]
+		// Naming what is kept back ("tracked time", workspaces "left to show") gives it away as surely as "hidden".
+		for text in shown {
+			for word in ["hidden", "hide", "private", "tracked", "left to show"] {
+				XCTAssertFalse(text.lowercased().contains(word), "\(text) says \(word)")
+			}
+		}
 	}
 
 	func testTheLongTimerNotificationNamesNeitherTaskNorTimeWhileSharing() {
@@ -271,11 +285,11 @@ final class ScreenShareTests: XCTestCase {
 	func testTheToggleTooltipNamesItsKeyWithoutCuttingAFormattedString() {
 		XCTAssertEqual(
 			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: "⇧⌘S"),
-			"Screen-share mode is on: private workspaces are hidden and tracked time shows as private; ⇧⌘S turns it off",
+			"Screen-share mode is on; ⇧⌘S turns it off",
 		)
 		XCTAssertEqual(
 			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: nil),
-			"Screen-share mode is on: private workspaces are hidden and tracked time shows as private",
+			"Screen-share mode is on",
 		)
 		XCTAssertEqual(
 			ScreenShareModel.toggleTooltip(isOn: false, keyLabel: "⇧⌘S"),
@@ -344,11 +358,9 @@ final class ScreenShareTests: XCTestCase {
 	func testTheReportsTabOffersOnlyTheFteSafeVariantWhileOn() {
 		let reports = ReportsModel()
 		XCTAssertEqual(reports.offeredVariants, [.full])
-		XCTAssertNil(reports.variantNote)
 		reports.isScreenShare = true
 		XCTAssertEqual(reports.offeredVariants, [.fteSafe])
 		XCTAssertEqual(reports.variant, .fteSafe)
-		XCTAssertNotNil(reports.variantNote)
 		reports.isScreenShare = false
 		XCTAssertEqual(reports.variant, .full)
 	}

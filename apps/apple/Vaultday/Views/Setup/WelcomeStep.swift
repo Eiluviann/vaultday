@@ -10,6 +10,10 @@ struct WelcomeStep: View {
 	private let devices: [(String, String)] = [
 		("Mac", "laptopcomputer"), ("iPhone", "iphone"), ("iPad", "ipad"), ("Apple Watch", "applewatch"),
 	]
+	/// Platforms to come, each its own entry with its own Planned tag.
+	private let plannedPlatforms: [(String, String)] = [
+		("Windows", "pc"), ("Linux", "terminal"), ("Android", "smartphone"),
+	]
 
 	var body: some View {
 		StepPane(title: "Everything in one app", lede: "Notes, tasks, reminders, calendar, mail and more, in one place for work and for life. One day plan holds all of it") {
@@ -17,16 +21,16 @@ struct WelcomeStep: View {
 				.resizable()
 				.frame(width: 64, height: 64)
 				.accessibilityLabel("Vaultday app icon")
-			FlowRow(spacing: 6) {
+			FlowRow(spacing: Tokens.Spacing.space6) {
 				ForEach(features, id: \.0) { feature in
-					HStack(spacing: 6) {
-						Image(systemName: feature.1).foregroundStyle(Tokens.Colors.primary)
-						Text(feature.0).font(Tokens.Typography.callout.font.weight(.bold))
+					HStack(spacing: Tokens.Spacing.space6) {
+						Image(systemName: feature.1).iconBox(.row).foregroundStyle(Tokens.Colors.primary)
+						Text(feature.0).textStyle(Tokens.Typography.callout).fontWeight(.bold)
 					}
 					.foregroundStyle(Tokens.Colors.ink)
-					.padding(.leading, 8)
-					.padding(.trailing, 12)
-					.padding(.vertical, 6)
+					.padding(.leading, Tokens.Spacing.space8)
+					.padding(.trailing, Tokens.Spacing.space12)
+					.padding(.vertical, Tokens.Spacing.space6)
 					.background(Tokens.Colors.surfaceSunken, in: Capsule())
 				}
 			}
@@ -41,37 +45,48 @@ struct WelcomeStep: View {
 		}
 	}
 
+	/// The platforms: Apple's on one line, then each planned one with its tag.
 	private var madeForApple: some View {
-		HStack(spacing: Tokens.Spacing.space12) {
-			Eyebrow(text: "Made for Apple")
-			ForEach(devices, id: \.0) { device in
-				HStack(spacing: 6) {
-					Image(systemName: device.1)
-					Text(device.0).font(Tokens.Typography.body.font.weight(.semibold))
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
+			FlowRow(spacing: Tokens.Spacing.space12) {
+				Eyebrow(text: "Made for Apple")
+					.frame(height: 20)
+				ForEach(devices, id: \.0) { device in
+					platform(device.0, icon: device.1, isPlanned: false)
 				}
-				.foregroundStyle(Tokens.Colors.ink)
 			}
-			Spacer(minLength: 0)
-			HStack(spacing: 6) {
-				Image(systemName: "pc")
-				Text("Windows and Linux").font(Tokens.Typography.body.font.weight(.semibold))
+			FlowRow(spacing: Tokens.Spacing.space16) {
+				ForEach(plannedPlatforms, id: \.0) { planned in
+					HStack(spacing: Tokens.Spacing.space8) {
+						platform(planned.0, icon: planned.1, isPlanned: true)
+						PlannedTag()
+					}
+				}
 			}
-			.foregroundStyle(Tokens.Colors.inkMuted)
-			PlannedTag()
 		}
 		.padding(Tokens.Spacing.space12)
+		.frame(maxWidth: .infinity, alignment: .leading)
 		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line, lineWidth: 1))
+	}
+
+	private func platform(_ name: String, icon: String, isPlanned: Bool) -> some View {
+		HStack(spacing: Tokens.Spacing.space6) {
+			Image(systemName: icon).iconBox(.row)
+			Text(name).textStyle(Tokens.Typography.body).fontWeight(.semibold)
+		}
+		.foregroundStyle(isPlanned ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
+		.frame(height: 20)
 	}
 
 	private func infoCard(_ tone: SetupTag.Tone, icon: String, title: String, text: String) -> some View {
 		let tint = tone == .work ? Tokens.Colors.work : Tokens.Colors.life
 		return VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(spacing: Tokens.Spacing.space8) {
-				Image(systemName: icon)
-				Text(title).font(Tokens.Typography.headline.font)
+				Image(systemName: icon).iconBox(.menu)
+				Text(title).textStyle(Tokens.Typography.headline)
 			}
 			.foregroundStyle(tint)
-			Text(text).font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkSecondary)
+			Text(text).textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkSecondary)
 		}
 		.padding(Tokens.Spacing.space16)
 		.frame(maxWidth: .infinity, alignment: .leading)

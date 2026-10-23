@@ -14,6 +14,11 @@ final class SetupLayoutTests: XCTestCase {
 		.deletingLastPathComponent()
 		.appendingPathComponent("core/fixtures/mock-vault")
 
+	override func setUp() async throws {
+		// Measure and draw with the faces the app ships, not the system fallback.
+		DesignFonts.registerBundledFonts(in: Bundle(for: SetupLayoutTests.self))
+	}
+
 	private func onboarding() throws -> OnboardingModel {
 		let container = FileManager.default.temporaryDirectory.appending(path: "vaultday-layout-\(UUID().uuidString)", directoryHint: .isDirectory)
 		addTeardownBlock { try? FileManager.default.removeItem(at: container) }

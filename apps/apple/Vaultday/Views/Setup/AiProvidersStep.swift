@@ -38,7 +38,7 @@ struct AiProvidersStep: View {
 					.accessibilityLabel("Monthly cloud budget per month")
 			} extra: {
 				if let issue = providers.issues["budget"] {
-					Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+					Text(issue).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 				}
 			}
 		}
@@ -74,7 +74,7 @@ struct AiProvidersStep: View {
 			HStack(spacing: Tokens.Spacing.space8) {
 				if key.provider.needsKey {
 					Text(ProviderKeyEntry.mask)
-						.font(Tokens.Typography.mono.font)
+						.textStyle(Tokens.Typography.mono)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.accessibilityLabel(key.isKeyStored ? "Key kept in the Keychain" : "No key in the Keychain")
 					if !key.isKeyStored {
@@ -134,9 +134,9 @@ struct AddKeySheet: View {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space12) {
 				Image(systemName: "sparkles").foregroundStyle(Tokens.Colors.primary).imageScale(.large)
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-					Text(provider.needsKey ? "Add a \(provider == .claude ? "Claude" : provider.title) key" : "Add \(provider.title)").font(Tokens.Typography.headline.font)
+					Text(provider.needsKey ? "Add a \(provider == .claude ? "Claude" : provider.title) key" : "Add \(provider.title)").textStyle(Tokens.Typography.headline)
 					Text(provider.needsKey ? "Vaultday talks to \(provider.title) with your own API key, and the provider bills the usage. A provider can hold several keys" : "Vaultday talks to a model that runs on this Mac or on a server you run")
-						.font(Tokens.Typography.callout.font).foregroundStyle(Tokens.Colors.inkSecondary)
+						.textStyle(Tokens.Typography.callout).foregroundStyle(Tokens.Colors.inkSecondary)
 				}
 			}
 			field("Name", issue: providers.issues["name"]) {
@@ -144,13 +144,13 @@ struct AddKeySheet: View {
 			}
 			if provider.needsKey {
 				field("API key", issue: providers.issues["key"]) {
-					SecureField("Paste the key", text: $draft.key).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+					SecureField("Paste the key", text: $draft.key).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 				}
-				Text(AiProvidersStepModel.keyFootnote).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text(AiProvidersStepModel.keyFootnote).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			if provider.needsEndpoint {
 				field("Address", issue: providers.issues["endpoint"]) {
-					VimTextField("http://localhost:11434", text: $draft.endpoint).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+					VimTextField("http://localhost:11434", text: $draft.endpoint).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 				}
 			}
 			usedIn
@@ -181,7 +181,7 @@ struct AddKeySheet: View {
 
 	private var usedIn: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
-			Text("Used in").font(Tokens.Typography.callout.font.weight(.semibold))
+			Text("Used in").textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 			SegmentedChoice(label: "Where this key is used", options: ProviderKeyScopeSetting.allCases.map { ($0, $0.title) }, selection: Binding(get: { draft.scope }, set: { scope in
 				draft.scope = scope
 				draft.targets = []
@@ -203,10 +203,10 @@ struct AddKeySheet: View {
 				}
 			}
 			if let issue = providers.issues["scope"] {
-				Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+				Text(issue).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 			}
 			Text("Default makes it the key for every workspace without its own; a provider needs no default")
-				.font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				.textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 		}
 	}
 
@@ -220,10 +220,10 @@ struct AddKeySheet: View {
 
 	private func field(_ title: String, issue: String? = nil, @ViewBuilder content: () -> some View) -> some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-			Text(title).font(Tokens.Typography.callout.font.weight(.semibold))
+			Text(title).textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 			content()
 			if let issue {
-				Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+				Text(issue).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)

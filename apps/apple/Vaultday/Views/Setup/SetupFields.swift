@@ -64,7 +64,7 @@ struct DayTimeField: View {
 				.textFieldStyle(.plain)
 				.focused($isFocused)
 				.multilineTextAlignment(.trailing)
-				.font(Tokens.Typography.callout.font.monospacedDigit())
+				.textStyle(Tokens.Typography.callout).monospacedDigit()
 				.frame(width: 58, height: Tokens.Size.sizeControlSm + 4)
 				.padding(.horizontal, Tokens.Spacing.space6)
 				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))

@@ -79,7 +79,7 @@ struct ShowCommand: View {
 				Text(dispatcher.pendingText)
 				Text("▍").foregroundStyle(Tokens.Colors.sunrise)
 			}
-			.font(Tokens.Typography.mono.font.weight(.semibold))
+			.textStyle(Tokens.Typography.mono).fontWeight(.semibold)
 			.foregroundStyle(Tokens.Colors.onPrimary)
 			.padding(.horizontal, Tokens.Spacing.space8)
 			.padding(.vertical, 5)
@@ -139,7 +139,7 @@ struct SelectionCaps: View {
 					HStack(spacing: 3) {
 						SequenceCaps(caps: completion.sequence.map(\.capText), typed: dispatcher.pending.count)
 						Text(completion.label)
-							.font(Tokens.Typography.caption.font)
+							.textStyle(Tokens.Typography.caption)
 							.foregroundStyle(Tokens.Colors.inkSecondary)
 							.lineLimit(1)
 					}
@@ -182,7 +182,7 @@ struct ItemMenuPanel: View {
 		let isPending = !dispatcher.completions.isEmpty
 		VStack(alignment: .leading, spacing: 2) {
 			Text(isPending ? "Opened by \(dispatcher.pendingText)" : "More actions")
-				.font(Tokens.Typography.eyebrow.font)
+				.textStyle(Tokens.Typography.eyebrow)
 				.textCase(.uppercase)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.padding(EdgeInsets(top: 4, leading: 8, bottom: 2, trailing: 8))
@@ -209,7 +209,7 @@ struct ItemMenuPanel: View {
 				.buttonStyle(.plain)
 			}
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.padding(5)
 		.frame(width: 260)
 		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
@@ -231,7 +231,7 @@ struct ChangeFieldEditor: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			Text(request.title)
-				.font(Tokens.Typography.headline.font)
+				.textStyle(Tokens.Typography.headline)
 			VimTextField(placeholder, text: $value, focusesOnAppear: true) {
 				// Esc in Normal mode cancels, as Esc does under Standard.
 				app.keyboard.cancelChange()
@@ -247,7 +247,7 @@ struct ChangeFieldEditor: View {
 				.onSubmit { app.keyboard.submitChange(value) }
 				.onExitCommand { app.keyboard.cancelChange() }
 			Text("\(request.taskId) · ⏎ saves, Esc cancels, u undoes")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 		.padding(Tokens.Spacing.space12)
@@ -279,7 +279,7 @@ struct RegisterNote: View {
 	var body: some View {
 		if let message = register.message {
 			Text(message)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.padding(.horizontal, Tokens.Spacing.space8)
 				.padding(.vertical, 4)

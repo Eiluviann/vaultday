@@ -30,7 +30,7 @@ struct SidebarColumn: View {
 				.padding(.top, Tokens.Spacing.space6)
 			HealthFooter(app: app)
 		}
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 		.padding(.vertical, Tokens.Spacing.space12)
 		.padding(.horizontal, 10)
 		.frame(width: HomeLayout.sidebarWidth, alignment: .leading)
@@ -85,7 +85,7 @@ private struct WorkspaceSwitcher: View {
 			}
 			if app.workspaceEntries.isEmpty, let grantMessage = app.grantMessage {
 				Text(grantMessage)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.caution)
 			}
 		}
@@ -118,7 +118,7 @@ private struct SwitcherRow: View {
 				Spacer(minLength: Tokens.Spacing.space4)
 				if badge > 0 {
 					Text(badge > 99 ? "99+" : "\(badge)")
-						.font(Tokens.Typography.caption.font.weight(.semibold))
+						.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 						.monospacedDigit()
 						.foregroundStyle(isSelected ? selectedFill : Tokens.Colors.onWs)
 						.padding(.horizontal, 6)
@@ -176,20 +176,18 @@ private struct NowCard: View {
 	private func running(_ session: SessionSummary) -> some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			Text(["NOW", session.taskId].compactMap(\.self).joined(separator: " · "))
-				.font(.system(size: 10, weight: .bold))
-				.tracking(0.6)
-				.opacity(0.8)
+				.textStyle(Tokens.Typography.eyebrow)
 			Text(app.taskText(session.taskId) ?? session.meetingTitle ?? session.story ?? "Timer")
-				.font(Tokens.Typography.body.font.weight(.semibold))
+				.textStyle(Tokens.Typography.body).fontWeight(.semibold)
 				.lineLimit(2)
 			HStack(spacing: Tokens.Spacing.space8) {
 				if app.screenShare.hides(.nowCard) {
 					PrivateTimeValue("", label: "Tracked")
-						.font(Tokens.Typography.callout.font.weight(.semibold))
+						.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				} else {
 					TimelineView(.periodic(from: .now, by: 1)) { context in
 						Text(DurationText.clock(seconds: session.elapsed(at: context.date)))
-							.font(.system(size: 18, weight: .bold))
+							.textStyle(Tokens.Typography.timer)
 							.monospacedDigit()
 					}
 				}
@@ -203,21 +201,21 @@ private struct NowCard: View {
 			}
 			.padding(.top, Tokens.Spacing.space2)
 		}
-		.foregroundStyle(Tokens.Colors.onWs)
-		.padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+		// The one sunrise block in the window: ink on sunrise, as the NowCard guideline draws it.
+		.foregroundStyle(Tokens.Colors.onSunrise)
+		.padding(Tokens.Spacing.space12)
 		.frame(maxWidth: .infinity, alignment: .leading)
-		.background(accent, in: RoundedRectangle(cornerRadius: 10))
-		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.focus, lineWidth: isTargeted ? 2 : 0))
+		.background(Tokens.Colors.sunrise, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
+		.dropIndicator(isActive: isTargeted)
 	}
 
 	private var idle: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
 			Text("NOW")
-				.font(.system(size: 10, weight: .bold))
-				.tracking(0.6)
+				.textStyle(Tokens.Typography.eyebrow)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Text("Drop a task here to start its timer")
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 			HStack(spacing: Tokens.Spacing.space8) {
 				if let latest = app.sessions.latestTimerSession {
@@ -236,13 +234,15 @@ private struct NowCard: View {
 				}
 			}
 			.buttonStyle(.borderless)
-			.font(Tokens.Typography.caption.font)
+			.textStyle(Tokens.Typography.caption)
 			.padding(.top, Tokens.Spacing.space2)
 		}
-		.padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+		.padding(Tokens.Spacing.space12)
 		.frame(maxWidth: .infinity, alignment: .leading)
-		.background(isTargeted ? accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 10))
-		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(isTargeted ? accent : Tokens.Colors.lineControl, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+		// A plain card; the dashed edge and the sunrise wash show only while a task is dragged over it.
+		.background(isTargeted ? Tokens.Colors.sunriseSoft : Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
+		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(isTargeted ? .clear : Tokens.Colors.line, lineWidth: 1))
+		.dropIndicator(isActive: isTargeted)
 	}
 }
 
@@ -255,7 +255,7 @@ private struct NowButton: View {
 	var body: some View {
 		Button(action: action) {
 			Image(systemName: symbol)
-				.font(.system(size: 9))
+				.iconGlyph(.tag)
 				.iconReplace(value: symbol)
 				.foregroundStyle(Tokens.Colors.onWs)
 				.frame(width: 26, height: 26)
@@ -279,7 +279,7 @@ private struct RitualList: View {
 				ForEach(app.ritualRows(now: context.date)) { row in
 					HStack(spacing: Tokens.Spacing.space8) {
 						Image(systemName: "circle")
-							.font(.system(size: 10))
+							.iconGlyph(.tag)
 							.foregroundStyle(Tokens.Colors.lineControl)
 						Text(row.title)
 							.foregroundStyle(Tokens.Colors.ink)
@@ -294,7 +294,7 @@ private struct RitualList: View {
 									.foregroundStyle(Tokens.Colors.caution)
 							}
 						}
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 					}
 					.padding(.horizontal, Tokens.Spacing.space8)
@@ -317,13 +317,13 @@ private struct BrowseRow: View {
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			Image(systemName: "tablecells")
-				.font(.system(size: 12))
+				.iconGlyph(.row)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Text("Browse")
 				.foregroundStyle(Tokens.Colors.ink)
 			Spacer()
 			Text("\(count) open")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			ActionCap(app: app, action: .showBrowse)
 		}
@@ -359,7 +359,7 @@ private struct SidebarNotices: View {
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.padding(.horizontal, Tokens.Spacing.space4)
 	}
 }
@@ -384,13 +384,14 @@ private struct TrackedRing: View {
 			.padding(2)
 			.accessibilityHidden(true)
 			if screenShare?.hides(.sidebarRing) == true {
-				PrivateTimeValue("", label: "Tracked")
-					.font(Tokens.Typography.caption.font)
+				// Only the plan, which reads as an ordinary value; tracked time is simply not there.
+				Text("\(DurationText.minutes(totals.plannedMinutes)) planned")
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 			} else {
 				(Text(DurationText.minutes(totals.spentMinutes)).fontWeight(.bold).foregroundColor(Tokens.Colors.ink)
 					+ Text(" tracked of \(DurationText.minutes(totals.plannedMinutes)) planned"))
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 			}
 		}
@@ -399,7 +400,7 @@ private struct TrackedRing: View {
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
 		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.line))
-		.help(screenShare?.hides(.sidebarRing) == true ? PrivateTimeMark.tooltip : "Tracked by the timer against the day's plan; \(DurationText.minutes(totals.loggedMinutes)) of it logged to stories")
+		.help(screenShare?.hides(.sidebarRing) == true ? "" : "Tracked by the timer against the day's plan; \(DurationText.minutes(totals.loggedMinutes)) of it logged to stories")
 		.accessibilityElement(children: .combine)
 	}
 
@@ -436,7 +437,7 @@ private struct HealthFooter: View {
 				app.toggleSettings()
 			} label: {
 				Image(systemName: "gearshape")
-					.font(.system(size: 12))
+					.iconGlyph(.row)
 					.frame(width: 22, height: 22)
 			}
 			.buttonStyle(.plain)
@@ -444,7 +445,7 @@ private struct HealthFooter: View {
 			.help("Settings" + (app.keyLabel(.toggleSettings).map { " (\($0))" } ?? ""))
 			.accessibilityLabel("Settings")
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.padding(EdgeInsets(top: 4, leading: 8, bottom: 0, trailing: 8))
 	}
@@ -481,7 +482,7 @@ private struct HealthList: View {
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.padding(Tokens.Spacing.space12)
 		.frame(width: 300, alignment: .leading)
 	}
@@ -512,7 +513,7 @@ struct SidebarRail: View {
 			}
 			if let next = app.ritualRows(now: Date()).first(where: \.isNext) {
 				Text(next.whenText.split(separator: " ").last.map(String.init) ?? next.whenText)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.help("\(next.title) · \(next.whenText)")
 					.padding(.top, Tokens.Spacing.space8)

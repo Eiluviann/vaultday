@@ -86,11 +86,6 @@ public final class ReportsModel {
 		offeredVariants.first ?? .full
 	}
 
-	/// What the tab says under the range while the mode narrows the report.
-	public var variantNote: String? {
-		isScreenShare ? "Logged hours only while screen-share mode is on" : nil
-	}
-
 	// MARK: Subject and range
 
 	/// Reports on `subject` (a story number, or a client) from now on; reads it

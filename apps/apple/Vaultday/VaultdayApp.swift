@@ -9,9 +9,14 @@ struct VaultdayApp: App {
 	@State private var app = AppModel()
 	@Environment(\.openWindow) private var openWindow
 
+	init() {
+		DesignFonts.registerBundledFonts()
+	}
+
 	var body: some Scene {
 		Window("Vaultday", id: MainWindowModel.sceneId) {
 			MainWindow(app: app)
+				.windowChrome()
 				.frame(minWidth: 1100, minHeight: 640)
 				.task {
 					app.showMainWindowScene = { openWindow(id: MainWindowModel.sceneId) }

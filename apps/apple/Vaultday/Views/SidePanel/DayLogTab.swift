@@ -13,7 +13,7 @@ struct DayLogTab: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Text(model.caption)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.lineLimit(1)
 				Spacer()
@@ -22,7 +22,7 @@ struct DayLogTab: View {
 					app.syncSidePanelItemCount()
 				}
 				Text(DayLogTab.dayLabel(model.date))
-					.font(Tokens.Typography.callout.font.weight(.semibold))
+					.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 					.monospacedDigit()
 				HeaderIconButton(symbol: "chevron.right", label: "Next day", help: "Next day") {
@@ -60,7 +60,7 @@ struct DayLogTab: View {
 	private func chip(_ title: String, isActive: Bool, tint: Color = Tokens.Colors.inkSecondary, action: @escaping () -> Void) -> some View {
 		Button(action: action) {
 			Text(title)
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(isActive ? Tokens.Colors.onPrimary : tint)
 				.padding(.horizontal, 10)
 				.padding(.vertical, 4)
@@ -74,11 +74,7 @@ struct DayLogTab: View {
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 0) {
 				if model.visibleLines.isEmpty {
-					Text(model.lines.isEmpty ? "Nothing logged on this day" : "No \(model.kindFilter?.rawValue ?? "") lines")
-						.font(Tokens.Typography.callout.font)
-						.foregroundStyle(Tokens.Colors.inkMuted)
-						.padding(.top, Tokens.Spacing.space16)
-						.frame(maxWidth: .infinity)
+					EmptyState(icon: "doc.text", text: model.lines.isEmpty ? "Nothing logged on this day" : "No \(model.kindFilter?.rawValue ?? "") lines")
 				}
 				ForEach(Array(model.visibleLines.enumerated()), id: \.element.id) { index, line in
 					LogRow(
@@ -115,11 +111,11 @@ struct DayLogTab: View {
 			}
 			if let message = model.errorMessage {
 				Text(message)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 			Text("Shorthand sets the kind: decision: blocked: note: · the selected task gives the story and the id · written as a plain line, no markers")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 	}
@@ -147,32 +143,32 @@ private struct LogRow: View {
 	var body: some View {
 		HStack(alignment: .top, spacing: 10) {
 			Text(line.time)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.monospacedDigit()
 				.frame(width: 40, alignment: .leading)
 				.padding(.top, 2)
 			Image(systemName: mark.symbol)
-				.font(.system(size: 13))
+				.iconGlyph(.row)
 				.foregroundStyle(mark.tone.color)
 				.frame(width: 16)
 				.padding(.top, 1)
 				.accessibilityLabel(mark.name)
 			VStack(alignment: .leading, spacing: 1) {
 				Text(line.text)
-					.font(Tokens.Typography.body.font)
+					.textStyle(Tokens.Typography.body)
 					.foregroundStyle(Tokens.Colors.ink)
 					.fixedSize(horizontal: false, vertical: true)
 				Text(detail)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(line.agent == nil ? Tokens.Colors.inkMuted : Tokens.Colors.ai)
 			}
 			.frame(maxWidth: .infinity, alignment: .leading)
 		}
 		.padding(.vertical, 8)
 		.padding(.horizontal, 4)
-		.background(isSelected ? accent.opacity(WorkspaceWash.selectionOpacity) : .clear)
 		.overlay(alignment: .bottom) { Rectangle().fill(Tokens.Colors.line).frame(height: 1) }
+		.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusMd)
 		.contentShape(Rectangle())
 		.onTapGesture { app.focus.select(index, in: .sidePanel) }
 		.peekPopover(app: app, subject: .logLine(line))

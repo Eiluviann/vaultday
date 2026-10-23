@@ -31,7 +31,7 @@ struct TogglSettingsTab: View {
 				}
 				if panels.isEmpty {
 					Text("No workspace yet")
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				ForEach(panels, id: \.workspaceId) { panel in
@@ -110,11 +110,11 @@ private struct TogglWorkspacePanel: View {
 					HStack(spacing: Tokens.Spacing.space6) {
 						VimTextField("Story", text: $entry.story)
 							.textFieldStyle(.roundedBorder)
-							.font(Tokens.Typography.mono.font)
+							.textStyle(Tokens.Typography.mono)
 							.frame(width: 140)
 						VimTextField("Project id", text: $entry.projectId)
 							.textFieldStyle(.roundedBorder)
-							.font(Tokens.Typography.mono.font)
+							.textStyle(Tokens.Typography.mono)
 					}
 				}
 				HStack {
@@ -131,12 +131,12 @@ private struct TogglWorkspacePanel: View {
 	private func idField(_ label: String, text: Binding<String>, choices: [TogglChoice]) -> some View {
 		HStack(spacing: Tokens.Spacing.space6) {
 			Text(label)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.frame(width: 140, alignment: .leading)
 			VimTextField("Id", text: text)
 				.textFieldStyle(.roundedBorder)
-				.font(Tokens.Typography.mono.font)
+				.textStyle(Tokens.Typography.mono)
 				.accessibilityLabel(label)
 			if !choices.isEmpty {
 				Menu("Pick") {

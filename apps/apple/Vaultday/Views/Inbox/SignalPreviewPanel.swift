@@ -27,7 +27,7 @@ struct SignalPreviewPanel: View {
 					app.inbox.closePreview()
 				} label: {
 					Image(systemName: "xmark")
-						.font(.system(size: 10, weight: .semibold))
+						.iconGlyph(.tag, weight: .semibold)
 						.frame(width: 28, height: 24)
 						.foregroundStyle(Tokens.Colors.inkSecondary)
 						.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
@@ -40,7 +40,7 @@ struct SignalPreviewPanel: View {
 					.accessibilityLabel(card.sourceName)
 				if !card.sender.isEmpty {
 					Text("\(card.sender) · \(card.timeLabel)")
-						.font(Tokens.Typography.callout.font.weight(.semibold))
+						.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 						.foregroundStyle(Tokens.Colors.ink)
 						.lineLimit(1)
 				}
@@ -48,18 +48,15 @@ struct SignalPreviewPanel: View {
 				MonoChip(text: card.id, isRounded: false)
 				Button("Reply in the mail app") { _ = app.inbox.replyInMailApp(signalId: card.id) }
 					.buttonStyle(.plain)
-					.font(Tokens.Typography.callout.font.weight(.semibold))
+					.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.link)
 			}
 			Text(card.headline)
-				.font(Tokens.Typography.title.font)
+				.textStyle(Tokens.Typography.title)
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
-			if screenShare?.hides(.signalPreview) == true {
-				Text("Sender and excerpt are hidden while screen-share mode is on")
-					.font(Tokens.Typography.caption.font)
-					.foregroundStyle(Tokens.Colors.inkMuted)
-			} else {
+			// While sharing the panel shows the headline alone, with nothing saying more exists.
+			if screenShare?.hides(.signalPreview) != true {
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 					fact("From", card.senderAddress)
 					fact("Subject", card.subject)
@@ -68,11 +65,11 @@ struct SignalPreviewPanel: View {
 					}
 				}
 				Text("\u{201C}\(card.excerpt)\u{201D}")
-					.font(Tokens.Typography.body.font)
+					.textStyle(Tokens.Typography.body)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.fixedSize(horizontal: false, vertical: true)
 				Text("Excerpt only; the message stays in the mail account and its text in the encrypted store")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			if card.state.isInTriage {
@@ -81,7 +78,7 @@ struct SignalPreviewPanel: View {
 						outcome(.task)
 					} label: {
 						HStack(spacing: 5) {
-							Image(systemName: "plus").font(.system(size: 9, weight: .semibold))
+							Image(systemName: "plus").iconGlyph(.tag, weight: .semibold)
 							Text("Task")
 						}
 						.fontWeight(.semibold)
@@ -100,12 +97,12 @@ struct SignalPreviewPanel: View {
 					}
 				}
 				Text("Dismissed and snoozed signals write nothing to the vault")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer(minLength: 0)
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.padding(.horizontal, 22)
 		.padding(.vertical, 18)
 		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -55,7 +55,7 @@ struct AiAssistanceStep: View {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 				scopeRow(scope: scope, toggle: { target, isOn in assist.setTarget(target, isOn: isOn, feature: feature.id) })
 				if let note = feature.insightNote {
-					Text(note).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					Text(note).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
 		}

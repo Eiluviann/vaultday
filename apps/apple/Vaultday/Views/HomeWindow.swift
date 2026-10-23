@@ -211,32 +211,6 @@ extension EnvironmentValues {
 	@Entry var workspaceAccent: Color = Tokens.Colors.wsBlue
 }
 
-/// A pane's ground: its own color, washed with the workspace color while the pane has keyboard focus.
-struct PaneGround: ViewModifier {
-	let ground: Color
-	let isFocused: Bool
-	@Environment(\.workspaceAccent) private var accent
-
-	func body(content: Content) -> some View {
-		content.background {
-			ZStack {
-				ground
-				if isFocused {
-					accent.opacity(0.09)
-				}
-			}
-			.animation(.easeOut(duration: Tokens.Motion.motionWash), value: isFocused)
-		}
-	}
-}
-
-extension View {
-	/// The pane's ground and its focus wash.
-	func paneGround(_ ground: Color, isFocused: Bool) -> some View {
-		modifier(PaneGround(ground: ground, isFocused: isFocused))
-	}
-}
-
 extension KeyStroke {
 	/// The stroke SwiftUI reports, in Keymap.yaml's names.
 	init(_ press: KeyPress) {

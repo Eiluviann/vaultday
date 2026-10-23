@@ -13,7 +13,7 @@ struct TogglWeekCard: View {
 			HomeEyebrow(text: TogglWeekModel.title)
 			if let message = week.errorMessage {
 				Text(message)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 			ForEach(week.visibleDays) { day in
@@ -25,12 +25,12 @@ struct TogglWeekCard: View {
 						.fontWeight(.semibold)
 						.foregroundStyle(color(of: day.state))
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.accessibilityElement(children: .combine)
 			}
 			if let status = week.statusText {
 				Text(status)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.fixedSize(horizontal: false, vertical: true)
 			}
@@ -39,7 +39,7 @@ struct TogglWeekCard: View {
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.overlay {
 			RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg)
-				.strokeBorder(Tokens.Colors.line, style: StrokeStyle(lineWidth: 1, dash: week.isConnected ? [] : [4, 3]))
+				.strokeBorder(Tokens.Colors.line, lineWidth: 1)
 		}
 		.accessibilityElement(children: .contain)
 		.accessibilityLabel(week.isConnected ? "Toggl this week" : "Toggl this week, not connected")
