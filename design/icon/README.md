@@ -33,6 +33,8 @@ Tinted and Clear come from Icon Composer's own monochrome and glass treatments; 
 
 ## Building the icon (Phase 1)
 
+**Shipped now:** the flat composite is in `apps/apple/Vaultday/Assets.xcassets` as `AppIcon.appiconset` (10 PNGs from `png/vaultday-icon-1024.png`), plus the `MenuBarIcon` template image set from `glyphs/menubar-template.svg`. The layered `Vaultday.icon` below is still to be built in Icon Composer.
+
 1. Open Icon Composer and create `Vaultday.icon`.
 2. Set the background fill to the default gradient above, or drop in `0-background.svg`.
 3. Add `1-sunrise.svg` and `2-bolted-rim.svg` as two separate layers, in that order, so the glass and specular passes treat the rim as its own raised piece.

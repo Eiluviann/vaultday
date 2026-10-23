@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="672" height="672" viewBox="176 176 672 672">
+	<!-- In-app porthole: the sunrise and the rim without the background tile. Rim in slate so it holds on light and dark surfaces; bolts are plain small discs, no socket, since the mark is used at 34 and 64 pt. Same 1024 grid as the layers, cropped to the rim. -->
+	<defs>
+		<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+			<stop offset="0" stop-color="#FFB547"/>
+			<stop offset="1" stop-color="#FF7A3D"/>
+		</linearGradient>
+		<clipPath id="opening">
+			<circle cx="512" cy="512" r="290"/>
+		</clipPath>
+	</defs>
+	<circle cx="512" cy="512" r="290" fill="url(#sky)"/>
+	<g clip-path="url(#opening)">
+		<circle cx="512" cy="604" r="112" fill="#F1EEE8"/>
+		<rect x="0" y="604" width="1024" height="420" fill="#1B2633"/>
+	</g>
+	<circle cx="512" cy="512" r="290" fill="none" stroke="#46586C" stroke-width="84"/>
+	<g fill="#F1EEE8">
+		<circle cx="512" cy="222" r="22"/>
+		<circle cx="717.1" cy="306.9" r="22"/>
+		<circle cx="802" cy="512" r="22"/>
+		<circle cx="717.1" cy="717.1" r="22"/>
+		<circle cx="512" cy="802" r="22"/>
+		<circle cx="306.9" cy="717.1" r="22"/>
+		<circle cx="222" cy="512" r="22"/>
+		<circle cx="306.9" cy="306.9" r="22"/>
+	</g>
+</svg>

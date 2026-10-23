@@ -12,7 +12,7 @@ struct MenuBarLabel: View {
 				.iconReplace(value: app.runningSession?.isPaused == true)
 				.monospacedDigit()
 		} else {
-			Image(systemName: "timer")
+			Image("MenuBarIcon")
 				.accessibilityLabel("Vaultday")
 		}
 	}
