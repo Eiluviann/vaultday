@@ -7,12 +7,16 @@
 #   apps/apple/VaultdayCore/Sources/VaultdayCore/Generated/VaultdayCore.swift
 #
 # The bindings generator is `crates/uniffi-bindgen`, built from the same
-# pinned `uniffi` version `crates/ffi` links against.
+# pinned `uniffi` version `crates/ffi` links against. Cargo builds into
+# `CARGO_TARGET_DIR` when set (`scripts/env.sh` sets it locally), else `core/target`.
 #
 # Usage: scripts/build-xcframework.sh [--debug]
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/env.sh
+source "$repo_root/scripts/env.sh"
+
 core_dir="$repo_root/core"
 package_dir="$repo_root/apps/apple/VaultdayCore"
 generated_dir="$package_dir/Sources/VaultdayCore/Generated"
@@ -20,6 +24,7 @@ xcframework="$package_dir/VaultdayCoreFFI.xcframework"
 module_name="VaultdayCoreFFI"
 library="libvaultday_ffi.a"
 targets=(aarch64-apple-darwin x86_64-apple-darwin)
+target_dir="${CARGO_TARGET_DIR:-$core_dir/target}"
 
 profile=release
 cargo_profile_flag=(--release)
@@ -32,8 +37,25 @@ fi
 # not the host SDK's, so the app links without version warnings.
 export MACOSX_DEPLOYMENT_TARGET=15.0
 
-build_dir="$core_dir/target/xcframework"
-rm -rf "$build_dir" "$xcframework" "$generated_dir"
+# The target directory may be shared with other worktrees (scripts/env.sh), and
+# Cargo copies the finished library to the same path for every one of them:
+# hold a lock from the build until the library is copied out.
+lock_dir="$target_dir/xcframework.lock"
+mkdir -p "$target_dir"
+until mkdir "$lock_dir" 2>/dev/null; do
+	lock_owner="$(cat "$lock_dir/pid" 2>/dev/null || true)"
+	if [[ -n "$lock_owner" ]] && ! kill -0 "$lock_owner" 2>/dev/null; then
+		rm -rf "$lock_dir"
+		continue
+	fi
+	echo "==> waiting for another worktree's XCFramework build (pid ${lock_owner:-unknown})"
+	sleep 2
+done
+echo $$ >"$lock_dir/pid"
+
+build_dir="$(mktemp -d "${TMPDIR:-/tmp}/vaultday-xcframework.XXXXXX")"
+trap 'rm -rf "$lock_dir" "$build_dir"' EXIT
+rm -rf "$xcframework" "$generated_dir"
 mkdir -p "$build_dir/headers" "$generated_dir"
 
 for target in "${targets[@]}"; do
@@ -46,8 +68,8 @@ done
 universal="$build_dir/$library"
 echo "==> lipo -create -> $universal"
 lipo -create \
-	"$core_dir/target/aarch64-apple-darwin/$profile/$library" \
-	"$core_dir/target/x86_64-apple-darwin/$profile/$library" \
+	"$target_dir/aarch64-apple-darwin/$profile/$library" \
+	"$target_dir/x86_64-apple-darwin/$profile/$library" \
 	-output "$universal"
 
 echo "==> uniffi-bindgen-swift (from crates/uniffi-bindgen)"
