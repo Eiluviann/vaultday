@@ -13,14 +13,17 @@
 #   --dry-run      list the gates the mode would run, without running them
 #
 # What --changed runs, from the files changed since the base (committed,
-# staged, unstaged and untracked):
+# staged, unstaged and untracked; both sides of a rename):
+#   All    every gate, as --full, when scripts/ or .github/ changed
 #   Rust   cargo fmt, then clippy and tests for the crates whose files changed
 #          plus every workspace crate that depends on them (`-p` per crate);
-#          the whole workspace when Cargo.toml, Cargo.lock, the toolchain pin
-#          or core/fixtures changed
+#          the whole workspace when a file under core/ outside core/crates/
+#          (Cargo.toml, Cargo.lock, fixtures, lint config) or the toolchain
+#          pin changed, or when the crates cannot be worked out
 #   Apple  the XCFramework, xcodegen and `xcodebuild test` (app, app tests and
-#          the VaultdayCore package tests) when apps/apple, crates/ffi,
-#          crates/uniffi-bindgen or scripts/build-xcframework.sh changed
+#          the VaultdayCore package tests) when apps/apple, crates/uniffi-bindgen
+#          or a crate the FFI links changed (crates/ffi and every crate it
+#          depends on), or the whole workspace is selected
 #   Node   the napi binding, typecheck and vitest for the changed pnpm
 #          packages and their dependents (all of them when the root manifests
 #          changed; the binding and the CLI when a Rust change reaches
@@ -35,7 +38,8 @@
 # target directory).
 set -uo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Physical path: `cargo metadata` reports manifest paths with symlinks resolved.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 # shellcheck source=scripts/env.sh
 source "$repo_root/scripts/env.sh"
 
@@ -219,6 +223,16 @@ function run_changed() {
 	fi
 	echo "Changed since $base_ref ($(git -C "$repo_root" rev-parse --short "$merge_base")): $(echo "$changed_files" | wc -l | tr -d ' ') files"
 
+	# `grep >/dev/null`, not `grep -q`, throughout: `-q` stops reading at the first
+	# match, and under pipefail the writer's SIGPIPE then fails the whole test once
+	# the list outgrows the pipe buffer (about 1,500 paths).
+	# The gates themselves or CI changed: nothing narrower is trustworthy.
+	if echo "$changed_files" | grep -E '^(scripts|\.github)/' >/dev/null; then
+		echo "scripts/ or .github/ changed: running every gate"
+		run_full
+		return
+	fi
+
 	local crates
 	crates="$(list_affected_crates "$changed_files")"
 	if [[ "$crates" == all ]]; then
@@ -235,9 +249,10 @@ function run_changed() {
 		skip_gate rust 'no core changes'
 	fi
 
-	# Markdown under apps/apple is documentation, not app input.
-	if echo "$changed_files" | grep -v '\.md$' |
-		grep -Eq '^(apps/apple/|core/crates/(ffi|uniffi-bindgen)/|scripts/build-xcframework\.sh$|scripts/env\.sh$)'; then
+	# Markdown under apps/apple is documentation, not app input. A crate the
+	# FFI links (domain, say) changes what the Swift tests exercise.
+	if [[ "$crates" == all ]] || echo "$crates" | grep -x vaultday-ffi >/dev/null ||
+		echo "$changed_files" | grep -v '\.md$' | grep -E '^(apps/apple/|core/crates/uniffi-bindgen/)' >/dev/null; then
 		run_apple_gates
 	else
 		skip_gate apple 'no apps/apple or FFI changes'
@@ -246,7 +261,7 @@ function run_changed() {
 	local node_filters
 	node_filters="$(list_node_filters "$changed_files")"
 	# A Rust change reaching the napi crate changes what the CLI loads.
-	if [[ "$node_filters" != all ]] && { [[ "$crates" == all ]] || echo "$crates" | grep -qx vaultday-node; }; then
+	if [[ "$node_filters" != all ]] && { [[ "$crates" == all ]] || echo "$crates" | grep -x vaultday-node >/dev/null; }; then
 		node_filters="$node_filters--filter '...{./core/crates/node}' "
 	fi
 	if [[ "$node_filters" == all ]]; then
@@ -259,16 +274,16 @@ function run_changed() {
 		skip_gate node 'no cli, tools or core/crates/node changes'
 	fi
 
-	if echo "$changed_files" | grep -Eq '\.(ts|tsx|js|mjs|cjs|json|jsonc|css)$'; then
+	if echo "$changed_files" | grep -E '\.(ts|tsx|js|mjs|cjs|json|jsonc|css)$' >/dev/null; then
 		run_biome_gate
 	else
 		skip_gate biome 'no files biome reads'
 	fi
 
-	if echo "$changed_files" | grep -Eq '^(apps/apple/Keymap\.yaml|tools/keymap-doc/|apps/apple/KEYMAP\.md)'; then
+	if echo "$changed_files" | grep -E '^(apps/apple/Keymap\.yaml|tools/keymap-doc/|apps/apple/KEYMAP\.md)' >/dev/null; then
 		run_keymap_gate
 	fi
-	if echo "$changed_files" | grep -Eq '^(design/tokens\.json|tools/tokens/|apps/apple/Vaultday/Tokens\.swift)'; then
+	if echo "$changed_files" | grep -E '^(design/tokens\.json|tools/tokens/|apps/apple/Vaultday/Tokens\.swift)' >/dev/null; then
 		run_tokens_gate
 	fi
 }
@@ -280,16 +295,22 @@ function run_changed() {
 function list_changed_files() {
 	local merge_base="$1"
 	{
-		git -C "$repo_root" diff --name-only "$merge_base"
+		# Both sides of a rename: a file moved out of a crate changes that crate too.
+		git -C "$repo_root" diff --name-only --no-renames "$merge_base"
 		git -C "$repo_root" ls-files --others --exclude-standard
 	} | sort -u
 }
 
 # The workspace crates to check: those owning a changed file plus their
-# dependents, as package names; `all` when a workspace-wide input changed.
+# dependents, as package names; `all` when a workspace-wide input changed
+# (anything under core/ outside core/crates/ but core/*.md: the manifest,
+# the lock file, the fixtures, Markdown notes included, lint and Cargo
+# config) or when the owners
+# cannot be worked out, so a failure selects more, never less.
 function list_affected_crates() {
 	local changed_files="$1"
-	if echo "$changed_files" | grep -Eq '^(core/Cargo\.(toml|lock)|rust-toolchain\.toml|core/fixtures/|core/\.cargo/)'; then
+	if echo "$changed_files" | grep -E '^rust-toolchain\.toml$' >/dev/null ||
+		echo "$changed_files" | grep '^core/' | grep -v '^core/crates/' | grep -Ev '^core/[^/]+\.md$' >/dev/null; then
 		echo all
 		return
 	fi
@@ -301,7 +322,8 @@ function list_affected_crates() {
 	local metadata
 	metadata="$(cd "$core_dir" && cargo metadata --format-version 1 --no-deps --offline 2>/dev/null ||
 		cargo metadata --format-version 1 --no-deps)"
-	echo "$metadata" | jq -r --arg root "$repo_root/" --arg changed "$core_changes" '
+	local affected
+	affected="$(echo "$metadata" | jq -r --arg root "$repo_root/" --arg changed "$core_changes" '
 		[.packages[] | {
 			name,
 			directory: (.manifest_path | ltrimstr($root) | rtrimstr("Cargo.toml")),
@@ -312,14 +334,19 @@ function list_affected_crates() {
 		| def with_dependents($set):
 			([$packages[] | select(any(.dependencies[]; . as $dependency | $set | index($dependency))) | .name] + $set | unique) as $grown
 			| if ($grown | length) == ($set | length) then $set else with_dependents($grown) end;
-		with_dependents($owners) | .[]'
+		with_dependents($owners) | .[]')"
+	if [[ -z "$affected" ]]; then
+		echo all
+	else
+		echo "$affected"
+	fi
 }
 
 # `--filter` flags selecting the changed pnpm packages and their dependents;
 # `all` when a root manifest changed.
 function list_node_filters() {
 	local changed_files="$1"
-	if echo "$changed_files" | grep -Eq '^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.base\.json|\.nvmrc)$'; then
+	if echo "$changed_files" | grep -E '^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.base\.json|\.nvmrc)$' >/dev/null; then
 		echo all
 		return
 	fi
