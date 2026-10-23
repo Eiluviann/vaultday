@@ -21,6 +21,7 @@ struct HomeWindow: View {
 	@Bindable var app: AppModel
 	@FocusState private var hasKeyFocus: Bool
 	@State private var forceClick = ForceClickMonitor()
+	@State private var leftOfOne = LeftOfOneMonitor()
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -58,7 +59,11 @@ struct HomeWindow: View {
 		// The list takes the keys at launch, not the first text field.
 		.defaultFocus($hasKeyFocus, true)
 		.onKeyPress(phases: .down) { press in
-			app.handle(KeyStroke(press), isTyping: isTypingInTextField) ? .handled : .ignored
+			let start = ProcessInfo.processInfo.systemUptime
+			let stroke = KeyStroke(press)
+			guard app.handle(stroke, isTyping: isTypingInTextField) else { return .ignored }
+			KeyLatency.mark(stroke, event: NSApp.currentEvent, handlerStart: start)
+			return .handled
 		}
 		.overlay(alignment: .bottomTrailing) {
 			ShowCommand(dispatcher: app.dispatcher)
@@ -90,11 +95,24 @@ struct HomeWindow: View {
 		}
 		.onChange(of: app.palette.isOpen) { if !app.palette.isOpen { hasKeyFocus = true } }
 		.onChange(of: app.keyboard.changeRequest) { if app.keyboard.changeRequest == nil { hasKeyFocus = true } }
+		// Esc out of an input: its pane takes the keys back at once, so hjkl
+		// act on the next stroke. A field handing focus straight to another
+		// field keeps it.
+		.onChange(of: app.focus.input) {
+			guard app.focus.input == nil else { return }
+			Task { @MainActor in
+				if app.focus.input == nil, !app.palette.isOpen, !isTypingInTextField { hasKeyFocus = true }
+			}
+		}
 		.onAppear {
 			hasKeyFocus = true
 			forceClick.start(app: app)
+			leftOfOne.start(app: app)
 		}
-		.onDisappear { forceClick.stop() }
+		.onDisappear {
+			forceClick.stop()
+			leftOfOne.stop()
+		}
 		.onChange(of: app.homeSettingsSignature) { app.reloadWorkspaceContent() }
 		.task {
 			// The side panel's clock: the now line, ended meetings, the Reminders intake.
@@ -149,6 +167,35 @@ struct HomeWindow: View {
 			Tokens.Colors.surfaceSidebar
 				.frame(width: app.focus.isSidebarCollapsed ? HomeLayout.railWidth : HomeLayout.sidebarWidth)
 		}
+	}
+}
+
+/// ⌘ and the key left of 1, by key code: § on an ISO keyboard, ` on ANSI.
+/// AppKit hands such a key to the menus before any view, and SwiftUI's key
+/// press carries the character, not the key, so a monitor catches it first.
+@MainActor
+final class LeftOfOneMonitor {
+	private var monitor: Any?
+
+	func start(app: AppModel) {
+		guard monitor == nil else { return }
+		KeyStroke.leftOfOneCap = AppModel.leftOfOneCap
+		monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak app] event in
+			// Only a Bool crosses back out of the actor; the event stays on this thread.
+			let isConsumed = MainActor.assumeIsolated {
+				guard let app, let stroke = AppModel.leftOfOneStroke(event), app.mainWindow.root == .home else { return false }
+				let start = ProcessInfo.processInfo.systemUptime
+				guard app.handle(stroke) else { return false }
+				KeyLatency.mark(stroke, event: event, handlerStart: start)
+				return true
+			}
+			return isConsumed ? nil : event
+		}
+	}
+
+	func stop() {
+		if let monitor { NSEvent.removeMonitor(monitor) }
+		monitor = nil
 	}
 }
 

@@ -11,7 +11,7 @@ struct QuickAddField: View {
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
-			TextField("Add a task · a day, a time, an estimate and a story route it", text: $quickAdd.text)
+			VimTextField("Add a task · a day, a time, an estimate and a story route it", text: $quickAdd.text, onEscape: closeConfirmation)
 				.textFieldStyle(.plain)
 				.font(Tokens.Typography.body.font)
 				.padding(.horizontal, 10)
@@ -56,6 +56,14 @@ struct QuickAddField: View {
 			// What was confirmed is no longer what the field says.
 			if quickAdd.entry != nil, !quickAdd.isAdjusting { quickAdd.cancel() }
 		}
+	}
+
+	/// Esc in the field's Normal mode closes an open confirmation first and
+	/// keeps the field; `false` lets the field give the keys up.
+	private func closeConfirmation() -> Bool {
+		guard quickAdd.entry != nil else { return false }
+		quickAdd.cancel()
+		return true
 	}
 
 	/// ⏎ in the field: Add opens the confirmation; with it open, Save.
@@ -180,7 +188,7 @@ private struct AdjustFields: View {
 		Grid(alignment: .leading, horizontalSpacing: Tokens.Spacing.space8, verticalSpacing: Tokens.Spacing.space6) {
 			GridRow {
 				Text("Text").foregroundStyle(Tokens.Colors.inkMuted)
-				TextField("What to do", text: Binding(get: { entry.text }, set: { quickAdd.setText($0) }))
+				VimTextField("What to do", text: Binding(get: { entry.text }, set: { quickAdd.setText($0) }))
 					.focused($focusedField, equals: .text)
 			}
 			GridRow {
@@ -206,7 +214,7 @@ private struct AdjustFields: View {
 			}
 			GridRow {
 				Text("Estimate").foregroundStyle(Tokens.Colors.inkMuted)
-				TextField("45m", text: $estimateText)
+				VimTextField("45m", text: $estimateText)
 					.focused($focusedField, equals: .estimate)
 					.onSubmit { quickAdd.setEstimate(estimateText) }
 					.onChange(of: estimateText) { quickAdd.setEstimate(estimateText) }
@@ -224,7 +232,7 @@ private struct AdjustFields: View {
 					.labelsHidden()
 					.pickerStyle(.segmented)
 					if entry.isPendingInput {
-						TextField("Waiting on", text: $waitingOn)
+						VimTextField("Waiting on", text: $waitingOn)
 							.focused($focusedField, equals: .waitingOn)
 							.onChange(of: waitingOn) { quickAdd.setPendingInput(true, waitingOn: waitingOn) }
 					}

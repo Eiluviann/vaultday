@@ -49,6 +49,10 @@ public final class KeyboardSession {
 	@ObservationIgnored public var onOwnAction: (KeyAction) -> Void = { _ in }
 	/// Whether an action applies where the app is now (Browse keys outside Browse do not).
 	@ObservationIgnored public var isEnabled: (KeyAction) -> Bool = { _ in true }
+	/// Esc's first job: closes the app's top transient layer (the palette, a
+	/// draft, a preview, a toast); `true` when one closed. When none did,
+	/// Esc moves the focus one level up.
+	@ObservationIgnored public var dismissTransient: () -> Bool = { false }
 
 	public init(dispatcher: KeyDispatcher, focus: PaneFocusModel, register: PlanRegister) {
 		self.dispatcher = dispatcher
@@ -70,7 +74,7 @@ public final class KeyboardSession {
 	/// Feeds one stroke; an action it completes runs.
 	@discardableResult
 	public func handle(_ stroke: KeyStroke) -> KeyResolution {
-		let resolution = dispatcher.handle(stroke, in: focus.focusedPane)
+		let resolution = dispatcher.handle(stroke, in: focus.focusedPane, screen: focus.paneOrder)
 		if case let .action(action) = resolution {
 			run(action)
 		}
@@ -86,13 +90,19 @@ public final class KeyboardSession {
 	/// Runs one action, from a key, a control or the palette.
 	public func run(_ action: KeyAction) {
 		guard isEnabled(action) else { return }
-		// Esc closes the session's own menu or editor first.
-		if action == .dismiss, isItemMenuOpen || changeRequest != nil {
-			isItemMenuOpen = false
-			changeRequest = nil
+		// Esc closes the session's own menu or editor first, then the app's
+		// transient layer, and only then moves one level up the focus tree.
+		if action == .dismiss {
+			if isItemMenuOpen || changeRequest != nil {
+				isItemMenuOpen = false
+				changeRequest = nil
+			} else if !dismissTransient() {
+				focus.ascend()
+			}
 			return
 		}
-		if action != .openItemMenu { isItemMenuOpen = false }
+		// Written only on a change, so a plain move invalidates no menu view.
+		if action != .openItemMenu, isItemMenuOpen { isItemMenuOpen = false }
 		focus.apply(action)
 		if action == .repeatLast {
 			repeatLastChange()

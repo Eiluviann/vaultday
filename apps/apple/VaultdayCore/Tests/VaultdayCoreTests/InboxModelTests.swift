@@ -253,7 +253,7 @@ final class InboxModelTests: XCTestCase {
 
 		type("1")
 		XCTAssertNil(inbox.draft, "the digits are the Inbox's only while it holds focus")
-		type("g 2 j")
+		type("g 3 j")
 		XCTAssertEqual(focus.focusedPane, .inbox)
 		XCTAssertEqual(selected(), inbox.cards[0].id)
 		type("1")

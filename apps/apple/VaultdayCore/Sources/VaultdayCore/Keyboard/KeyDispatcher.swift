@@ -7,6 +7,8 @@ public enum KeyResolution: Equatable, Sendable {
 	case action(KeyAction)
 	/// The strokes so far start one or more bindings; the next stroke decides.
 	case pending([KeyStroke])
+	/// Esc dropped a pending prefix and did nothing else.
+	case cancelled
 	/// No binding starts with these strokes; the stroke goes on to the system.
 	case unbound
 }
@@ -26,37 +28,25 @@ public struct KeyCompletion: Hashable, Sendable {
 /// Turns strokes into actions for the current scheme, holding a pending
 /// prefix (`g` of `g1`) between strokes. ``pendingText`` is the showcmd.
 ///
-/// A pending prefix lapses after ``pendingTimeout`` without a stroke, as
-/// vim's `timeoutlen`: the next stroke then starts over on its own. The view
-/// calls ``expirePending()`` once the timeout passes so the highlights leave.
+/// A pending prefix never lapses, as in an editor: it waits for the next
+/// stroke, and Esc drops it without doing anything else.
 @MainActor
 @Observable
 public final class KeyDispatcher {
-	/// How long a pending prefix waits for its next stroke.
-	public static let defaultPendingTimeout: Duration = .seconds(1)
-
 	public private(set) var scheme: KeyScheme
 	public private(set) var pending: [KeyStroke] = []
 	/// The keys that complete ``pending``, with what each runs; empty when nothing is pending.
 	public private(set) var completions: [KeyCompletion] = []
-	public let pendingTimeout: Duration
 	public let keymap: Keymap
 
-	@ObservationIgnored private let now: () -> ContinuousClock.Instant
-	@ObservationIgnored private var pendingSince: ContinuousClock.Instant?
-	@ObservationIgnored private var bound: [(sequence: [KeyStroke], action: KeyAction, pane: Pane?)] = []
+	@ObservationIgnored private var bound: [BoundSequence] = []
 	@ObservationIgnored private var rows: [KeyTableRow] = []
 
-	public init(
-		keymap: Keymap,
-		scheme: KeyScheme,
-		pendingTimeout: Duration = KeyDispatcher.defaultPendingTimeout,
-		now: @escaping () -> ContinuousClock.Instant = { ContinuousClock.now },
-	) {
+	private static let escape = KeyStroke(key: "escape")
+
+	public init(keymap: Keymap, scheme: KeyScheme) {
 		self.keymap = keymap
 		self.scheme = scheme
-		self.pendingTimeout = pendingTimeout
-		self.now = now
 		rebuild()
 	}
 
@@ -90,17 +80,19 @@ public final class KeyDispatcher {
 		rebuild()
 	}
 
-	/// Feeds one stroke typed while `pane` holds focus: a binding that needs
-	/// another pane (bare `1` to `7` need the side panel) stays out of reach,
-	/// and one scoped to `pane` wins over an unscoped one of the same keys.
-	public func handle(_ stroke: KeyStroke, in pane: Pane? = nil) -> KeyResolution {
-		expirePending()
+	/// Feeds one stroke typed while `pane` holds focus, with `screen` the
+	/// panes on screen. Which bindings answer, strongest first: one scoped
+	/// to `pane`, one scoped to no pane, then a fallback scoped to another
+	/// pane of `screen` (`[` `]` reach the only tabbed pane). A binding that
+	/// needs another pane (bare `1` to `7` need the side panel) stays out of reach.
+	public func handle(_ stroke: KeyStroke, in pane: Pane? = nil, screen: [Pane] = Pane.homeOrder) -> KeyResolution {
+		if !pending.isEmpty, stroke == Self.escape {
+			clearPending()
+			return .cancelled
+		}
 		let sequence = pending + [stroke]
-		let reachable = bound.filter { $0.pane == nil || $0.pane == pane }
-		// A binding scoped to the focused pane shadows an unscoped one of the
-		// same keys; the keymap allows that only outside the Home window.
-		let exact = reachable.filter { $0.sequence == sequence }
-		if let match = exact.first(where: { $0.pane != nil }) ?? exact.first {
+		let reachable = reachableBindings(in: pane, screen: screen)
+		if let match = reachable.first(where: { $0.sequence == sequence }) {
 			clearPending()
 			return .action(match.action)
 		}
@@ -112,17 +104,9 @@ public final class KeyDispatcher {
 		// A stroke that breaks a pending prefix starts over on its own.
 		if !pending.isEmpty {
 			clearPending()
-			return handle(stroke, in: pane)
+			return handle(stroke, in: pane, screen: screen)
 		}
 		return .unbound
-	}
-
-	/// Drops a pending prefix whose timeout has passed; `true` when one was dropped.
-	@discardableResult
-	public func expirePending() -> Bool {
-		guard let pendingSince, now() - pendingSince >= pendingTimeout else { return false }
-		clearPending()
-		return true
 	}
 
 	/// Drops a pending prefix (Esc, focus change).
@@ -146,9 +130,21 @@ public final class KeyDispatcher {
 		rows.first { $0.action == action }?.label
 	}
 
+	/// The bindings `pane` reaches, strongest first; a fallback only for keys
+	/// that neither `pane` nor the unscoped bindings use.
+	private func reachableBindings(in pane: Pane?, screen: [Pane]) -> [BoundSequence] {
+		let scoped = bound.filter { $0.pane != nil && $0.pane == pane }
+		let unscoped = bound.filter { $0.pane == nil }
+		let claimed = Set((scoped + unscoped).map(\.sequence))
+		let fallbacks = bound.filter { binding in
+			guard binding.isFallback, let target = binding.pane, target != pane, screen.contains(target) else { return false }
+			return !claimed.contains(binding.sequence)
+		}
+		return scoped + unscoped + fallbacks
+	}
+
 	private func setPending(_ sequence: [KeyStroke], completing reachable: [[KeyStroke]]) {
 		pending = sequence
-		pendingSince = now()
 		completions = rows.flatMap { row in
 			row.sequences.compactMap { candidate -> KeyCompletion? in
 				guard candidate.count == sequence.count + 1, reachable.contains(candidate), let next = candidate.last else { return nil }
@@ -158,8 +154,8 @@ public final class KeyDispatcher {
 	}
 
 	private func clearPending() {
+		guard !pending.isEmpty || !completions.isEmpty else { return }
 		pending = []
-		pendingSince = nil
 		completions = []
 	}
 

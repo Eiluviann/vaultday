@@ -150,13 +150,13 @@ final class ModelTests: XCTestCase {
 		let container = try TestFixtures.temporaryFolder(self, "Group")
 		let keychain = InMemoryKeychainBackend()
 		let settings = SettingsModel(session: try CoreSession.open(try environment(container, keychain: keychain)))
-		XCTAssertEqual(settings.keyboardScheme, .standard)
-		settings.setKeyboardScheme(.vimMotions)
+		XCTAssertEqual(settings.keyboardScheme, .vimMotions)
+		settings.setKeyboardScheme(.standard)
 		settings.setHoverSelects(false)
 		XCTAssertNil(settings.errorMessage)
 
 		let reopened = SettingsModel(session: try CoreSession.open(try environment(container, keychain: keychain)))
-		XCTAssertEqual(reopened.keyboardScheme, .vimMotions)
+		XCTAssertEqual(reopened.keyboardScheme, .standard)
 		XCTAssertFalse(reopened.hoverSelects)
 		XCTAssertEqual(reopened.refusedSnapshots, [])
 	}
@@ -165,7 +165,7 @@ final class ModelTests: XCTestCase {
 		let container = try TestFixtures.temporaryFolder(self, "Group")
 		let keychain = InMemoryKeychainBackend()
 		let session = try CoreSession.open(try environment(container, keychain: keychain))
-		SettingsModel(session: session).setKeyboardScheme(.vimMotions)
+		SettingsModel(session: session).setKeyboardScheme(.standard)
 		let snapshot = AppGroupLayout(container: container).appStateFolder.appending(path: "\(session.deviceId).bin")
 		var bytes = try Data(contentsOf: snapshot)
 		bytes[bytes.count / 2] ^= 0xFF
@@ -173,6 +173,6 @@ final class ModelTests: XCTestCase {
 
 		let reopened = SettingsModel(session: try CoreSession.open(try environment(container, keychain: keychain)))
 		XCTAssertEqual(reopened.refusedSnapshots.count, 1)
-		XCTAssertEqual(reopened.keyboardScheme, .standard, "nothing of a refused snapshot is merged")
+		XCTAssertEqual(reopened.keyboardScheme, .vimMotions, "nothing of a refused snapshot is merged")
 	}
 }

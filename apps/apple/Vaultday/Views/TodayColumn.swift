@@ -161,15 +161,18 @@ struct DayHeader: View {
 					.background(Tokens.Colors.fillControl, in: Capsule())
 			}
 			.buttonStyle(.plain)
+			.keyboardHighlight(app.isHighlighted(DayHeaderControl.today), cornerRadius: 10)
 			.disabled(isToday)
 			.help(isToday ? "Today" : app.keyLabel(.showToday).map { "Back to today (\($0))" } ?? "Back to today")
 			HStack(spacing: 0) {
 				HeaderIconButton(symbol: "chevron.left", label: "Previous day", help: app.keyLabel(.previousDay).map { "Previous day (\($0))" } ?? "Previous day") {
 					app.perform(.previousDay)
 				}
+				.keyboardHighlight(app.isHighlighted(DayHeaderControl.previousDay))
 				HeaderIconButton(symbol: "chevron.right", label: "Next day", help: app.keyLabel(.nextDay).map { "Next day (\($0))" } ?? "Next day") {
 					app.perform(.nextDay)
 				}
+				.keyboardHighlight(app.isHighlighted(DayHeaderControl.nextDay))
 			}
 			Spacer()
 			if showsSpanSwitch {
@@ -182,17 +185,31 @@ struct DayHeader: View {
 				.labelsHidden()
 				.controlSize(.small)
 				.fixedSize()
+				.keyboardHighlight(app.isHighlighted(DayHeaderControl.span))
 				.help("The day as a list, or the calendar over three days or a week")
 			}
 			if showsScheduling {
 				HeaderIconButton(symbol: nil, text: "=", label: "Auto-schedule", help: hint("Auto-schedule: lays the unfinished, unlocked tasks into today's free time in list order", .autoSchedule)) {
 					app.perform(.autoSchedule)
 				}
+				.keyboardHighlight(app.isHighlighted(DayHeaderControl.autoSchedule))
 				HeaderIconButton(symbol: "wand.and.stars", label: "Re-plan from now", help: hint("Re-plan from now: moves only unfinished, unpinned tasks", .replan)) {
 					app.perform(.replan)
 				}
+				.keyboardHighlight(app.isHighlighted(DayHeaderControl.replan))
 			}
 		}
+		// The controls `h` and `l` walk once `k` climbs above the first card.
+		.onAppear { app.setDayHeaderControls(controls) }
+		.onChange(of: controls) { _, controls in app.setDayHeaderControls(controls) }
+	}
+
+	/// The header's controls left to right, as it shows them.
+	private var controls: [DayHeaderControl] {
+		var controls: [DayHeaderControl] = [.today, .previousDay, .nextDay]
+		if showsSpanSwitch { controls.append(.span) }
+		if showsScheduling { controls += [.autoSchedule, .replan] }
+		return controls
 	}
 
 	private func hint(_ text: String, _ action: KeyAction) -> String {

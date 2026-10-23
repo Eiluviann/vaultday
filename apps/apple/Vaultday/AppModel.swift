@@ -138,10 +138,23 @@ final class AppModel {
 	/// The Home text fields that hold keyboard focus now, by name; while any
 	/// does, bare keys go to the field.
 	private var focusedTextFields: Set<String> = []
+	/// The sidebar row the open workspace last put the sidebar's current row on.
+	@ObservationIgnored var lastSidebarWorkspaceRow: SidebarRow?
+	/// The Today header's controls as it shows them now, for `h` `l` and ⏎.
+	var dayHeaderControls: [DayHeaderControl] = []
+	/// The health list under the sidebar's footer dot, opened by a click or ⏎.
+	var isShowingHealth = false
 
-	/// A Home text field gained or lost keyboard focus.
+	/// A Home text field gained or lost keyboard focus. A field of a pane is
+	/// the input level of the focus tree: Esc in it comes back to the pane.
 	func setTextField(_ name: String, isFocused: Bool) {
 		if isFocused { focusedTextFields.insert(name) } else { focusedTextFields.remove(name) }
+		guard let pane = Self.pane(ofTextField: name) else { return }
+		if isFocused {
+			focus.enterInput(FocusedInput(name: name, pane: pane))
+		} else {
+			focus.leaveInput(named: name)
+		}
 	}
 	/// The calendar line in the side panel: access, the private calendar, or why not.
 	private(set) var calendarStatus = ""
@@ -168,8 +181,9 @@ final class AppModel {
 			keymap = Keymap(bindings: [])
 			keymapError = error.description
 		}
-		dispatcher = KeyDispatcher(keymap: keymap, scheme: .standard)
-		focus = PaneFocusModel()
+		// Vim motions until the settings say otherwise, as the design note's default.
+		dispatcher = KeyDispatcher(keymap: keymap, scheme: .vim)
+		focus = PaneFocusModel(scheme: .vim)
 		timerBackend = AppTimerAPIBackend(sessions: sessions, dayPlan: dayPlan)
 		let register = PlanRegister(plan: dayPlan) { text in
 			NSPasteboard.general.clearContents()
@@ -182,6 +196,7 @@ final class AppModel {
 		keyboard.onAction = { [weak self] in self?.performAppAction($0) }
 		keyboard.isEnabled = { [weak self] in self?.isEnabled($0) ?? false }
 		keyboard.onOwnAction = { [weak self] in self?.registerChanged($0) }
+		keyboard.dismissTransient = { [weak self] in self?.dismissTransientLayer() ?? false }
 		configureTimerBackend()
 		configureInbox()
 	}
@@ -355,7 +370,7 @@ final class AppModel {
 			return false
 		}
 		switch keyboard.handle(stroke) {
-		case .action, .pending:
+		case .action, .pending, .cancelled:
 			syncStorySelection()
 			saveWindowState()
 			return true
@@ -378,7 +393,7 @@ final class AppModel {
 				break
 			}
 			return true
-		case .pending:
+		case .pending, .cancelled:
 			return true
 		case .unbound:
 			return false
@@ -449,9 +464,12 @@ final class AppModel {
 			openPalette()
 		case .addTask:
 			insertAnchor = nil
+			// `i` `o` `O` mean "insert" in Vim, so the field they open types at once.
+			VimFieldRouter.shared.startNextFieldInInsert()
 			quickAddFocusRequest += 1
 		case .addTaskAfter, .addTaskBefore:
 			insertAnchor = selectedItem.map { ($0.taskId, action == .addTaskAfter) }
+			VimFieldRouter.shared.startNextFieldInInsert()
 			quickAddFocusRequest += 1
 		case .nextWorkspace:
 			stepWorkspace(by: 1)
@@ -480,24 +498,8 @@ final class AppModel {
 			leaveStory()
 			leaveBrowse()
 			showToday()
-		case .dismiss:
-			if palette.isOpen {
-				palette.close()
-			} else if inbox.draft != nil {
-				inbox.cancelDraft()
-			} else if inbox.previewId != nil {
-				inbox.closePreview()
-			} else if peek.subject != nil {
-				peek.dismiss()
-			} else if preview.isOpen {
-				preview.close()
-			} else if screen == .story {
-				leaveStory()
-			} else if quickAdd.entry != nil {
-				quickAdd.cancel()
-			} else {
-				dayPlan.dismissToast()
-			}
+		case let .showSpan(span):
+			showSpan(span)
 		case let .focusPane(pane):
 			if pane == .today {
 				leaveBrowse()
@@ -520,7 +522,11 @@ final class AppModel {
 		case let .showStoryPanelTab(place):
 			story.showTab(place: place)
 		case .focusBrowseQuery:
-			if screen == .browse { browseQueryFocusRequest += 1 }
+			if screen == .browse {
+				// `/` opens Vim's search line typing, as `i` opens quick add.
+				VimFieldRouter.shared.startNextFieldInInsert()
+				browseQueryFocusRequest += 1
+			}
 		case .toggleFold:
 			toggleFoldOfSelection()
 		case .nextGroup:
@@ -660,12 +666,45 @@ final class AppModel {
 		}
 	}
 
+	/// Esc's first job: the top transient layer closes, in this order; `true`
+	/// when one did. With none open, Esc moves one level up the focus tree.
+	private func dismissTransientLayer() -> Bool {
+		if palette.isOpen {
+			palette.close()
+		} else if inbox.draft != nil {
+			inbox.cancelDraft()
+		} else if inbox.previewId != nil {
+			inbox.closePreview()
+		} else if peek.subject != nil {
+			peek.dismiss()
+		} else if preview.isOpen {
+			preview.close()
+		} else if screen == .story {
+			leaveStory()
+		} else if quickAdd.entry != nil {
+			quickAdd.cancel()
+		} else if dayPlan.toast != nil {
+			dayPlan.dismissToast()
+		} else {
+			return false
+		}
+		return true
+	}
+
 	/// ⏎ on the selection: a task opens its preview, a Browse group header
 	/// folds, a signal opens its preview slide-over.
 	private func openSelection() {
 		// ⏎ while an outcome popover is open saves it, whatever holds focus.
 		if inbox.draft != nil {
 			inbox.saveDraft()
+			return
+		}
+		if focus.section == .dayHeader {
+			activateDayHeaderControl()
+			return
+		}
+		if focus.focusedPane == .sidebar, let index = focus.selection(in: .sidebar) {
+			activateSidebarRow(at: index)
 			return
 		}
 		if focus.focusedPane == .inbox, let signal = selectedSignal {

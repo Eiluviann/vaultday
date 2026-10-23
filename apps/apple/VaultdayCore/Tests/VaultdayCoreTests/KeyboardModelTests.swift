@@ -71,10 +71,10 @@ final class KeyboardModelTests: XCTestCase {
 				XCTAssertFalse(row.label.isEmpty, "\(row.action) has no label")
 				XCTAssertFalse(row.label.hasSuffix("."), "a single-sentence label ends without a period: \(row.label)")
 			}
-			for (sequence, action, _) in keymap.sequences(for: scheme) {
-				guard let first = sequence.first, first.isBare, let kept = Keymap.directionalKeys[first.key] else { continue }
-				XCTAssertEqual(sequence.count, 1, "bare \(first.key) starts a chord under \(scheme)")
-				XCTAssertEqual(action, kept, "bare \(first.key) is bound to \(action) under \(scheme)")
+			for bound in keymap.sequences(for: scheme) {
+				guard let first = bound.sequence.first, first.isBare, let kept = Keymap.directionalKeys[first.key] else { continue }
+				XCTAssertEqual(bound.sequence.count, 1, "bare \(first.key) starts a chord under \(scheme)")
+				XCTAssertEqual(bound.action, kept, "bare \(first.key) is bound to \(bound.action) under \(scheme)")
 			}
 		}
 		// Vim motions are never actions; `n` `N` `{` `}` keep their vim meaning in Browse.
@@ -89,7 +89,7 @@ final class KeyboardModelTests: XCTestCase {
 			("c d", .changeDue), ("c s", .changeScheduled), ("< <", .pullToToday), ("m", .togglePin),
 			("=", .autoSchedule), ("r", .replan), ("g t", .nextWorkspace), ("g shift+t", .previousWorkspace), ("g b", .showBrowse),
 			("g l", .showDayLog), ("cmd+l", .appendDayLog), ("space", .toggleTimer),
-			("alt+j", .moveTaskDown), ("alt+k", .moveTaskUp), ("g 0", .focusPane(.sidebar)), ("g 3", .focusPane(.sidePanel)),
+			("alt+j", .moveTaskDown), ("alt+k", .moveTaskUp), ("g 1", .focusPane(.sidebar)), ("g 4", .focusPane(.sidePanel)),
 			("]", .nextSidePanelTab), ("[", .previousSidePanelTab), ("alt+1", .showSidePanelTab(1)), ("alt+7", .showSidePanelTab(7)),
 			("i", .addTask), ("o", .addTaskAfter), ("shift+o", .addTaskBefore), (":", .openPalette), ("cmd+k", .openPalette),
 		]
@@ -150,7 +150,7 @@ final class KeyboardModelTests: XCTestCase {
 		XCTAssertEqual(vim.handle(stroke("alt+2"), in: .inbox), .action(.showSidePanelTab(2)))
 		// `g` then a digit is still a pane jump, wherever focus is.
 		XCTAssertEqual(vim.handle(stroke("g"), in: .sidePanel), .pending([stroke("g")]))
-		XCTAssertEqual(vim.handle(stroke("1"), in: .sidePanel), .action(.focusPane(.today)))
+		XCTAssertEqual(vim.handle(stroke("1"), in: .sidePanel), .action(.focusPane(.sidebar)))
 	}
 
 	func testShiftedSymbolsMatchWithOrWithoutShiftInTheFile() {
@@ -165,36 +165,29 @@ final class KeyboardModelTests: XCTestCase {
 
 	// MARK: Pending strokes
 
-	func testAPendingStrokeListsItsCompletionsAndTimesOut() throws {
-		var now = ContinuousClock.now
-		let dispatcher = KeyDispatcher(keymap: try repoKeymap(), scheme: .vim, pendingTimeout: .milliseconds(800), now: { now })
+	func testAPendingStrokeListsItsCompletionsAndNeverLapses() throws {
+		let dispatcher = KeyDispatcher(keymap: try repoKeymap(), scheme: .vim)
 
 		XCTAssertEqual(dispatcher.handle(stroke("g")), .pending([stroke("g")]))
 		XCTAssertEqual(dispatcher.pendingText, "g")
 		XCTAssertTrue(dispatcher.showsPaneNumbers)
 		XCTAssertFalse(dispatcher.opensItemMenu)
 		let gNext = Set(dispatcher.completions.map(\.next.capText))
-		XCTAssertTrue(gNext.isSuperset(of: ["0", "1", "2", "3", "g", "b", "l", "t", "T"]), "\(gNext)")
+		XCTAssertTrue(gNext.isSuperset(of: ["1", "2", "3", "4", "g", "b", "l", "t", "T"]), "\(gNext)")
+		XCTAssertFalse(gNext.contains("0"), "g0 is free since the sidebar became g1")
 
-		now += .milliseconds(799)
-		XCTAssertFalse(dispatcher.expirePending())
-		XCTAssertEqual(dispatcher.handle(stroke("1")), .action(.focusPane(.today)), "inside the timeout the chord completes")
-
-		_ = dispatcher.handle(stroke("g"))
-		now += .milliseconds(800)
-		XCTAssertTrue(dispatcher.expirePending())
+		// No clock: the prefix waits for its next stroke however long it takes, as in an editor.
+		XCTAssertEqual(dispatcher.pendingText, "g")
+		XCTAssertEqual(dispatcher.handle(stroke("1")), .action(.focusPane(.sidebar)))
 		XCTAssertEqual(dispatcher.pendingText, "")
 		XCTAssertTrue(dispatcher.completions.isEmpty)
-
-		_ = dispatcher.handle(stroke("g"))
-		now += .seconds(2)
-		XCTAssertEqual(dispatcher.handle(stroke("1"), in: .sidePanel), .action(.showSidePanelTab(1)), "a lapsed g leaves 1 to stand alone")
 
 		XCTAssertEqual(dispatcher.handle(stroke("y")), .pending([stroke("y")]))
 		XCTAssertTrue(dispatcher.opensItemMenu, "yy lives in the item's menu")
 		XCTAssertFalse(dispatcher.showsPaneNumbers)
-		XCTAssertEqual(dispatcher.handle(stroke("escape")), .action(.dismiss), "Esc breaks the pending y")
+		XCTAssertEqual(dispatcher.handle(stroke("escape")), .cancelled, "Esc only drops the pending y")
 		XCTAssertEqual(dispatcher.pending, [])
+		XCTAssertEqual(dispatcher.handle(stroke("escape")), .action(.dismiss), "with nothing pending Esc is Esc again")
 
 		XCTAssertEqual(dispatcher.handle(stroke("c")), .pending([stroke("c")]))
 		XCTAssertEqual(dispatcher.completions.map(\.next.key), ["c", "e", "d", "s"])
@@ -211,12 +204,12 @@ final class KeyboardModelTests: XCTestCase {
 		XCTAssertEqual(harness.session.focus.scheme, .standard)
 		harness.type("j")
 		XCTAssertEqual(harness.selectedTaskId, "task-1", "a bare j is not a Standard key")
-		harness.type("ctrl+2")
+		harness.type("ctrl+3")
 		XCTAssertEqual(harness.session.focus.focusedPane, .inbox)
-		harness.type("ctrl+1")
+		harness.type("ctrl+2")
 		XCTAssertEqual(harness.selectedTaskId, "task-1", "Standard lands on the first item")
 		harness.session.setScheme(.vim)
-		harness.type("g 1")
+		harness.type("g 2")
 		XCTAssertTrue(harness.session.focus.isOnContainer(.today), "Vim motions focus the container")
 		XCTAssertNil(harness.selectedTaskId)
 	}
@@ -244,7 +237,7 @@ final class KeyboardModelTests: XCTestCase {
 
 	// MARK: Storyboards
 
-	/// The Vim storyboard, six steps: pending g with pane numbers, g1 onto
+	/// The register storyboard under Vim, six steps: pending g with pane numbers, g2 onto
 	/// the Today container, j j to a task, dd to the backlog with the menu
 	/// opening on the pending d, P pastes it back before the selection, and
 	/// u then ^r undo and redo the paste.
@@ -259,8 +252,8 @@ final class KeyboardModelTests: XCTestCase {
 		XCTAssertTrue(session.dispatcher.showsPaneNumbers)
 		XCTAssertFalse(session.showsItemMenu)
 
-		// 2. 1: Today, the container itself.
-		harness.type("1")
+		// 2. 2: Today, the container itself.
+		harness.type("2")
 		XCTAssertEqual(session.focus.focusedPane, .today)
 		XCTAssertTrue(session.focus.isOnContainer(.today))
 		XCTAssertNil(harness.selectedTaskId)
@@ -298,7 +291,7 @@ final class KeyboardModelTests: XCTestCase {
 		XCTAssertTrue(harness.appActions.allSatisfy { !KeyboardSession.repeatableActions.contains($0) && ![.undo, .redo].contains($0) }, "the register ran every change")
 	}
 
-	/// The Standard storyboard, six steps: ⌃1 lands on the first item, ↓
+	/// The register storyboard under Standard, six steps: ⌃2 lands on the first item, ↓
 	/// moves, ⌘X cuts to the backlog, ↑ and ⌘V paste after the selection,
 	/// ⌘Z undoes it, ⇧⌘Z redoes it and ⌘K opens the palette. No stroke is
 	/// ever pending.
@@ -307,8 +300,8 @@ final class KeyboardModelTests: XCTestCase {
 		let session = harness.session
 		session.focus.focus(.sidebar)
 
-		// 1. ⌃1: Today, on its first item.
-		harness.type("ctrl+1")
+		// 1. ⌃2: Today, on its first item.
+		harness.type("ctrl+2")
 		XCTAssertEqual(session.focus.focusedPane, .today)
 		XCTAssertFalse(session.focus.isOnContainer(.today))
 		XCTAssertEqual(harness.selectedTaskId, "task-1")
@@ -343,7 +336,7 @@ final class KeyboardModelTests: XCTestCase {
 
 	func testDoneUndoRedoAndRepeatGoThroughTheRegister() throws {
 		let harness = try Harness(scheme: .vim)
-		harness.type("g 1 j x")
+		harness.type("g 2 j x")
 		XCTAssertEqual(harness.plan.lines["task-1"]?.completion, "2026-10-23")
 		harness.type("u")
 		XCTAssertNil(harness.plan.lines["task-1"]?.completion)
@@ -361,13 +354,13 @@ final class KeyboardModelTests: XCTestCase {
 
 	func testRepeatRecordsNothingWithoutASelection() throws {
 		let harness = try Harness(scheme: .vim)
-		harness.type("g 1")
+		harness.type("g 2")
 		XCTAssertNil(harness.selectedTaskId)
 		harness.type("x")
 		XCTAssertNil(harness.session.lastChange, "a change with nothing selected is no change to repeat")
 		harness.type("j > >")
 		XCTAssertEqual(harness.session.lastChange, .pushToTomorrow)
-		harness.type("g 1 x")
+		harness.type("g 2 x")
 		XCTAssertEqual(harness.session.lastChange, .pushToTomorrow, "the last real change is kept")
 		harness.type(".")
 		XCTAssertEqual(harness.plan.lines["task-2"]?.scheduled, "2026-10-23", "`.` without a selection does nothing")
@@ -395,7 +388,7 @@ final class KeyboardModelTests: XCTestCase {
 
 	func testARefusedEditKeepsHistoryAndSaysWhy() throws {
 		let harness = try Harness(scheme: .vim)
-		harness.type("g 1 j")
+		harness.type("g 2 j")
 		harness.plan.refusing = ["task-1"]
 		harness.type("d d")
 		XCTAssertEqual(harness.plan.shownList, ["task-1", "task-2", "task-3"])
@@ -442,7 +435,7 @@ final class KeyboardModelTests: XCTestCase {
 
 	func testChangeKeysOpenAnEditorAndSaveThroughTheRegister() throws {
 		let harness = try Harness(scheme: .vim)
-		harness.type("g 1 j c e")
+		harness.type("g 2 j c e")
 		XCTAssertEqual(harness.session.changeRequest?.field, .estimate)
 		XCTAssertEqual(harness.session.changeRequest?.title, "Change the estimate")
 		harness.session.submitChange("45m")
@@ -462,7 +455,7 @@ final class KeyboardModelTests: XCTestCase {
 
 	func testTheItemMenuKeyTogglesAndEscCloses() throws {
 		let harness = try Harness(scheme: .vim)
-		harness.type("g 1 j \\")
+		harness.type("g 2 j \\")
 		XCTAssertTrue(harness.session.showsItemMenu)
 		harness.type("escape")
 		XCTAssertFalse(harness.session.showsItemMenu)

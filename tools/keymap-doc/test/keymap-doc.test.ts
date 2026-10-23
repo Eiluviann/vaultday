@@ -3,12 +3,18 @@ import { describe, expect, it } from 'vitest';
 import { generateKeymapDoc, readText } from '../src/generate.ts';
 import { capsOfSequence } from '../src/key-caps.ts';
 import { buildKeyTable, parseKeymapEntries } from '../src/keymap.ts';
-import { KEYMAP_DOC_PATH, KEYMAP_PATH, REPOSITORY_ROOT } from '../src/paths.ts';
+import {
+	KEYMAP_DOC_PATH,
+	KEYMAP_NOTES_PATH,
+	KEYMAP_PATH,
+	REPOSITORY_ROOT,
+} from '../src/paths.ts';
 
 describe('apps/apple/KEYMAP.md', () => {
 	it('is the key table of the committed Keymap.yaml', () => {
 		const generated = generateKeymapDoc(
 			path.resolve(REPOSITORY_ROOT, KEYMAP_PATH),
+			path.resolve(REPOSITORY_ROOT, KEYMAP_NOTES_PATH),
 		);
 		const committed = readText(path.resolve(REPOSITORY_ROOT, KEYMAP_DOC_PATH));
 		expect(generated.ok && committed.ok).toBe(true);
@@ -28,6 +34,7 @@ describe('capsOfSequence', () => {
 		['g shift+t', 'g T'],
 		['\\', '\\'],
 		['cmd+k', '⌘K'],
+		['cmd+left-of-1', '⌘§'],
 	])('prints %s as %s', (notation, caps) => {
 		expect(capsOfSequence(notation)).toEqual({ ok: true, value: caps });
 	});

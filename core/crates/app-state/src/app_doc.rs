@@ -133,13 +133,14 @@ pub enum EnablementScope {
     Workspace(WorkspaceId),
 }
 
-/// The keyboard scheme the app runs.
+/// The keyboard scheme the app runs; Vim motions until the user picks one,
+/// as the design note's default scheme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum KeyboardScheme {
     /// The platform's standard keys.
-    #[default]
     Standard,
     /// Vim motions.
+    #[default]
     Vim,
 }
 
@@ -509,8 +510,8 @@ impl AppState {
     #[must_use]
     pub fn keyboard_scheme(&self) -> KeyboardScheme {
         match get_str(&self.doc, &self.objects.settings, "keyboard_scheme").as_deref() {
-            Some("vim") => KeyboardScheme::Vim,
-            _ => KeyboardScheme::Standard,
+            Some("standard") => KeyboardScheme::Standard,
+            _ => KeyboardScheme::Vim,
         }
     }
 
@@ -666,7 +667,7 @@ mod tests {
         assert!(state.hover_selects());
         assert_eq!(state.workload_threshold(), DEFAULT_WORKLOAD_THRESHOLD);
         assert_eq!(state.long_timer_limit(), DEFAULT_LONG_TIMER_LIMIT);
-        assert_eq!(state.keyboard_scheme(), KeyboardScheme::Standard);
+        assert_eq!(state.keyboard_scheme(), KeyboardScheme::Vim);
         assert_eq!(
             state.security(&WorkspaceId::new("acme")),
             WorkspaceSecurity::default()

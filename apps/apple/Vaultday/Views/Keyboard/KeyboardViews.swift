@@ -8,9 +8,19 @@ import VaultdayCore
 
 /// A key cap; `isLit` marks a key that completes the pending strokes.
 struct KeyCap: View {
-	let text: String
+	let text: AttributedString
 	var isLit = false
 	var isMuted = false
+
+	init(text: String, isLit: Bool = false, isMuted: Bool = false) {
+		self.init(attributed: AttributedString(text), isLit: isLit, isMuted: isMuted)
+	}
+
+	init(attributed: AttributedString, isLit: Bool = false, isMuted: Bool = false) {
+		text = attributed
+		self.isLit = isLit
+		self.isMuted = isMuted
+	}
 
 	var body: some View {
 		Text(text)
@@ -29,18 +39,33 @@ struct KeyCap: View {
 	}
 }
 
-/// The caps of one key sequence, one cap per stroke.
+/// One key sequence as one hint box, `g1` rather than `g` and `1` apart;
+/// while strokes are pending the box is lit and the typed prefix is
+/// highlighted inside it, as which-key draws `[**g**1]`.
 struct SequenceCaps: View {
 	let caps: [String]
-	/// How many leading strokes are already typed (shown muted).
+	/// How many leading strokes are already typed.
 	var typed = 0
 
 	var body: some View {
-		HStack(spacing: 2) {
-			ForEach(Array(caps.enumerated()), id: \.offset) { index, cap in
-				KeyCap(text: cap, isLit: index >= typed && typed > 0, isMuted: index < typed)
+		KeyCap(attributed: Self.text(caps, typed: typed), isLit: typed > 0)
+	}
+
+	/// The strokes run together, a thin space only beside a named key (`Space`, `Esc`).
+	static func text(_ caps: [String], typed: Int) -> AttributedString {
+		var text = AttributedString()
+		for (index, cap) in caps.enumerated() {
+			if index > 0, cap.count > 1 || caps[index - 1].count > 1 {
+				text += AttributedString("\u{2009}")
 			}
+			var stroke = AttributedString(cap)
+			if index < typed {
+				stroke.foregroundColor = Tokens.Colors.focus
+				stroke.font = Tokens.Typography.kbd.font.weight(.heavy)
+			}
+			text += stroke
 		}
+		return text
 	}
 }
 
@@ -60,13 +85,8 @@ struct ShowCommand: View {
 			.padding(.vertical, 5)
 			.background(Tokens.Colors.primary, in: RoundedRectangle(cornerRadius: 6))
 			.padding(Tokens.Spacing.space12)
-			.help("Pending keys; Esc or any other key cancels")
+			.help("Pending keys; they wait for the next key, and Esc cancels them")
 			.accessibilityLabel("Pending keys \(dispatcher.pendingText)")
-			// The prefix lapses after the timeout, and the highlights leave with it.
-			.task(id: dispatcher.pendingText) {
-				try? await Task.sleep(for: dispatcher.pendingTimeout)
-				dispatcher.expirePending()
-			}
 		}
 	}
 }
@@ -78,11 +98,8 @@ struct PaneNumberBadge: View {
 
 	var body: some View {
 		if let completion = dispatcher.completions.first(where: { $0.action == .focusPane(pane) }) {
-			HStack(spacing: 2) {
-				KeyCap(text: dispatcher.pendingText, isMuted: true)
-				KeyCap(text: completion.next.capText, isLit: true)
-			}
-			.padding(Tokens.Spacing.space8)
+			SequenceCaps(caps: completion.sequence.map(\.capText), typed: dispatcher.pending.count)
+				.padding(Tokens.Spacing.space8)
 			.transition(.opacity)
 			.accessibilityLabel("Pane \(completion.next.capText)")
 		}
@@ -245,6 +262,32 @@ struct ChangeFieldEditor: View {
 		case .estimate: "45m, 2h; empty clears it"
 		case .due, .scheduled: "today, tomorrow or 2026-10-30; empty clears it"
 		}
+	}
+}
+
+/// The keyboard highlight on a row or control the keys walk (a sidebar
+/// row, a header control, a setup option): the focus ring, 2 px, outside
+/// the item. One place, so the look of focus changes in one place.
+struct KeyboardHighlight: ViewModifier {
+	let isOn: Bool
+	var cornerRadius: CGFloat = Tokens.Radius.radiusMd
+
+	func body(content: Content) -> some View {
+		content.overlay {
+			if isOn {
+				RoundedRectangle(cornerRadius: cornerRadius + 2)
+					.strokeBorder(Tokens.Colors.focus, lineWidth: 2)
+					.padding(-3)
+					.allowsHitTesting(false)
+			}
+		}
+	}
+}
+
+extension View {
+	/// The focus ring while the keys are on this item.
+	func keyboardHighlight(_ isOn: Bool, cornerRadius: CGFloat = Tokens.Radius.radiusMd) -> some View {
+		modifier(KeyboardHighlight(isOn: isOn, cornerRadius: cornerRadius))
 	}
 }
 
