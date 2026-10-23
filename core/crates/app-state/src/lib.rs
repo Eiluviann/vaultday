@@ -37,9 +37,12 @@ pub mod volatile;
 pub mod workspace_state;
 
 pub use app_doc::{
-    AccountPart, AppState, Connection, ConnectionId, ConnectionKind, EnablementScope,
-    FeatureScopeChoice, FeatureScopeMode, FolderGrant, KeyboardScheme, ONBOARDING_STEP_COUNT,
-    OnboardingProgress, SecurityMode, Source, SyncChoice, SyncHome, SyncService, WorkspaceSecurity,
+    AI_TIER_EVERYWHERE, AccountPart, AgentChanges, AiScopeChoice, AiTier, AppState, BreakPattern,
+    Connection, ConnectionId, ConnectionKind, DataRetention, EnablementScope, FeatureScopeChoice,
+    FeatureScopeMode, FolderGrant, KeyboardScheme, ListPosition, ONBOARDING_STEP_COUNT,
+    OnboardingProgress, OtherAppsAccess, OverrunWarning, ProviderKeyRecord, ProviderKeyScope,
+    ProviderKind, SecurityMode, ShortcutCaps, Source, SyncChoice, SyncHome, SyncService,
+    WorkingHours, WorkingHoursKind, WorkspaceSecurity,
 };
 pub use device::DeviceId;
 pub use error::AppStateError;

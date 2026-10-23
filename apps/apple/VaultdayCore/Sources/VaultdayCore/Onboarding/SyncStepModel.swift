@@ -8,7 +8,7 @@ public enum SyncHomeChoice: String, CaseIterable, Hashable, Sendable {
 	case localAndCloud
 	case cloud
 
-	fileprivate var core: SyncHomeView {
+	var core: SyncHomeView {
 		switch self {
 		case .local: .local
 		case .localAndCloud: .localAndCloud
@@ -16,7 +16,7 @@ public enum SyncHomeChoice: String, CaseIterable, Hashable, Sendable {
 		}
 	}
 
-	fileprivate init(_ view: SyncHomeView) {
+	init(_ view: SyncHomeView) {
 		switch view {
 		case .local: self = .local
 		case .localAndCloud: self = .localAndCloud
@@ -43,7 +43,7 @@ public enum SyncServiceChoice: String, CaseIterable, Hashable, Sendable {
 		}
 	}
 
-	fileprivate var core: SyncServiceView {
+	var core: SyncServiceView {
 		switch self {
 		case .iCloudDrive: .icloudDrive
 		case .dropbox: .dropbox
@@ -53,7 +53,7 @@ public enum SyncServiceChoice: String, CaseIterable, Hashable, Sendable {
 		}
 	}
 
-	fileprivate init(_ view: SyncServiceView) {
+	init(_ view: SyncServiceView) {
 		switch view {
 		case .icloudDrive: self = .iCloudDrive
 		case .dropbox: self = .dropbox

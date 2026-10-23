@@ -19,7 +19,6 @@ final class OnboardingModelTests: XCTestCase {
 		XCTAssertEqual(onboarding.progressText, "Step 1 of 12")
 		XCTAssertEqual(SetupStep.allCases.count, 12)
 		XCTAssertEqual(SetupStep.allCases.map(\.title).first, "Welcome")
-		XCTAssertEqual(SetupStep.allCases.filter(\.isDrawnInThisRelease).count, 6)
 	}
 
 	func testContinueAndBackMoveOneStepAndKeepTheFurthestReached() throws {

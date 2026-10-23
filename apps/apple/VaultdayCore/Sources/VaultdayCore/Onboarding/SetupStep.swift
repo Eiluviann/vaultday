@@ -35,9 +35,6 @@ public enum SetupStep: Int, CaseIterable, Identifiable, Sendable {
 		}
 	}
 
-	/// Whether this release draws the step; the rest arrive with onboarding part two.
-	public var isDrawnInThisRelease: Bool { rawValue <= SetupStep.featureSets.rawValue }
-
 	/// The step after this one, if any.
 	public var next: SetupStep? { SetupStep(rawValue: rawValue + 1) }
 

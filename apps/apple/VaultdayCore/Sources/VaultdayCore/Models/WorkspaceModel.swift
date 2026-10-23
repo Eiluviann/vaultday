@@ -26,6 +26,12 @@ public struct SyncSummary: Hashable, Sendable {
 @MainActor
 @Observable
 public final class WorkspaceModel {
+	/// What the main window shows: one workspace, or every workspace together.
+	public enum Scope: Equatable, Sendable {
+		case single
+		case all
+	}
+
 	public enum Phase: Equatable, Sendable {
 		/// No folder granted yet.
 		case noFolder
@@ -37,6 +43,8 @@ public final class WorkspaceModel {
 	static let probeDate = "2000-01-01"
 
 	public private(set) var phase: Phase = .noFolder
+	/// Always ``Scope/single`` at launch: the app opens on the last single workspace, never on All.
+	public private(set) var scope: Scope = .single
 	public private(set) var name = ""
 	public private(set) var workspaceId = ""
 	public private(set) var rootPath = ""
@@ -59,12 +67,14 @@ public final class WorkspaceModel {
 		self.session = session
 	}
 
-	/// Resolves the folder grants stored for this device and opens the first
-	/// one that still resolves. A stale bookmark is refreshed and stored; one
-	/// that no longer resolves is listed in ``grantProblems``.
+	/// Resolves the folder grants stored for this device and opens the one of
+	/// the last single workspace shown, or the first that still resolves when
+	/// that one is gone. A stale bookmark is refreshed and stored; one that no
+	/// longer resolves is listed in ``grantProblems``.
 	public func restoreAtLaunch() {
 		grantProblems = []
-		for grant in session.appState.folderGrants() {
+		scope = .single
+		for grant in grantsLastWorkspaceFirst() {
 			switch session.environment.grants.resolve(grant.bookmark) {
 			case let .resolved(url, refreshedBookmark):
 				if let refreshedBookmark {
@@ -82,6 +92,19 @@ public final class WorkspaceModel {
 			}
 		}
 	}
+
+	/// Shows every workspace together. The last single workspace stays what it was, so a relaunch never opens on All.
+	public func showAll() {
+		scope = .all
+	}
+
+	/// Shows the open workspace alone again.
+	public func showSingle() {
+		scope = .single
+	}
+
+	/// The workspace the app opens on at launch on this Mac, if one was shown.
+	public var lastSingleWorkspaceId: String? { session.appState.lastSingleWorkspace() }
 
 	/// Grants a folder the user picked in the open panel and opens it. The
 	/// connection and its grant are stored only when the folder opened as a workspace.
@@ -208,7 +231,25 @@ public final class WorkspaceModel {
 			phase = .failed(coreErrorMessage(error))
 			return
 		}
+		rememberAsLastSingleWorkspace()
 		openAppState()
+	}
+
+	/// The grants of this Mac, the ones that read the last single workspace first.
+	private func grantsLastWorkspaceFirst() -> [FolderGrantView] {
+		let grants = session.appState.folderGrants()
+		guard let last = session.appState.lastSingleWorkspace() else { return grants }
+		let connections = Set(session.appState.allSources().filter { $0.workspace == last }.map(\.connection))
+		return grants.filter { connections.contains($0.connection) } + grants.filter { !connections.contains($0.connection) }
+	}
+
+	private func rememberAsLastSingleWorkspace() {
+		guard session.appState.lastSingleWorkspace() != workspaceId else { return }
+		do {
+			try session.edit { try $0.setLastSingleWorkspace(workspace: workspaceId) }
+		} catch {
+			appStateStatus = coreErrorMessage(error)
+		}
 	}
 
 	/// Opens the workspace's app state, or starts it when no device has.
@@ -270,6 +311,7 @@ public final class WorkspaceModel {
 		appStateStatus = ""
 		syncSummary = nil
 		pickedCalendarIds = []
+		scope = .single
 		phase = .noFolder
 	}
 

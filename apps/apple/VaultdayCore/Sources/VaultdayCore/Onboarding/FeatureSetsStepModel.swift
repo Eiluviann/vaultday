@@ -19,7 +19,7 @@ public enum FeatureScopeSwitch: String, CaseIterable, Identifiable, Hashable, Se
 		}
 	}
 
-	fileprivate var core: FeatureScopeModeView {
+	var core: FeatureScopeModeView {
 		switch self {
 		case .off: .off
 		case .everywhere: .everywhere
@@ -28,7 +28,7 @@ public enum FeatureScopeSwitch: String, CaseIterable, Identifiable, Hashable, Se
 		}
 	}
 
-	fileprivate init(_ view: FeatureScopeModeView) {
+	init(_ view: FeatureScopeModeView) {
 		switch view {
 		case .off: self = .off
 		case .everywhere: self = .everywhere

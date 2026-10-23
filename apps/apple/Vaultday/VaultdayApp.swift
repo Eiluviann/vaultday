@@ -31,6 +31,10 @@ struct VaultdayApp: App {
 		.windowStyle(.hiddenTitleBar)
 		.defaultSize(SetupLayout.windowDefaultSize)
 
+		Settings {
+			SettingsWindow(app: app)
+		}
+
 		Window("Sync Check", id: "sync-check") {
 			SyncCheckWindow(app: app)
 		}

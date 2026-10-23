@@ -5,6 +5,7 @@ import VaultdayCore
 /// content pane with the shown step and the sticky footer.
 struct SetupWindow: View {
 	let app: AppModel
+	@Environment(\.dismissWindow) private var dismissWindow
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -14,6 +15,10 @@ struct SetupWindow: View {
 					onboarding: setup.onboarding,
 					scheme: Binding(get: { app.settings?.keyboardScheme ?? .standard }, set: { app.setKeyboardScheme($0) }),
 					chooseRestoreFolder: { source in Task { await restore(source, setup: setup) } },
+					finish: {
+						app.finishSetup()
+						dismissWindow(id: "setup")
+					},
 				) {
 					stepContent(setup)
 				}
@@ -45,7 +50,12 @@ struct SetupWindow: View {
 		case .syncAndBackup: SyncStep(sync: setup.sync).onAppear { setup.sync.refreshGitWorkspaces() }
 		case .accounts: AccountsStep(workspaces: setup.workspaces, accounts: setup.accounts)
 		case .featureSets: FeatureSetsStep(workspaces: setup.workspaces, features: setup.features)
-		case let step: LaterStep(step: step)
+		case .security: SecurityStep(workspaces: setup.workspaces, security: setup.security)
+		case .rituals: RitualsStep(rhythm: setup.rhythm)
+		case .aiLevel: AiLevelStep(workspaces: setup.workspaces, level: setup.aiLevel)
+		case .aiProviders: AiProvidersStep(workspaces: setup.workspaces, providers: setup.aiProviders)
+		case .aiAssistance: AiAssistanceStep(workspaces: setup.workspaces, assist: setup.aiAssistance)
+		case .ready: ReadyStep(workspaces: setup.workspaces, ready: setup.ready)
 		}
 	}
 

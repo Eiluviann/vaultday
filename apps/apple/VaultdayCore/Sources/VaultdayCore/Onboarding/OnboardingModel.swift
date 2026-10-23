@@ -41,9 +41,17 @@ public final class OnboardingModel {
 
 	public var canGoBack: Bool { current.previous != nil }
 	public var canContinue: Bool { current.next != nil }
+	/// Whether the shown step is the last: Continue gives way to the hand-off into the main window.
+	public var isLastStep: Bool { current.next == nil }
 	/// Restore takes Back's place on the first step.
 	public var isRestoreAvailable: Bool { current == .welcome }
-	public var continueTitle: String { current == .welcome ? "Get started" : "Continue" }
+	public var continueTitle: String {
+		switch current {
+		case .welcome: "Get started"
+		case .ready: "Open Vaultday"
+		default: "Continue"
+		}
+	}
 	public var progressText: String { "Step \(current.rawValue) of \(SetupStep.allCases.count)" }
 
 	/// How a step shows: steps already reached are links back, the shown one is raised.
@@ -82,6 +90,29 @@ public final class OnboardingModel {
 			show(.workspaces)
 		}
 		return outcome
+	}
+
+	/// Ends the setup: marks it finished and settles which workspace the main
+	/// window opens on, the last single one shown if it still exists, else the
+	/// first. Returns its id, `nil` when no workspace exists. Only the last
+	/// step finishes.
+	@discardableResult
+	public func finish(workspaces entries: [WorkspaceEntry]) -> String? {
+		guard isLastStep else { return nil }
+		let remembered = session.appState.lastSingleWorkspace()
+		let target = entries.first { $0.id == remembered }?.id ?? entries.first?.id
+		do {
+			try session.edit {
+				try $0.setOnboardingFinished(isFinished: true)
+				if let target { try $0.setLastSingleWorkspace(workspace: target) }
+			}
+			isFinished = true
+			errorMessage = nil
+			return target
+		} catch {
+			errorMessage = coreErrorMessage(error)
+			return nil
+		}
 	}
 
 	private func show(_ step: SetupStep) {

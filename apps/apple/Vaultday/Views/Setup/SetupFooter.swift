@@ -5,6 +5,8 @@ import VaultdayCore
 struct SetupFooter: View {
 	let onboarding: OnboardingModel
 	let chooseRestoreFolder: (RestoreSource) -> Void
+	/// Hands the setup over to the main window; the last step's Continue.
+	let finish: () -> Void
 	@State private var isShowingRestore = false
 
 	var body: some View {
@@ -31,13 +33,12 @@ struct SetupFooter: View {
 				.font(Tokens.Typography.callout.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Button {
-				onboarding.goForward()
+				if onboarding.isLastStep { finish() } else { onboarding.goForward() }
 			} label: {
-				SetupLabel(title: onboarding.continueTitle, iconAfter: "arrow.right")
+				SetupLabel(title: onboarding.continueTitle, iconAfter: onboarding.isLastStep ? "checkmark" : "arrow.right")
 			}
 			.buttonStyle(SetupButtonStyle(kind: .primary))
 			.keyboardShortcut(.defaultAction)
-			.disabled(!onboarding.canContinue)
 		}
 		.padding(.vertical, Tokens.Spacing.space16)
 		.overlay(alignment: .top) { Rectangle().fill(Tokens.Colors.line).frame(height: 1) }

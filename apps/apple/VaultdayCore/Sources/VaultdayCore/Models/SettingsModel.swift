@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -25,15 +26,29 @@ public struct ConnectionSummary: Identifiable, Hashable, Sendable {
 public final class SettingsModel {
 	public private(set) var keyboardScheme: KeyboardSchemeSetting = .standard
 	public private(set) var hoverSelects = true
+	public private(set) var shortcutCaps: ShortcutCapsSetting = .animated
+	/// This device's id, read-only: the sync folder names this Mac's change files by it.
+	public let deviceId: String
+	/// A line about the id for the device block, saying what it is for.
+	public static let deviceIdNote = "Names this Mac's change files in each workspace's sync folder; it is new after a restore"
 	public private(set) var connections: [ConnectionSummary] = []
 	/// Snapshots refused at open, for the user to see.
 	public private(set) var refusedSnapshots: [String] = []
 	public private(set) var errorMessage: String?
 
 	private let session: CoreSession
+	private let copyToPasteboard: @MainActor (String) -> Void
 
-	public init(session: CoreSession) {
+	public init(
+		session: CoreSession,
+		copyToPasteboard: @escaping @MainActor (String) -> Void = { text in
+			NSPasteboard.general.clearContents()
+			NSPasteboard.general.setString(text, forType: .string)
+		},
+	) {
 		self.session = session
+		self.copyToPasteboard = copyToPasteboard
+		deviceId = session.deviceId
 		reload()
 	}
 
@@ -42,6 +57,7 @@ public final class SettingsModel {
 		let appState = session.appState
 		keyboardScheme = appState.keyboardScheme() == .vim ? .vimMotions : .standard
 		hoverSelects = appState.hoverSelects()
+		shortcutCaps = ShortcutCapsSetting(appState.shortcutCaps())
 		connections = appState.connections().map(mapConnection)
 		refusedSnapshots = session.refusedSnapshots
 	}
@@ -52,6 +68,15 @@ public final class SettingsModel {
 
 	public func setHoverSelects(_ isOn: Bool) {
 		write { try $0.setHoverSelects(isOn: isOn) }
+	}
+
+	public func setShortcutCaps(_ caps: ShortcutCapsSetting) {
+		write { try $0.setShortcutCaps(caps: caps.core) }
+	}
+
+	/// Copies the device id for pasting into a support note or a bug report.
+	public func copyDeviceId() {
+		copyToPasteboard(deviceId)
 	}
 
 	private func write(_ edit: (AppStateHandle) throws -> Void) {

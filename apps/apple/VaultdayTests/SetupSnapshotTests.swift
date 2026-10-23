@@ -40,10 +40,26 @@ final class SetupSnapshotTests: XCTestCase {
 		let features = FeatureSetsStepModel(session: session)
 		features.refresh(workspaces: workspaces.entries)
 		features.setScope(.perWorkspace, tile: "github")
+		let security = SecurityStepModel(session: session)
+		security.refresh(workspaces: workspaces.entries)
+		let rhythm = RhythmModel(session: session)
+		let aiLevel = AiLevelStepModel(session: session)
+		aiLevel.refresh(workspaces: workspaces.entries)
+		aiLevel.setMode(.perWorkspace)
+		let aiProviders = AiProvidersStepModel(session: session)
+		var draft = ProviderKeyDraft(provider: .claude)
+		draft.name = "Work key"
+		draft.key = "sk-ant-synthetic-snapshot-key"
+		aiProviders.add(draft)
+		let aiAssistance = AiAssistanceStepModel(session: session)
+		aiAssistance.refresh(workspaces: workspaces.entries)
+		aiAssistance.setMode(.perSphere, feature: "sort-inbox")
+		let ready = ReadyStepModel(session: session, rhythm: rhythm)
+		ready.refresh(workspaces: workspaces.entries)
 
-		for step in SetupStep.allCases where step.isDrawnInThisRelease {
+		for step in SetupStep.allCases {
 			while onboarding.current != step { onboarding.goForward() }
-			let frame = SetupFrame(onboarding: onboarding, scheme: .constant(.vimMotions), chooseRestoreFolder: { _ in }) {
+			let frame = SetupFrame(onboarding: onboarding, scheme: .constant(.vimMotions), chooseRestoreFolder: { _ in }, finish: {}) {
 				switch step {
 				case .welcome: WelcomeStep()
 				case .workspaces: WorkspacesStep(workspaces: workspaces)
@@ -51,7 +67,12 @@ final class SetupSnapshotTests: XCTestCase {
 				case .syncAndBackup: SyncStep(sync: sync)
 				case .accounts: AccountsStep(workspaces: workspaces, accounts: accounts)
 				case .featureSets: FeatureSetsStep(workspaces: workspaces, features: features)
-				default: LaterStep(step: step)
+				case .security: SecurityStep(workspaces: workspaces, security: security)
+				case .rituals: RitualsStep(rhythm: rhythm)
+				case .aiLevel: AiLevelStep(workspaces: workspaces, level: aiLevel)
+				case .aiProviders: AiProvidersStep(workspaces: workspaces, providers: aiProviders)
+				case .aiAssistance: AiAssistanceStep(workspaces: workspaces, assist: aiAssistance)
+				case .ready: ReadyStep(workspaces: workspaces, ready: ready)
 				}
 			}
 			.frame(width: SetupLayout.windowDefaultSize.width, height: SetupLayout.windowDefaultSize.height - SetupLayout.titleBarHeight)

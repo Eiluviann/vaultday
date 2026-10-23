@@ -71,6 +71,10 @@ pub enum AppStateError {
     /// Every id block of a kind is claimed.
     #[error("every {0} id block is claimed")]
     IdSpaceExhausted(&'static str),
+    /// A setting's name or target cannot be stored: it is empty, too long, or
+    /// holds a character the encoding uses as a separator.
+    #[error("{0}")]
+    InvalidSetting(String),
     /// A volatile state folder was placed inside a workspace folder.
     #[error("{path} is inside the workspace folder {workspace}; volatile state lives outside it")]
     VolatileInsideWorkspace {

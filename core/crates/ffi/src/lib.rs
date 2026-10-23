@@ -16,6 +16,7 @@ pub mod app_state;
 pub mod calendar;
 pub mod files;
 pub mod onboarding;
+pub mod preferences;
 pub mod secrets;
 pub mod workspace_form;
 

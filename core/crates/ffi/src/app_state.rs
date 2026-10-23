@@ -575,7 +575,9 @@ impl From<AppStateError> for CoreError {
                 CoreError::Conflict(message)
             }
             AppStateError::Io { .. } => CoreError::FileAccess(message),
-            AppStateError::InvalidDeviceId(_) => CoreError::InvalidInput(message),
+            AppStateError::InvalidDeviceId(_) | AppStateError::InvalidSetting(_) => {
+                CoreError::InvalidInput(message)
+            }
             _ => CoreError::AppState(message),
         }
     }
@@ -835,6 +837,76 @@ mod tests {
             mac,
         );
         assert!(matches!(refused, Err(CoreError::KeyNotArrived(_))));
+    }
+
+    #[test]
+    fn the_rhythm_ai_and_workspace_choices_survive_a_reopen() {
+        use crate::onboarding::FeatureScopeModeView;
+        use crate::preferences::*;
+
+        let temp = tempfile::tempdir().unwrap();
+        let dir = text(&temp.path().join("app"));
+        let keychain = Arc::new(Keychain::default());
+        let app = open_app_state(plain_sync_files(), dir.clone(), keychain.clone()).unwrap();
+        app.set_break_pattern(BreakPatternView::TwentyFiveFive)
+            .unwrap();
+        app.set_rollover_position(ListPositionView::Bottom).unwrap();
+        app.set_new_task_position(ListPositionView::Top).unwrap();
+        app.set_shortcut_caps(ShortcutCapsView::Instant).unwrap();
+        app.set_workload_threshold_minutes(390).unwrap();
+        app.set_ritual_minute("planning".to_owned(), Some(525))
+            .unwrap();
+        app.set_ritual_day("weekly-review".to_owned(), Some(WeekdayView::Friday))
+            .unwrap();
+        app.set_ai_scope(
+            "level".to_owned(),
+            AiScopeView {
+                mode: FeatureScopeModeView::PerSphere,
+                targets: vec!["work".to_owned()],
+                tiers: vec![AiTierEntryView {
+                    target: "work".to_owned(),
+                    tier: AiTierView::Insight,
+                }],
+            },
+        )
+        .unwrap();
+        app.put_provider_key(ProviderKeyView {
+            id: "key-1".to_owned(),
+            provider: ProviderKindView::Claude,
+            name: "Work key".to_owned(),
+            scope: ProviderKeyScopeView::Default,
+            targets: Vec::new(),
+            insight_model: None,
+            glance_model: None,
+            endpoint: None,
+        })
+        .unwrap();
+        app.set_last_single_workspace(Some("ws-1".to_owned()))
+            .unwrap();
+        assert!(matches!(
+            app.set_workload_threshold_minutes(0),
+            Err(CoreError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            app.set_ritual_minute("planning".to_owned(), Some(1440)),
+            Err(CoreError::InvalidInput(_))
+        ));
+        app.save().unwrap();
+
+        let reopened = open_app_state(plain_sync_files(), dir, keychain).unwrap();
+        assert_eq!(reopened.break_pattern(), BreakPatternView::TwentyFiveFive);
+        assert_eq!(reopened.rollover_position(), ListPositionView::Bottom);
+        assert_eq!(reopened.new_task_position(), ListPositionView::Top);
+        assert_eq!(reopened.shortcut_caps(), ShortcutCapsView::Instant);
+        assert_eq!(reopened.workload_threshold_minutes(), 390);
+        assert_eq!(reopened.ritual_minute("planning".to_owned()), Some(525));
+        assert_eq!(
+            reopened.ritual_day("weekly-review".to_owned()),
+            Some(WeekdayView::Friday)
+        );
+        assert_eq!(reopened.ai_scope("level".to_owned()).targets, ["work"]);
+        assert_eq!(reopened.provider_keys().len(), 1);
+        assert_eq!(reopened.last_single_workspace().as_deref(), Some("ws-1"));
     }
 
     #[test]

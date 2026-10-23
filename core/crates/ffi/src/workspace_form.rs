@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
+use app_state::settings_guard::secret_like_fields;
 use domain::ticket::TicketPattern;
 use vault_base::{
     FieldIssue, FolderClaim, PlainFileAccess, WorkspaceError, WorkspaceFormError, WorkspaceKind,
@@ -126,6 +127,12 @@ pub fn create_workspace(
     let prefill = read_note_prefill(&root, &PlainFileAccess)
         .map_err(|error| CoreError::FileAccess(error.to_string()))?;
     let mut settings = new_workspace_settings(&name, core_kind(kind), prefill.as_ref());
+    if secret_issues(&settings)
+        .iter()
+        .any(|issue| issue.field == "name")
+    {
+        settings.name.clear();
+    }
     if settings.name.is_empty() {
         settings.name = root
             .file_name()
@@ -135,6 +142,7 @@ pub fn create_workspace(
     if pattern_issue(&settings).is_some() {
         settings.ticket_pattern = None;
     }
+    leave_out_secret_shaped_values(&mut settings);
     create_settings_file(&root, &settings, &PlainFileAccess).map_err(form_error)?;
     Ok(form_view(&settings))
 }
@@ -233,13 +241,9 @@ pub fn check_folder_grant(
 fn all_issues(form: &WorkspaceFormView) -> Vec<FieldIssueView> {
     let settings = settings_from_form(form);
     let mut issues = form_issues(&settings);
-    if let Some(issue) = pattern_issue(&settings) {
-        let position = issues
-            .iter()
-            .position(|known| field_rank(known.field) > field_rank("ticket_pattern"))
-            .unwrap_or(issues.len());
-        issues.insert(position, issue);
-    }
+    issues.extend(pattern_issue(&settings));
+    issues.extend(secret_issues(&settings));
+    issues.sort_by_key(|issue| field_rank(issue.field));
     issues.into_iter().map(issue_view).collect()
 }
 
@@ -262,6 +266,54 @@ fn pattern_issue(settings: &WorkspaceSettings) -> Option<FieldIssue> {
         field: "ticket_pattern",
         message: format!("The ticket pattern is not a valid regular expression: {error}"),
     })
+}
+
+/// One issue per field whose value has the form of a secret, as the
+/// `settings_guard` reads the file these settings would write.
+/// `settings.json` syncs as plain text with the vault, so a key pasted into
+/// the wrong field must not land there.
+fn secret_issues(settings: &WorkspaceSettings) -> Vec<FieldIssue> {
+    let Ok(value) = serde_json::to_value(settings) else {
+        return Vec::new();
+    };
+    let mut fields: Vec<&'static str> = secret_like_fields(&value)
+        .iter()
+        .filter_map(|path| {
+            let top = path.split(['.', '[']).next()?;
+            FIELD_ORDER.iter().copied().find(|field| *field == top)
+        })
+        .collect();
+    fields.dedup();
+    fields
+        .into_iter()
+        .map(|field| FieldIssue {
+            field,
+            message: format!(
+                "The {} looks like a key or a password; settings.json syncs as plain text, so secrets stay out of it",
+                field.replace('_', " ")
+            ),
+        })
+        .collect()
+}
+
+/// Clears what a note offered in a secret's form, as a refused note value is
+/// left out, so the folder still becomes a workspace.
+fn leave_out_secret_shaped_values(settings: &mut WorkspaceSettings) {
+    for issue in secret_issues(settings) {
+        match issue.field {
+            "accent" => settings.accent = None,
+            "ticket_pattern" => settings.ticket_pattern = None,
+            "ticket_url" => settings.ticket_url = None,
+            "hosts" => settings.hosts.clear(),
+            "browser" => settings.browser = None,
+            "log_folder" => {
+                settings.log_folder =
+                    WorkspaceSettings::new(String::new(), settings.kind).log_folder;
+            }
+            "story_template" => settings.story_template = None,
+            _ => {}
+        }
+    }
 }
 
 const FIELD_ORDER: [&str; 9] = [
@@ -516,5 +568,80 @@ mod tests {
             claims,
         )
         .expect("life nests");
+    }
+
+    const SYNTHETIC_KEY: &str = "sk-ant-api03-synthetic-not-a-real-key";
+
+    fn written_settings(root: &Path) -> serde_json::Value {
+        let text = fs::read_to_string(root.join(".vaultday/settings.json")).expect("settings.json");
+        serde_json::from_str(&text).expect("json")
+    }
+
+    #[test]
+    fn a_settings_file_the_steps_write_passes_the_secret_guard() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        let root = folder.path().to_string_lossy().into_owned();
+        create_workspace(root.clone(), "Studio".to_owned(), WorkspaceKindView::Work)
+            .expect("created");
+        let mut every_field = form("Studio");
+        every_field.accent = Some("blue".to_owned());
+        every_field.ticket_pattern = Some("WEB-\\d+".to_owned());
+        every_field.ticket_url = Some("https://tracker.example.test/browse/{ticket}".to_owned());
+        every_field.hosts = vec!["tracker.example.test".to_owned()];
+        every_field.browser = Some("Safari".to_owned());
+        every_field.story_template = Some("Templates/Story.md".to_owned());
+        update_workspace_form(root, every_field).expect("updated");
+
+        let settings = written_settings(folder.path());
+        assert_eq!(
+            app_state::settings_guard::secret_like_fields(&settings),
+            Vec::<String>::new()
+        );
+        let keys = settings.as_object().expect("object");
+        for forbidden in vault_base::settings::FORBIDDEN_SETTINGS_KEYS {
+            assert!(
+                !keys.keys().any(|key| key.eq_ignore_ascii_case(forbidden)),
+                "{forbidden} is in settings.json"
+            );
+        }
+    }
+
+    #[test]
+    fn a_value_shaped_like_a_secret_is_refused_and_nothing_is_written() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        let root = folder.path().to_string_lossy().into_owned();
+        create_workspace(root.clone(), "Studio".to_owned(), WorkspaceKindView::Work)
+            .expect("created");
+        let before = written_settings(folder.path());
+        let mut pasted = form("Studio");
+        pasted.story_template = Some(SYNTHETIC_KEY.to_owned());
+
+        let issues = workspace_form_issues(pasted.clone());
+        let fields: Vec<&str> = issues.iter().map(|issue| issue.field.as_str()).collect();
+        assert_eq!(fields, ["story_template"]);
+        let refused = update_workspace_form(root, pasted).expect_err("refused");
+        assert!(matches!(refused, CoreError::InvalidSettings(_)));
+        assert_eq!(written_settings(folder.path()), before);
+    }
+
+    #[test]
+    fn a_note_value_shaped_like_a_secret_is_left_out_when_the_folder_becomes_a_workspace() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        fs::write(
+            folder.path().join("Workspace.md"),
+            format!("---\nbrowser: {SYNTHETIC_KEY}\nhours_per_day: 6\n---\n# Studio\n"),
+        )
+        .expect("note");
+        let created = create_workspace(
+            folder.path().to_string_lossy().into_owned(),
+            String::new(),
+            WorkspaceKindView::Work,
+        )
+        .expect("created");
+        assert_eq!(created.browser, None);
+        assert_eq!(created.hours_per_day, 6.0);
+        let text = fs::read_to_string(folder.path().join(".vaultday/settings.json"))
+            .expect("settings.json");
+        assert!(!text.contains(SYNTHETIC_KEY));
     }
 }

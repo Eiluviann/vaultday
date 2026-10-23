@@ -19,7 +19,7 @@ public enum AccountPartChoice: String, CaseIterable, Identifiable, Hashable, Sen
 		}
 	}
 
-	fileprivate var core: AccountPartView {
+	var core: AccountPartView {
 		switch self {
 		case .mail: .mail
 		case .calendar: .calendar
@@ -28,7 +28,7 @@ public enum AccountPartChoice: String, CaseIterable, Identifiable, Hashable, Sen
 		}
 	}
 
-	fileprivate init(_ view: AccountPartView) {
+	init(_ view: AccountPartView) {
 		switch view {
 		case .mail: self = .mail
 		case .calendar: self = .calendar

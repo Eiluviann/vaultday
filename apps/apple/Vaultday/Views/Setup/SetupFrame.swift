@@ -7,6 +7,7 @@ struct SetupFrame<Content: View>: View {
 	let onboarding: OnboardingModel
 	@Binding var scheme: KeyboardSchemeSetting
 	let chooseRestoreFolder: (RestoreSource) -> Void
+	let finish: () -> Void
 	@ViewBuilder var content: Content
 
 	var body: some View {
@@ -15,7 +16,7 @@ struct SetupFrame<Content: View>: View {
 			VStack(spacing: 0) {
 				content
 					.frame(maxWidth: .infinity, maxHeight: .infinity)
-				SetupFooter(onboarding: onboarding, chooseRestoreFolder: chooseRestoreFolder)
+				SetupFooter(onboarding: onboarding, chooseRestoreFolder: chooseRestoreFolder, finish: finish)
 					.padding(.horizontal, SetupLayout.gutter)
 			}
 			.frame(minWidth: SetupLayout.contentMinWidth, maxWidth: .infinity)

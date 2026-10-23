@@ -22,6 +22,9 @@ pub enum SecretKind {
     /// A device's Ed25519 public key, named by its device id; how other
     /// devices trust that device's signed app state.
     DevicePublicKey,
+    /// An AI provider's API key, named by the key's id. It stays on this
+    /// device: never synchronised, never written to any file.
+    ProviderApiKey,
 }
 
 /// Whether an item travels to the user's other devices.
@@ -121,7 +124,7 @@ impl SecretKind {
             SecretKind::WorkspaceDataKey | SecretKind::AppDataKey | SecretKind::DevicePublicKey => {
                 Availability::Synchronisable
             }
-            SecretKind::DeviceSigningKey => Availability::DeviceOnly,
+            SecretKind::DeviceSigningKey | SecretKind::ProviderApiKey => Availability::DeviceOnly,
         }
     }
 
@@ -133,6 +136,7 @@ impl SecretKind {
             SecretKind::AppDataKey => "app-data-key",
             SecretKind::DeviceSigningKey => "device-signing-key",
             SecretKind::DevicePublicKey => "device-public-key",
+            SecretKind::ProviderApiKey => "provider-api-key",
         }
     }
 }

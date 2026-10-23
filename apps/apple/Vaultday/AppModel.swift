@@ -9,6 +9,12 @@ struct SetupModels {
 	let sync: SyncStepModel
 	let accounts: AccountsStepModel
 	let features: FeatureSetsStepModel
+	let security: SecurityStepModel
+	let rhythm: RhythmModel
+	let aiLevel: AiLevelStepModel
+	let aiProviders: AiProvidersStepModel
+	let aiAssistance: AiAssistanceStepModel
+	let ready: ReadyStepModel
 }
 
 /// The app's composition: the platform environment, the core session and
@@ -73,12 +79,19 @@ final class AppModel {
 			self.workspace = workspace
 			self.settings = settings
 			let workspaces = WorkspacesModel(session: session)
+			let rhythm = RhythmModel(session: session)
 			let setup = SetupModels(
 				onboarding: OnboardingModel(session: session, workspaces: workspaces),
 				workspaces: workspaces,
 				sync: SyncStepModel(session: session, workspaces: workspaces),
 				accounts: AccountsStepModel(session: session),
 				features: FeatureSetsStepModel(session: session),
+				security: SecurityStepModel(session: session),
+				rhythm: rhythm,
+				aiLevel: AiLevelStepModel(session: session),
+				aiProviders: AiProvidersStepModel(session: session),
+				aiAssistance: AiAssistanceStepModel(session: session),
+				ready: ReadyStepModel(session: session, rhythm: rhythm),
 			)
 			self.setup = setup
 			workspaces.onChange = { [weak self] in self?.workspacesChanged() }
@@ -131,8 +144,28 @@ final class AppModel {
 		let entries = setup.workspaces.entries
 		setup.accounts.refresh(workspaces: entries)
 		setup.features.refresh(workspaces: entries)
+		setup.security.refresh(workspaces: entries)
+		setup.aiLevel.refresh(workspaces: entries)
+		setup.aiAssistance.refresh(workspaces: entries)
+		setup.ready.refresh(workspaces: entries)
 		setup.sync.refreshGitWorkspaces()
 	}
+
+	/// The Ready step's hand-off: the setup is finished, and the main window
+	/// opens on the last single workspace, else the first one.
+	func finishSetup() {
+		guard let setup, let workspace else { return }
+		setup.onboarding.finish(workspaces: setup.workspaces.entries)
+		workspace.close()
+		workspace.restoreAtLaunch()
+		reloadWorkspaceContent()
+	}
+
+	/// The day's settings, shared by the Rituals step and the Settings window.
+	var rhythm: RhythmModel? { setup?.rhythm }
+
+	/// The workspaces list, shared by the setup and the Settings window.
+	var workspaces: WorkspacesModel? { setup?.workspaces }
 
 	/// Feeds one key press to the dispatcher; `true` when it was a binding or a pending prefix.
 	func handle(_ stroke: KeyStroke) -> Bool {

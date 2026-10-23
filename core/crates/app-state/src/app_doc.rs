@@ -21,10 +21,16 @@ use crate::doc::{
 use crate::error::AppStateError;
 
 mod onboarding;
+mod preferences;
 
 pub use onboarding::{
     AccountPart, FeatureScopeChoice, FeatureScopeMode, ONBOARDING_STEP_COUNT, OnboardingProgress,
     SyncChoice, SyncHome, SyncService,
+};
+pub use preferences::{
+    AI_TIER_EVERYWHERE, AgentChanges, AiScopeChoice, AiTier, BreakPattern, DataRetention,
+    ListPosition, OtherAppsAccess, OverrunWarning, ProviderKeyRecord, ProviderKeyScope,
+    ProviderKind, ShortcutCaps, WorkingHours, WorkingHoursKind,
 };
 
 /// Version of this document's schema, carried in every snapshot's header.

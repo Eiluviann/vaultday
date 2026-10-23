@@ -176,6 +176,8 @@ and the sealed bytes). Everything before the ciphertext is associated data.
   because `vault_base::FileAccess` carries UTF-8 text only and was frozen
   while PR 5 was in review. Folding `read_bytes` and `write_atomic_bytes`
   into `FileAccess` gives the Mac app one port to implement.
-- **Settings loader.** `vault-base`'s `settings.json` loader does not call
-  `settings_guard::secret_like_fields` yet; wiring it in is a follow-up once
-  PR 5 has merged.
+- **Settings loader.** The app's writes of `settings.json` (the bindings'
+  workspace form: the Configure sheet and a new workspace's note prefill) run
+  `settings_guard::secret_like_fields` first, refusing or leaving out a
+  value in a secret's form. `vault-base`'s loader, and so a hand-edited file
+  or the CLI, does not call it yet.

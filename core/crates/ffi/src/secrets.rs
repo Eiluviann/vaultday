@@ -25,6 +25,8 @@ pub enum SecretKind {
     DeviceSigningKey,
     /// A device's published Ed25519 public key, named by its device id.
     DevicePublicKey,
+    /// An AI provider's API key, named by the key's id; this device only.
+    ProviderApiKey,
 }
 
 /// Names one item.
@@ -183,6 +185,7 @@ impl From<SecretKind> for CoreSecretKind {
             SecretKind::AppDataKey => CoreSecretKind::AppDataKey,
             SecretKind::DeviceSigningKey => CoreSecretKind::DeviceSigningKey,
             SecretKind::DevicePublicKey => CoreSecretKind::DevicePublicKey,
+            SecretKind::ProviderApiKey => CoreSecretKind::ProviderApiKey,
         }
     }
 }
@@ -194,6 +197,7 @@ impl From<CoreSecretKind> for SecretKind {
             CoreSecretKind::AppDataKey => SecretKind::AppDataKey,
             CoreSecretKind::DeviceSigningKey => SecretKind::DeviceSigningKey,
             CoreSecretKind::DevicePublicKey => SecretKind::DevicePublicKey,
+            CoreSecretKind::ProviderApiKey => SecretKind::ProviderApiKey,
         }
     }
 }
@@ -398,6 +402,11 @@ mod tests {
     fn availability_follows_the_kind_and_items_never_print_their_value() {
         assert!(secret_kind_is_synchronisable(SecretKind::WorkspaceDataKey));
         assert!(!secret_kind_is_synchronisable(SecretKind::DeviceSigningKey));
+        assert!(!secret_kind_is_synchronisable(SecretKind::ProviderApiKey));
+        assert_eq!(
+            secret_kind_label(SecretKind::ProviderApiKey),
+            "provider-api-key"
+        );
         assert_eq!(
             secret_kind_label(SecretKind::DevicePublicKey),
             "device-public-key"
