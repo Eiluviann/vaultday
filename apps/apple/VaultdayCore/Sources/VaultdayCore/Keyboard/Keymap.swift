@@ -45,6 +45,8 @@ public enum KeyAction: Hashable, Sendable {
 	case replan
 	/// `=`: auto-schedule the day.
 	case autoSchedule
+	/// Pins the selected task's box to the private calendar, or unpins it.
+	case togglePin
 	/// Starts the timer on the selected task, or pauses and resumes it.
 	case toggleTimer
 	case previousDay
@@ -80,6 +82,7 @@ public enum KeyAction: Hashable, Sendable {
 		case "task.move-down": self = .moveTaskDown
 		case "plan.replan": self = .replan
 		case "plan.auto-schedule": self = .autoSchedule
+		case "task.pin": self = .togglePin
 		case "timer.toggle": self = .toggleTimer
 		case "day.previous": self = .previousDay
 		case "day.next": self = .nextDay

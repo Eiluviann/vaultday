@@ -81,7 +81,8 @@ public final class EventKitCalendarSource: CalendarPort, @unchecked Sendable {
 		store: any EventStoreAccess,
 		pickedCalendarIds: Set<String>,
 		record: any PrivateCalendarRecord = InMemoryPrivateCalendarRecord(),
-		timeZone: TimeZone = .current,
+		// Follows the Mac's zone as it changes, as the core's local time does.
+		timeZone: TimeZone = .autoupdatingCurrent,
 	) {
 		self.store = store
 		self.record = record
@@ -142,6 +143,8 @@ public final class EventKitCalendarSource: CalendarPort, @unchecked Sendable {
 					title: event.title,
 					start: civilText(event.start),
 					end: civilText(event.end),
+					meetingKey: event.meetingKey,
+					isAttended: event.isAttended,
 				)
 			}
 	}

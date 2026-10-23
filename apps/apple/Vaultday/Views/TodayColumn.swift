@@ -57,6 +57,7 @@ private struct TodayPlan: View {
 				isToday: plan.isToday,
 				app: app,
 				showsScheduling: !plan.isPast,
+				showsSpanSwitch: true,
 			)
 			DayTotalsRow(totals: plan.totals, remainingMinutes: plan.remainingMinutes, workloadMinutes: app.rhythm?.workloadThresholdMinutes)
 			QuickAddField(app: app, quickAdd: app.quickAdd)
@@ -68,6 +69,39 @@ private struct TodayPlan: View {
 					.font(Tokens.Typography.callout.font)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
+			if app.calendarPanel.span != .list {
+				DayGrid(app: app, days: app.calendarPanel.spanDays, showsHeadings: true)
+			} else {
+				TodayCards(app: app, plan: plan)
+			}
+			TipsLine(app: app)
+		}
+		.padding(18)
+		.overlay(alignment: .bottom) {
+			if let toast = plan.toast {
+				PlanToastView(app: app, toast: toast)
+					.padding(.bottom, 18)
+					.transition(.move(edge: .bottom).combined(with: .opacity))
+			}
+		}
+		.animation(.easeOut(duration: 0.15), value: plan.toast)
+		.task(id: plan.toast) {
+			// A toast that only reports dismisses itself; the over-free-time one stays until Esc or Re-plan.
+			guard let toast = plan.toast, !toast.offersReplan else { return }
+			try? await Task.sleep(for: .seconds(4))
+			if plan.toast == toast { plan.dismissToast() }
+		}
+		.task { LaunchTimer.markFirstBody(todayMilliseconds: plan.lastCallMilliseconds) }
+	}
+}
+
+/// The list of the day: the task cards, in order.
+private struct TodayCards: View {
+	let app: AppModel
+	let plan: DayPlanModel
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HomeEyebrow(text: "Next steps")
 				.padding(.top, Tokens.Spacing.space6)
 			ScrollView {
@@ -91,24 +125,7 @@ private struct TodayPlan: View {
 				.padding(.vertical, Tokens.Spacing.space4)
 			}
 			.scrollIndicators(.automatic)
-			TipsLine(app: app)
 		}
-		.padding(18)
-		.overlay(alignment: .bottom) {
-			if let toast = plan.toast {
-				PlanToastView(app: app, toast: toast)
-					.padding(.bottom, 18)
-					.transition(.move(edge: .bottom).combined(with: .opacity))
-			}
-		}
-		.animation(.easeOut(duration: 0.15), value: plan.toast)
-		.task(id: plan.toast) {
-			// A toast that only reports dismisses itself; the over-free-time one stays until Esc or Re-plan.
-			guard let toast = plan.toast, !toast.offersReplan else { return }
-			try? await Task.sleep(for: .seconds(4))
-			if plan.toast == toast { plan.dismissToast() }
-		}
-		.task { LaunchTimer.markFirstBody(todayMilliseconds: plan.lastCallMilliseconds) }
 	}
 }
 
@@ -118,6 +135,8 @@ struct DayHeader: View {
 	let isToday: Bool
 	let app: AppModel
 	let showsScheduling: Bool
+	/// The list, three-day and week switch; the Today column's alone.
+	var showsSpanSwitch = false
 
 	var body: some View {
 		HStack(spacing: 10) {
@@ -147,6 +166,18 @@ struct DayHeader: View {
 				}
 			}
 			Spacer()
+			if showsSpanSwitch {
+				Picker("View", selection: Binding(get: { app.calendarPanel.span }, set: { app.showSpan($0) })) {
+					ForEach(CalendarSpan.allCases) { span in
+						Text(span.rawValue).tag(span)
+					}
+				}
+				.pickerStyle(.segmented)
+				.labelsHidden()
+				.controlSize(.small)
+				.fixedSize()
+				.help("The day as a list, or the calendar over three days or a week")
+			}
 			if showsScheduling {
 				HeaderIconButton(symbol: nil, text: "=", label: "Auto-schedule", help: hint("Auto-schedule: lays the unfinished, unlocked tasks into today's free time in list order", .autoSchedule)) {
 					app.perform(.autoSchedule)
@@ -275,11 +306,12 @@ private struct TipsLine: View {
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space6) {
-			Text("Drag to reorder")
+			Text("Drag to reorder or onto the calendar to lock")
 			tip("done", .completeTask)
 			tip("timer", .toggleTimer)
 			tip("add", .addTask)
 			tip("re-plan", .replan)
+			tip("lock", .togglePin)
 			Spacer()
 		}
 		.font(Tokens.Typography.caption.font)

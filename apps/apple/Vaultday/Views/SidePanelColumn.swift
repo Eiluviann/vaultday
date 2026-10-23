@@ -1,7 +1,7 @@
 import SwiftUI
 import VaultdayCore
 
-/// The side panel tabs in rail order; only Calendar has content in this shell.
+/// The side panel tabs in rail order; Calendar and Hours have content so far.
 enum SidePanelTab: String, CaseIterable, Identifiable {
 	case calendar = "Calendar"
 	case hours = "Hours"
@@ -15,7 +15,7 @@ enum SidePanelTab: String, CaseIterable, Identifiable {
 	var symbol: String {
 		switch self {
 		case .calendar: "calendar"
-		case .hours: "clock"
+		case .hours: "gauge.medium"
 		case .chasers: "arrow.uturn.backward.circle"
 		case .backlog: "list.bullet"
 		case .objectives: "target"
@@ -35,10 +35,14 @@ struct SidePanelColumn: View {
 				Text(tab.rawValue)
 					.font(Tokens.Typography.heading.font)
 					.foregroundStyle(Tokens.Colors.ink)
-				if tab == .calendar {
-					CalendarAccessPanel(app: app)
+				switch tab {
+				case .calendar:
+					CalendarTab(app: app, panel: app.calendarPanel)
+				case .hours:
+					HoursTab(hours: app.hours)
+				default:
+					Spacer()
 				}
-				Spacer()
 			}
 			.padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 12))
 			.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -78,43 +82,5 @@ private struct TabRail: View {
 		.frame(width: HomeLayout.sidePanelRailWidth)
 		.frame(maxHeight: .infinity)
 		.overlay(alignment: .leading) { Rectangle().fill(Tokens.Colors.line).frame(width: 1) }
-	}
-}
-
-/// Calendar access, the private calendar's state, and which calendars this workspace reads.
-private struct CalendarAccessPanel: View {
-	let app: AppModel
-
-	var body: some View {
-		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
-			if app.calendarStatus.isEmpty {
-				Text("Vaultday plans around the calendars you pick and keeps time boxes in a private Vaultday calendar in iCloud.")
-					.font(Tokens.Typography.callout.font)
-					.foregroundStyle(Tokens.Colors.inkSecondary)
-				Button("Allow calendar access") {
-					Task { await app.requestCalendarAccess() }
-				}
-			} else {
-				Text(app.calendarStatus)
-					.font(Tokens.Typography.callout.font)
-					.foregroundStyle(Tokens.Colors.inkSecondary)
-			}
-			if !app.pickableCalendars.isEmpty, let workspace = app.workspace, workspace.phase == .open {
-				Text("READ FOR \(workspace.name.uppercased())")
-					.font(Tokens.Typography.eyebrow.font)
-					.tracking(Tokens.Typography.eyebrow.tracking)
-					.foregroundStyle(Tokens.Colors.inkMuted)
-				ForEach(app.pickableCalendars) { calendar in
-					Toggle(isOn: Binding(
-						get: { workspace.pickedCalendarIds.contains(calendar.id) },
-						set: { app.setCalendar(calendar, isPicked: $0) },
-					)) {
-						Text("\(calendar.title) · \(calendar.source.title)")
-							.font(Tokens.Typography.callout.font)
-					}
-					.toggleStyle(.checkbox)
-				}
-			}
-		}
 	}
 }

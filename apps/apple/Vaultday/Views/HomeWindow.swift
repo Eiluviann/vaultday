@@ -66,6 +66,13 @@ struct HomeWindow: View {
 		}
 		.onAppear { hasKeyFocus = true }
 		.onChange(of: app.homeSettingsSignature) { app.reloadWorkspaceContent() }
+		.task {
+			// The side panel's clock: the now line, ended meetings, the Reminders intake.
+			while !Task.isCancelled {
+				try? await Task.sleep(for: .seconds(60))
+				await app.minuteTick()
+			}
+		}
 	}
 }
 

@@ -101,6 +101,14 @@ bindings:
   - action: plan.auto-schedule
     vim: "="
     standard: "shift+cmd+r"
+  # The padlock of the selected task's calendar block: pin to the private
+  # calendar, or unpin. `X` is the design note's key; `m` the board's.
+  - action: task.pin
+    vim: "m"
+    standard: "cmd+l"
+  - action: task.pin
+    vim: "shift+x"
+    standard: ""
   - action: timer.toggle
     vim: "space"
     standard: "space"

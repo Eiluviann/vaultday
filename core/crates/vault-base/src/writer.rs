@@ -134,6 +134,11 @@ pub struct NewTask {
     pub scheduled: Option<Date>,
     /// The estimate as written, such as `45m`, written as `[estimate:: ]`.
     pub estimate: Option<String>,
+    /// The day the task is due, written as `[due:: ]`.
+    pub due: Option<Date>,
+    /// The Reminders item the task was imported from, written as
+    /// `[reminder:: ]`, so an interrupted import finds its line again.
+    pub reminder: Option<String>,
 }
 
 /// A story note to create from the workspace template.
@@ -556,6 +561,34 @@ impl<'a> VaultWriter<'a> {
             old_line: None,
             new_line: format!("# {}", story.title.trim()),
         })
+    }
+
+    /// Creates the catch-all note an intake files into when it is missing: a
+    /// story-typed note without a number, titled `title`, with an empty
+    /// `## Next Steps`, so its lines join the day's list like any story's.
+    /// Returns whether the note was created; an existing note is left as it is.
+    ///
+    /// # Errors
+    /// [`WriteError::InvalidInput`] for a title that is not one line,
+    /// [`WriteError::OutsideWorkspace`] for a path outside the workspace,
+    /// otherwise file errors.
+    pub fn create_intake_note(&self, path: &Path, title: &str) -> Result<bool, WriteError> {
+        let title = title.trim();
+        if title.is_empty() || title.contains(['\n', '\r']) {
+            return Err(WriteError::InvalidInput(
+                "a note title must be one non-empty line".to_owned(),
+            ));
+        }
+        let (_, absolute) = self.resolve(path)?;
+        if self.file_access.stat(&absolute)?.is_some() {
+            return Ok(false);
+        }
+        if let Some(parent) = absolute.parent() {
+            self.file_access.create_dir_all(parent)?;
+        }
+        let contents = format!("---\ntype: story\n---\n# {title}\n\n## {NEXT_STEPS_HEADING}\n");
+        self.file_access.write_atomic(&absolute, &contents)?;
+        Ok(true)
     }
 
     /// Appends one line to `<log_folder>/<date>.md`, creating the file with
@@ -1176,6 +1209,9 @@ fn new_task_line(indent: &str, task: &NewTask) -> Result<String, WriteError> {
     if let Some(scheduled) = task.scheduled {
         line.push_str(&format!(" [scheduled:: {scheduled}]"));
     }
+    if let Some(due) = task.due {
+        line.push_str(&format!(" [due:: {due}]"));
+    }
     if let Some(estimate) = &task.estimate {
         let estimate = validated_value("estimate", estimate)?;
         line.push_str(&format!(" [estimate:: {estimate}]"));
@@ -1183,6 +1219,10 @@ fn new_task_line(indent: &str, task: &NewTask) -> Result<String, WriteError> {
     if let Some(assigned_to) = &task.assigned_to {
         let assigned_to = validated_value("assigned_to", assigned_to)?;
         line.push_str(&format!(" [assigned_to:: {assigned_to}]"));
+    }
+    if let Some(reminder) = &task.reminder {
+        let reminder = validated_value("reminder", reminder)?;
+        line.push_str(&format!(" [reminder:: {reminder}]"));
     }
     Ok(line)
 }

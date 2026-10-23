@@ -272,6 +272,18 @@ impl WorkspaceState {
         boxes
     }
 
+    /// The time boxes `task` holds on any day, by start.
+    #[must_use]
+    pub fn time_boxes_of(&self, task: &TaskId) -> Vec<PlannedTimeBox> {
+        let mut boxes: Vec<PlannedTimeBox> = keys(&self.doc, &self.objects.time_boxes)
+            .into_iter()
+            .filter_map(|id| self.time_box(&TimeBoxId::new(id)))
+            .filter(|planned| planned.task == *task)
+            .collect();
+        boxes.sort_by_key(|planned| (planned.time_box.start, planned.time_box.id.clone()));
+        boxes
+    }
+
     // Sessions.
 
     /// Stores a session, replacing the stored fields of the same id.

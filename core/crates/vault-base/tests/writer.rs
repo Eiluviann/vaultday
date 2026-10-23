@@ -31,6 +31,8 @@ fn new_task(text: &str, id: &str, assigned_to: Option<&str>) -> NewTask {
         assigned_to: assigned_to.map(str::to_owned),
         scheduled: None,
         estimate: None,
+        due: None,
+        reminder: None,
     }
 }
 
@@ -330,6 +332,73 @@ fn an_empty_section_gets_its_first_task_under_the_heading() {
         .unwrap();
     assert!(read(&sandbox.root, ACME_12).contains(
         "## Next Steps\n- [ ] Archive the export [id:: task-22] [created:: 2026-10-23]\n\n## Pending Input\n"
+    ));
+}
+
+#[test]
+fn an_imported_reminder_carries_its_due_day_and_source() {
+    let sandbox = sandbox();
+    let workspace = workspace(&sandbox.root);
+    let task = NewTask {
+        scheduled: Some(date("2026-10-26")),
+        due: Some(date("2026-10-30")),
+        reminder: Some("x-apple-reminder-7F3A".to_owned()),
+        ..new_task("Renew the passport", "task-23", None)
+    };
+    let receipt = VaultWriter::new(&PlainFileAccess, &workspace)
+        .add_task(Path::new(ACME_12), TaskSection::NextSteps, &task)
+        .unwrap();
+    assert_eq!(
+        receipt.new_line,
+        "- [ ] Renew the passport [id:: task-23] [created:: 2026-10-23] [scheduled:: 2026-10-26] [due:: 2026-10-30] [reminder:: x-apple-reminder-7F3A]"
+    );
+    let bracketed = NewTask {
+        reminder: Some("a]b".to_owned()),
+        ..new_task("Bad source", "task-24", None)
+    };
+    assert!(matches!(
+        VaultWriter::new(&PlainFileAccess, &workspace).add_task(
+            Path::new(ACME_12),
+            TaskSection::NextSteps,
+            &bracketed
+        ),
+        Err(WriteError::InvalidInput(_))
+    ));
+}
+
+#[test]
+fn the_intake_note_is_created_once_and_reads_as_a_story_without_a_number() {
+    let sandbox = sandbox();
+    let workspace = workspace(&sandbox.root);
+    let writer = VaultWriter::new(&PlainFileAccess, &workspace);
+    let path = Path::new("Inbox/Reminders.md");
+    assert!(writer.create_intake_note(path, "Reminders").unwrap());
+    writer
+        .add_task(
+            path,
+            TaskSection::NextSteps,
+            &new_task("Call the bank", "task-25", None),
+        )
+        .unwrap();
+    assert!(
+        !writer.create_intake_note(path, "Reminders").unwrap(),
+        "an existing note is kept"
+    );
+    assert_eq!(
+        read(&sandbox.root, "Inbox/Reminders.md"),
+        "---\ntype: story\n---\n# Reminders\n\n## Next Steps\n- [ ] Call the bank [id:: task-25] [created:: 2026-10-23]\n"
+    );
+    let vault = vault_base::ops::open_vault(&workspace, &PlainFileAccess).unwrap();
+    let story = vault
+        .stories()
+        .into_iter()
+        .find(|entry| entry.path == path)
+        .expect("the note reads as a story");
+    assert_eq!(story.story.number, None);
+    assert_eq!(story.story.next_steps.len(), 1);
+    assert!(matches!(
+        writer.create_intake_note(Path::new("../outside.md"), "Reminders"),
+        Err(WriteError::OutsideWorkspace(_))
     ));
 }
 

@@ -26,6 +26,16 @@ pub struct CalendarEvent {
     pub start: String,
     /// Local end, after `start`.
     pub end: String,
+    /// The occurrence's identity that survives a rename or a move: the
+    /// store's external identifier, plus the occurrence's original start for
+    /// a repeating event. `None` when the store has no external identifier.
+    #[uniffi(default = None)]
+    pub meeting_key: Option<String>,
+    /// Whether the user takes part: `false` for an invitation they declined
+    /// or an event whose time shows as free. Only attended events become
+    /// meeting sessions.
+    #[uniffi(default = true)]
+    pub is_attended: bool,
 }
 
 /// A locked time box to write as an event.
@@ -169,7 +179,7 @@ fn civil_text(at: DateTime) -> String {
     at.strftime("%Y-%m-%dT%H:%M:%S").to_string()
 }
 
-fn calendar_error(failure: CalendarFailure) -> CalendarError {
+pub(crate) fn calendar_error(failure: CalendarFailure) -> CalendarError {
     match failure {
         CalendarFailure::Unavailable { reason } => CalendarError::Unavailable { reason },
         CalendarFailure::UnknownCalendar { name } => CalendarError::UnknownCalendar { name },
@@ -203,6 +213,8 @@ mod tests {
                 title: "Standup".to_owned(),
                 start: start.to_owned(),
                 end: end.to_owned(),
+                meeting_key: None,
+                is_attended: true,
             };
             Ok(vec![
                 event("e1", "2026-10-22T09:00:00", "2026-10-22T09:15:00"),

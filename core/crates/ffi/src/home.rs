@@ -797,7 +797,8 @@ impl From<DomainError> for CoreError {
             | DomainError::SessionNotRunning { .. }
             | DomainError::SessionNotPaused { .. }
             | DomainError::SessionAlreadyStopped { .. }
-            | DomainError::MultipleActiveSessions { .. } => CoreError::Conflict(message),
+            | DomainError::MultipleActiveSessions { .. }
+            | DomainError::LockedTimeTaken { .. } => CoreError::Conflict(message),
             DomainError::EmptyEntry => CoreError::InvalidInput("Type what to add first".to_owned()),
             _ => CoreError::InvalidInput(message),
         }
@@ -961,7 +962,7 @@ fn schedule_task(item: &ScheduleItemView) -> VaultTask {
 /// The workspace's sessions as a book. Two Macs that each started a timer
 /// before they synced leave two open sessions; only one may run, so the
 /// older ones are stopped where the newest began, and that is stored.
-fn settled_session_book(sync: &mut WorkspaceSync) -> Result<SessionBook, CoreError> {
+pub(crate) fn settled_session_book(sync: &mut WorkspaceSync) -> Result<SessionBook, CoreError> {
     let mut sessions = sync
         .state()
         .sessions()
@@ -995,7 +996,7 @@ fn settled_session_book(sync: &mut WorkspaceSync) -> Result<SessionBook, CoreErr
     Ok(SessionBook::from_sessions(sessions)?)
 }
 
-fn time_box_view(task: &TaskId, time_box: &TimeBox) -> TimeBoxView {
+pub(crate) fn time_box_view(task: &TaskId, time_box: &TimeBox) -> TimeBoxView {
     let start = time_box.start.time();
     TimeBoxView {
         id: time_box.id.as_str().to_owned(),
@@ -1031,7 +1032,7 @@ fn field_date(task: &vault_base::Task, key: &str) -> Option<Date> {
     task.field(key)?.parse().ok()
 }
 
-fn civil_date(date: vault_base::Date) -> Result<Date, CoreError> {
+pub(crate) fn civil_date(date: vault_base::Date) -> Result<Date, CoreError> {
     Date::new(
         i16::try_from(date.year()).map_err(|_| out_of_range(date))?,
         i8::try_from(date.month()).map_err(|_| out_of_range(date))?,
@@ -1045,7 +1046,7 @@ fn out_of_range(date: vault_base::Date) -> CoreError {
 }
 
 /// The time `minute` minutes after midnight.
-fn clock(minute: u32) -> Result<Time, CoreError> {
+pub(crate) fn clock(minute: u32) -> Result<Time, CoreError> {
     let hour = i8::try_from(minute / 60).map_err(|_| minute_error(minute))?;
     let minute_of_hour = i8::try_from(minute % 60).map_err(|_| minute_error(minute))?;
     Time::new(hour, minute_of_hour, 0, 0).map_err(|_| minute_error(minute))
@@ -1059,14 +1060,14 @@ fn clock_text(time: Time) -> String {
     format!("{:02}:{:02}", time.hour(), time.minute())
 }
 
-fn local_midnight(date: Date) -> Result<Timestamp, CoreError> {
+pub(crate) fn local_midnight(date: Date) -> Result<Timestamp, CoreError> {
     Ok(date
         .to_zoned(TimeZone::system())
         .map_err(date_error)?
         .timestamp())
 }
 
-fn date_error(error: jiff::Error) -> CoreError {
+pub(crate) fn date_error(error: jiff::Error) -> CoreError {
     CoreError::InvalidDate(error.to_string())
 }
 
@@ -1083,7 +1084,7 @@ fn warning_text(warning: &ParseWarning) -> String {
     }
 }
 
-fn whole_minutes(duration: Duration) -> u32 {
+pub(crate) fn whole_minutes(duration: Duration) -> u32 {
     u32::try_from(duration.as_secs() / 60).unwrap_or(u32::MAX)
 }
 

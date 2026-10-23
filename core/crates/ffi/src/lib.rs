@@ -19,6 +19,7 @@ pub mod home;
 pub mod onboarding;
 pub mod preferences;
 pub mod secrets;
+pub mod side_panel;
 pub mod workspace_form;
 
 use std::sync::Arc;

@@ -5,6 +5,7 @@
 //! rounded. A pause and its resume stay inside one session; the paused span
 //! is cut out of the elapsed time.
 
+use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
 use jiff::Timestamp;
@@ -69,6 +70,10 @@ pub enum SessionSource {
 /// A calendar event, as the calendar port hands it over.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalendarEvent {
+    /// The occurrence's stable identity in the calendar store, which a
+    /// rename or a move keeps; `None` when the store has none, and the
+    /// title and times stand in for it.
+    pub key: Option<String>,
     /// The event title.
     pub title: String,
     /// When the event starts.
@@ -621,17 +626,10 @@ impl SessionBook {
     /// session that crosses the day's edge counts only its part inside it.
     pub fn day_time(&self, from: Timestamp, to: Timestamp, now: Timestamp) -> DayTime {
         let until = to.min(now);
-        let inside = |session: &Session| -> Duration {
-            if until <= from {
-                return Duration::ZERO;
-            }
-            let before = session.elapsed(from).as_duration();
-            session.elapsed(until).as_duration().saturating_sub(before)
-        };
         self.sessions
             .iter()
             .fold(DayTime::default(), |mut day, session| {
-                let counted = inside(session);
+                let counted = time_inside(session, from, until);
                 day.spent += SpentTime::new(counted);
                 let is_logged =
                     session.state() == SessionState::Stopped && session.target().story.is_some();
@@ -640,6 +638,91 @@ impl SessionBook {
                 }
                 day
             })
+    }
+
+    /// Time spent on a task inside `from..to`, counted up to `now`; the
+    /// calendar's tracked fill of the task's block on one day.
+    pub fn spent_on_task_within(
+        &self,
+        task: &TaskId,
+        from: Timestamp,
+        to: Timestamp,
+        now: Timestamp,
+    ) -> SpentTime {
+        let until = to.min(now);
+        self.sessions
+            .iter()
+            .filter(|session| session.target().task.as_ref() == Some(task))
+            .map(|session| SpentTime::new(time_inside(session, from, until)))
+            .sum()
+    }
+
+    /// Time per story up to `at`. A session counts once: for its own story,
+    /// else for the story its task belongs to in `task_stories`; a session
+    /// with neither counts for no story.
+    pub fn spent_by_story(
+        &self,
+        task_stories: &HashMap<TaskId, StoryNumber>,
+        at: Timestamp,
+    ) -> BTreeMap<StoryNumber, SpentTime> {
+        self.sessions
+            .iter()
+            .filter_map(|session| {
+                let target = session.target();
+                let story = target
+                    .story
+                    .as_ref()
+                    .or_else(|| target.task.as_ref().and_then(|task| task_stories.get(task)))?;
+                Some((story.clone(), session.elapsed(at)))
+            })
+            .fold(BTreeMap::new(), |mut totals, (story, spent)| {
+                *totals.entry(story).or_default() += spent;
+                totals
+            })
+    }
+
+    /// Records a meeting session for every event that has ended by `now` and
+    /// has none yet, and returns the new sessions. An event is known by
+    /// [`meeting_session_id`], so recording the same events again, on this
+    /// device or another, adds nothing. Events without length are no
+    /// meeting, and neither is an event the timer ran during: that time is
+    /// tracked already and is not counted twice. Overlapping meetings count
+    /// their overlap once: the time another meeting session already counts
+    /// is cut out of the new one (its start moves past it, its end moves
+    /// before it, and a stretch inside it becomes a pause), and a meeting
+    /// wholly covered is not recorded. `target` names what each meeting's
+    /// time belongs to.
+    ///
+    /// # Errors
+    /// [`DomainError::EndBeforeStart`] for an event that ends before it starts.
+    pub fn record_ended_meetings(
+        &mut self,
+        events: &[CalendarEvent],
+        now: Timestamp,
+        target: impl Fn(&CalendarEvent) -> SessionTarget,
+    ) -> Result<Vec<SessionRecord>> {
+        let mut recorded = Vec::new();
+        for event in events {
+            ensure_ordered(event.start, event.end)?;
+            let id = meeting_session_id(event);
+            let is_known = self.sessions.iter().any(|session| *session.id() == id);
+            let is_timed = self.sessions.iter().any(|session| {
+                !session.is_meeting()
+                    && session.started_at() < event.end
+                    && session
+                        .stopped_at()
+                        .is_none_or(|stopped| stopped > event.start)
+            });
+            if event.end > now || event.end == event.start || is_known || is_timed {
+                continue;
+            }
+            let counted = counted_meeting_spans(&self.sessions, event.start, event.end);
+            let Some(session) = uncounted_meeting(id, target(event), event, &counted)? else {
+                continue;
+            };
+            recorded.push(self.push(session)?.to_record());
+        }
+        Ok(recorded)
     }
 
     /// Tells the notifier, once per session, when the active session has run
@@ -702,6 +785,120 @@ impl SessionBook {
         let last = self.sessions.len() - 1;
         Ok(&self.sessions[last])
     }
+}
+
+/// The id of the meeting session for one occurrence of a calendar event:
+/// `mtg-` and a hash of its store key, so a renamed or moved event keeps its
+/// session; an event without a key hashes its title, start and end. Every device derives the
+/// same id for the same occurrence, so the synced document holds one session
+/// however many Macs saw the meeting end; a recurring event's occurrences
+/// differ by their times.
+pub fn meeting_session_id(event: &CalendarEvent) -> SessionId {
+    // FNV-1a, 64 bit: stable across platforms and releases, unlike `DefaultHasher`.
+    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0100_0000_01b3;
+    let identity = match &event.key {
+        Some(key) => format!("key\u{0}{key}"),
+        None => format!(
+            "{}\u{0}{}\u{0}{}",
+            event.title,
+            event.start.as_second(),
+            event.end.as_second()
+        ),
+    };
+    let hash = identity.bytes().fold(OFFSET, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(PRIME)
+    });
+    SessionId::new(format!("mtg-{hash:016x}"))
+}
+
+/// The spans that stopped meeting sessions count inside `from..to`, clipped
+/// to it, sorted and merged.
+fn counted_meeting_spans(
+    sessions: &[Session],
+    from: Timestamp,
+    to: Timestamp,
+) -> Vec<(Timestamp, Timestamp)> {
+    let mut spans: Vec<(Timestamp, Timestamp)> = sessions
+        .iter()
+        .filter(|session| session.is_meeting())
+        .filter_map(|session| Some((session, session.stopped_at()?)))
+        .flat_map(|(session, stopped)| {
+            let mut pieces = Vec::new();
+            let mut cursor = session.started_at();
+            for pause in session.pauses() {
+                pieces.push((cursor, pause.started_at()));
+                cursor = pause.ended_at().unwrap_or(stopped);
+            }
+            pieces.push((cursor, stopped));
+            pieces
+        })
+        .map(|(start, end)| (start.max(from), end.min(to)))
+        .filter(|(start, end)| start < end)
+        .collect();
+    spans.sort();
+    spans.into_iter().fold(
+        Vec::new(),
+        |mut merged: Vec<(Timestamp, Timestamp)>, span| {
+            match merged.last_mut() {
+                Some(last) if span.0 <= last.1 => last.1 = last.1.max(span.1),
+                _ => merged.push(span),
+            }
+            merged
+        },
+    )
+}
+
+/// The meeting session for `event` without the `counted` spans (sorted,
+/// merged, inside the event): `None` when they cover all of it.
+fn uncounted_meeting(
+    id: SessionId,
+    target: SessionTarget,
+    event: &CalendarEvent,
+    counted: &[(Timestamp, Timestamp)],
+) -> Result<Option<Session>> {
+    let mut free = Vec::new();
+    let mut cursor = event.start;
+    for &(start, end) in counted {
+        if cursor < start {
+            free.push((cursor, start));
+        }
+        cursor = cursor.max(end);
+    }
+    if cursor < event.end {
+        free.push((cursor, event.end));
+    }
+    let (Some(first), Some(last)) = (free.first(), free.last()) else {
+        return Ok(None);
+    };
+    let pauses = free
+        .windows(2)
+        .filter_map(|pair| match pair {
+            [before, after] => Some(Pause::new(before.1, Some(after.0))),
+            _ => None,
+        })
+        .collect();
+    Session::from_record(SessionRecord {
+        id,
+        target,
+        source: SessionSource::Meeting {
+            title: event.title.clone(),
+        },
+        started_at: first.0,
+        stopped_at: Some(last.1),
+        pauses,
+        has_long_timer_fired: false,
+    })
+    .map(Some)
+}
+
+/// The part of a session's elapsed time that falls inside `from..until`.
+fn time_inside(session: &Session, from: Timestamp, until: Timestamp) -> Duration {
+    if until <= from {
+        return Duration::ZERO;
+    }
+    let before = session.elapsed(from).as_duration();
+    session.elapsed(until).as_duration().saturating_sub(before)
 }
 
 fn ensure_ordered(start: Timestamp, end: Timestamp) -> Result<()> {
@@ -937,6 +1134,7 @@ mod tests {
             "ses-2",
             SessionTarget::story("WEB-142"),
             &CalendarEvent {
+                key: None,
                 title: "Sprint review".into(),
                 start: at(100),
                 end: at(130),
@@ -1047,6 +1245,7 @@ mod tests {
     #[test]
     fn meeting_sessions_come_stopped_and_raw() {
         let event = CalendarEvent {
+            key: None,
             title: "Sprint review".into(),
             start: Timestamp::from_second(EPOCH + 7).unwrap(),
             end: Timestamp::from_second(EPOCH + 7 + 3_599).unwrap(),
@@ -1072,6 +1271,7 @@ mod tests {
             "not yet happened as of `at`"
         );
         let backwards = CalendarEvent {
+            key: None,
             title: "Backwards".into(),
             start: at(10),
             end: at(5),
@@ -1084,6 +1284,7 @@ mod tests {
             })
         );
         let instant = CalendarEvent {
+            key: None,
             title: "Instant".into(),
             start: at(5),
             end: at(5),
@@ -1181,6 +1382,7 @@ mod tests {
         )
         .unwrap();
         let event = CalendarEvent {
+            key: None,
             title: "Stand-up".into(),
             start: at(-60),
             end: at(-45),
@@ -1254,6 +1456,7 @@ mod tests {
         assert_eq!(book.start_minutes_ago("ses-1", target(), at(6), 1), taken);
         assert_eq!(book.continue_latest("ses-1", at(6)), taken);
         let event = CalendarEvent {
+            key: None,
             title: "Stand-up".into(),
             start: at(10),
             end: at(20),
@@ -1283,6 +1486,7 @@ mod tests {
         );
         book.stop(at(90)).unwrap();
         let event = CalendarEvent {
+            key: None,
             title: "Review".into(),
             start: at(100),
             end: at(130),
@@ -1308,6 +1512,7 @@ mod tests {
             .unwrap();
         book.stop(at(25)).unwrap();
         let event = CalendarEvent {
+            key: None,
             title: "Planning".into(),
             start: at(30),
             end: at(60),
@@ -1401,5 +1606,202 @@ mod tests {
                 },
             ]
         );
+    }
+
+    fn meeting(title: &str, start: i64, end: i64) -> CalendarEvent {
+        CalendarEvent {
+            key: None,
+            title: title.into(),
+            start: at(start),
+            end: at(end),
+        }
+    }
+
+    #[test]
+    fn overlapping_meetings_count_their_overlap_once() {
+        let mut book = SessionBook::default();
+        // The short one ends first and is recorded first.
+        let inner = meeting("Stand-up", 30, 60);
+        let outer = meeting("Workshop", 0, 120);
+        let late = meeting("Retro", 90, 150);
+        book.record_ended_meetings(&[inner], at(60), |_| SessionTarget::default())
+            .unwrap();
+        let recorded = book
+            .record_ended_meetings(&[outer, late], at(200), |_| SessionTarget::default())
+            .unwrap();
+        assert_eq!(recorded.len(), 2);
+        let workshop = &recorded[0];
+        assert_eq!(
+            (workshop.started_at, workshop.stopped_at),
+            (at(0), Some(at(120)))
+        );
+        assert_eq!(workshop.pauses, vec![Pause::new(at(30), Some(at(60)))]);
+        let retro = &recorded[1];
+        assert_eq!(
+            (retro.started_at, retro.stopped_at),
+            (at(120), Some(at(150)))
+        );
+        let total = book
+            .sessions()
+            .iter()
+            .map(|session| session.elapsed(at(200)).as_duration())
+            .sum::<Duration>();
+        assert_eq!(
+            total,
+            Duration::from_secs(150 * 60),
+            "0 to 150 counted once"
+        );
+
+        let covered = meeting("Inside the workshop", 10, 20);
+        assert!(
+            book.record_ended_meetings(&[covered], at(200), |_| SessionTarget::default())
+                .unwrap()
+                .is_empty(),
+            "a meeting wholly counted already is not recorded"
+        );
+    }
+
+    #[test]
+    fn a_meeting_with_a_store_key_keeps_its_id_through_a_rename_and_a_move() {
+        let keyed = |title: &str, start, end| CalendarEvent {
+            key: Some("uid-7@2026-10-22T09:00:00".into()),
+            ..meeting(title, start, end)
+        };
+        assert_eq!(
+            meeting_session_id(&keyed("Review", 0, 60)),
+            meeting_session_id(&keyed("Review, renamed", 30, 90))
+        );
+        assert_ne!(
+            meeting_session_id(&meeting("Review", 0, 60)),
+            meeting_session_id(&meeting("Review, renamed", 0, 60)),
+            "without a key the title is the identity"
+        );
+    }
+
+    #[test]
+    fn ended_meetings_are_recorded_once_with_ids_every_device_derives() {
+        let events = [
+            meeting("Stand-up", 0, 15),
+            meeting("Design review", 60, 120),
+            meeting("Zero length", 30, 30),
+        ];
+        let mut book = SessionBook::new();
+        let recorded = book
+            .record_ended_meetings(&events, at(90), |_| SessionTarget::default())
+            .unwrap();
+        assert_eq!(recorded.len(), 1, "only the stand-up has ended");
+        assert_eq!(recorded[0].id, meeting_session_id(&events[0]));
+        assert!(recorded[0].id.as_str().starts_with("mtg-"));
+
+        let later = book
+            .record_ended_meetings(&events, at(200), |_| SessionTarget::story("WEB-142"))
+            .unwrap();
+        assert_eq!(later.len(), 1, "the stand-up is not recorded twice");
+        assert_eq!(later[0].target.story, Some(StoryNumber::new("WEB-142")));
+        assert!(book.sessions().iter().all(Session::is_meeting));
+
+        let mut other_mac = SessionBook::new();
+        let mirrored = other_mac
+            .record_ended_meetings(&events, at(200), |_| SessionTarget::default())
+            .unwrap();
+        let ids =
+            |records: &[SessionRecord]| records.iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+        let mut both = ids(&recorded);
+        both.extend(ids(&later));
+        assert_eq!(ids(&mirrored), both, "another Mac derives the same ids");
+    }
+
+    #[test]
+    fn a_meeting_the_timer_ran_during_is_not_counted_twice() {
+        let mut book = SessionBook::new();
+        book.start("ses-1", SessionTarget::story("WEB-142"), at(10))
+            .unwrap();
+        book.stop(at(40)).unwrap();
+        let events = [
+            meeting("Overlapped", 0, 30),
+            meeting("Before the timer", -60, 10),
+            meeting("After it", 40, 70),
+        ];
+        let recorded = book
+            .record_ended_meetings(&events, at(100), |_| SessionTarget::default())
+            .unwrap();
+        let titles: Vec<&str> = book
+            .sessions()
+            .iter()
+            .filter_map(|session| match session.source() {
+                SessionSource::Meeting { title } => Some(title.as_str()),
+                SessionSource::Timer => None,
+            })
+            .collect();
+        assert_eq!(recorded.len(), 2);
+        assert_eq!(
+            titles,
+            ["Before the timer", "After it"],
+            "touching spans are not overlaps"
+        );
+
+        book.start("ses-2", SessionTarget::default(), at(110))
+            .unwrap();
+        let during_a_running_timer = book
+            .record_ended_meetings(&[meeting("Running", 100, 120)], at(130), |_| {
+                SessionTarget::default()
+            })
+            .unwrap();
+        assert!(during_a_running_timer.is_empty());
+    }
+
+    #[test]
+    fn a_recurring_meeting_differs_by_occurrence() {
+        assert_ne!(
+            meeting_session_id(&meeting("Stand-up", 0, 15)),
+            meeting_session_id(&meeting("Stand-up", 1440, 1455))
+        );
+        let reversed = SessionBook::new().record_ended_meetings(
+            &[meeting("Backwards", 20, 10)],
+            at(30),
+            |_| SessionTarget::default(),
+        );
+        assert!(matches!(reversed, Err(DomainError::EndBeforeStart { .. })));
+    }
+
+    #[test]
+    fn task_time_inside_a_day_and_story_time_count_each_session_once() {
+        let mut book = SessionBook::new();
+        book.start("ses-1", SessionTarget::task("task-1"), at(-30))
+            .unwrap();
+        book.stop(at(30)).unwrap();
+        book.start(
+            "ses-2",
+            SessionTarget::task_in_story("task-2", "WEB-142"),
+            at(40),
+        )
+        .unwrap();
+        book.stop(at(50)).unwrap();
+        book.start("ses-3", SessionTarget::task("task-9"), at(60))
+            .unwrap();
+
+        assert_eq!(
+            book.spent_on_task_within(&TaskId::new("task-1"), at(0), at(1440), at(100)),
+            minutes(30),
+            "only the part after midnight counts"
+        );
+        assert_eq!(
+            book.spent_on_task_within(&TaskId::new("task-9"), at(0), at(1440), at(75)),
+            minutes(15),
+            "a running session counts up to now"
+        );
+
+        let task_stories = HashMap::from([
+            (TaskId::new("task-1"), StoryNumber::new("WEB-142")),
+            (TaskId::new("task-2"), StoryNumber::new("ACME-9")),
+        ]);
+        let by_story = book.spent_by_story(&task_stories, at(70));
+        assert_eq!(
+            by_story.get(&StoryNumber::new("WEB-142")),
+            Some(&minutes(70)),
+            "task-1 by its task's story, ses-2 by its own"
+        );
+        assert_eq!(by_story.get(&StoryNumber::new("ACME-9")), None);
+        assert_eq!(by_story.len(), 1, "task-9 has no story");
     }
 }

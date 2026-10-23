@@ -14,6 +14,7 @@
 //! [`estimate::Estimate`] (the budget). They cannot be added to each other.
 //!
 //! [`scheduler`] lays unlocked time boxes into the free slots of a working day,
+//! [`calendar_day`] lays out the side panel's day grid from events and boxes,
 //! [`quick_add`] turns one typed line into a [`quick_add::ParsedEntry`] for the
 //! confirmation popover, and [`registry`] is the feature registry with nothing
 //! plugged in: the base version has no feature set, so it only defines the
@@ -64,6 +65,7 @@ macro_rules! id_type {
     };
 }
 
+pub mod calendar_day;
 pub mod day_plan;
 pub mod error;
 pub mod estimate;

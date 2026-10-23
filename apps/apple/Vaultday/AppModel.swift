@@ -1,3 +1,4 @@
+import EventKit
 import Foundation
 import Observation
 import SwiftUI
@@ -34,6 +35,10 @@ final class AppModel {
 	let dayPlan = DayPlanModel()
 	let sessions = SessionModel()
 	let quickAdd = QuickAddModel()
+	/// The side panel's Calendar tab and the Today column's three-day and week grids.
+	let calendarPanel = CalendarPanelModel()
+	let hours = HoursModel()
+	let remindersIntake = RemindersIntakeModel(store: EKReminderStoreAccess())
 	/// The All view's model; `nil` until the app document is open.
 	private(set) var allWorkspaces: AllWorkspacesModel?
 	let focus: PaneFocusModel
@@ -61,6 +66,7 @@ final class AppModel {
 	let keymapError: String?
 
 	private var calendarSource: EventKitCalendarSource?
+	private var storeChangeObserver: (any NSObjectProtocol)?
 	private var environment: CoreEnvironment?
 	private var windowStateStore: WindowStateStore?
 
@@ -124,6 +130,7 @@ final class AppModel {
 				addDebugWorkspace(workspaces)
 			#endif
 			workspace.restoreAtLaunch()
+			startSidePanel()
 			reloadWorkspaceContent()
 			refreshSetupSteps()
 		} catch {
@@ -239,6 +246,8 @@ final class AppModel {
 			schedule(.replan)
 		case .autoSchedule:
 			schedule(.autoSchedule)
+		case .togglePin:
+			if let item = selectedItem { togglePin(taskId: item.taskId) }
 		case .toggleTimer:
 			toggleTimer()
 		case .previousDay:
@@ -318,6 +327,7 @@ final class AppModel {
 	func schedule(_ mode: ScheduleMode) {
 		guard !isShowingAll else { return }
 		dayPlan.schedule(mode)
+		refreshSidePanel()
 	}
 
 	func showDay(offset: Int) {
@@ -417,6 +427,97 @@ final class AppModel {
 			sessions.load(from: workspace)
 			workspace.refreshHealth()
 		}
+		refreshSidePanel()
+	}
+
+	// MARK: Side panel
+
+	/// Whether EventKit grants full calendar access, so events are read and pins written.
+	var hasCalendarAccess: Bool { calendarSource != nil }
+
+	/// The padlock, `m` or `X`: pins the task's box on `date` (the shown
+	/// day when `nil`) to the private calendar, or unpins it.
+	func togglePin(taskId: String, on date: String? = nil) {
+		calendarPanel.togglePin(taskId: taskId, on: date)
+	}
+
+	/// A task dropped on a day grid at `startMinute` of `date`: pinned there.
+	func pin(taskId: String, startMinute: Int, on date: String) -> Bool {
+		// A drop carries any text; only a task of the list or of a grid is pinned.
+		let gridTasks = ([calendarPanel.day].compactMap(\.self) + calendarPanel.spanDays).flatMap(\.blocks).compactMap(\.taskId)
+		guard taskText(taskId) != nil || gridTasks.contains(taskId) else { return false }
+		return calendarPanel.pin(taskId: taskId, startMinute: startMinute, on: date)
+	}
+
+	/// The Today title's switch: the list, or the calendar over three days or a week.
+	func showSpan(_ span: CalendarSpan) {
+		calendarPanel.show(span)
+	}
+
+	func requestRemindersAccess() async {
+		await remindersIntake.requestAccess()
+		await runIntake()
+	}
+
+	func setIntakeList(_ list: ReminderListInfo, isPicked: Bool, story: String?) {
+		workspace?.setIntakeList(id: list.id, title: list.title, isPicked: isPicked, story: story)
+		Task { await runIntake() }
+	}
+
+	/// Once a minute: ended meetings become sessions, the now line moves, the intake runs.
+	func minuteTick() async {
+		calendarPanel.tick()
+		if let workspace, workspace.phase == .open {
+			hours.load(from: workspace, date: dayPlan.date)
+		}
+		await runIntake()
+	}
+
+	/// Connects the calendars when access was granted before, and follows
+	/// changes to the calendar and Reminders stores.
+	private func startSidePanel() {
+		calendarPanel.onPlanChanged = { [weak self] in self?.calendarPlanChanged() }
+		calendarPanel.keyLabel = { [weak self] in self?.keyLabel($0) }
+		if EKEventStore.authorizationStatus(for: .event) == .fullAccess {
+			connectCalendar(EKEventStoreAccess())
+		}
+		remindersIntake.refreshLists()
+		storeChangeObserver = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
+			Task { @MainActor in
+				self?.remindersIntake.refreshLists()
+				self?.calendarPanel.reload()
+				await self?.runIntake()
+			}
+		}
+	}
+
+	/// A pin changed the plan: the list shows it, and pinned work that
+	/// covered unlocked boxes has the core re-plan them around it.
+	private func calendarPlanChanged() {
+		dayPlan.reload()
+		if calendarPanel.needsReplan {
+			calendarPanel.needsReplan = false
+			schedule(.replan)
+		}
+		afterPlanChange()
+	}
+
+	private func refreshSidePanel() {
+		guard let workspace, workspace.phase == .open, !dayPlan.date.isEmpty else {
+			calendarPanel.clear()
+			hours.clear()
+			return
+		}
+		calendarPanel.load(from: workspace, date: dayPlan.date)
+		hours.load(from: workspace, date: dayPlan.date)
+	}
+
+	private func runIntake() async {
+		guard let workspace, workspace.phase == .open, !isShowingAll else { return }
+		if let run = await remindersIntake.run(workspace: workspace), run.filed > 0 {
+			dayPlan.reload()
+			afterPlanChange()
+		}
 	}
 
 	/// What Home reads from the Settings window; a change reloads the day.
@@ -469,6 +570,11 @@ final class AppModel {
 			calendarStatus = error.localizedDescription
 			return
 		}
+		connectCalendar(store)
+		reloadWorkspaceContent()
+	}
+
+	private func connectCalendar(_ store: EKEventStoreAccess) {
 		let record: any PrivateCalendarRecord = environment.map { FilePrivateCalendarRecord(layout: $0.layout) } ?? InMemoryPrivateCalendarRecord()
 		let source = EventKitCalendarSource(store: store, pickedCalendarIds: workspace?.pickedCalendarIds ?? [], record: record)
 		calendarSource = source
@@ -479,11 +585,13 @@ final class AppModel {
 		} catch {
 			calendarStatus = error.localizedDescription
 		}
+		calendarPanel.attach(calendar: source)
 	}
 
 	func setCalendar(_ calendar: CalendarInfo, isPicked: Bool) {
 		workspace?.setCalendar(id: calendar.id, title: calendar.title, isPicked: isPicked)
 		calendarSource?.setPickedCalendars(workspace?.pickedCalendarIds ?? [])
+		refreshSidePanel()
 	}
 
 	func reloadWorkspaceContent() {
@@ -494,11 +602,14 @@ final class AppModel {
 			dayPlan.workingHours = rhythm.workingHours
 		}
 		dayPlan.busyProvider = { [weak self] day in self?.busySpans(on: day) ?? [] }
+		calendarSource?.setPickedCalendars(workspace.pickedCalendarIds)
 		dayPlan.load(from: workspace)
 		sessions.load(from: workspace)
 		quickAdd.attach(to: workspace, workspaces: workspaceEntries)
 		workspace.refreshHealth()
 		focus.setItemCount(dayPlan.items.count, in: .today)
+		refreshSidePanel()
+		Task { await runIntake() }
 		if isShowingAll {
 			reloadAllWorkspaces()
 		}

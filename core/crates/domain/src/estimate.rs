@@ -268,6 +268,88 @@ pub fn logged_by_story<'a>(
         })
 }
 
+/// Where a story's budget on the Hours tab comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BudgetSource {
+    /// The story note's own `estimate`, the budget set upstream.
+    Story,
+    /// The sum of its tasks' estimates, for a story without one.
+    Tasks,
+    /// Neither the story nor any task gives one.
+    None,
+}
+
+/// One story's row of the Hours tab: tracked time against its budget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoryHours {
+    /// The story.
+    pub story: StoryNumber,
+    /// Tracked time, estimate, remaining and overtime.
+    pub report: EffortReport,
+    /// Where the estimate came from.
+    pub budget: BudgetSource,
+}
+
+/// The Hours row of one story: the story's own estimate is its budget, and
+/// only a story without one falls back to the sum of its tasks' estimates.
+pub fn story_hours(
+    story: StoryNumber,
+    story_estimate: Option<Estimate>,
+    task_estimates: impl IntoIterator<Item = Option<Estimate>>,
+    tracked: SpentTime,
+) -> StoryHours {
+    let from_tasks = task_estimates
+        .into_iter()
+        .flatten()
+        .fold(None, |total: Option<Estimate>, estimate| {
+            Some(total.unwrap_or_default() + estimate)
+        });
+    let (estimate, budget) = match (story_estimate, from_tasks) {
+        (Some(estimate), _) => (Some(estimate), BudgetSource::Story),
+        (None, Some(estimate)) => (Some(estimate), BudgetSource::Tasks),
+        (None, None) => (None, BudgetSource::None),
+    };
+    StoryHours {
+        story,
+        report: report(tracked, estimate),
+        budget,
+    }
+}
+
+/// A story's `estimate` as written: days (`3d`, `1.5d`), each the length
+/// of the workspace's working day `day`, or any task form ([`parse_estimate`]).
+/// `None` for anything else.
+///
+/// [`parse_estimate`]: crate::quick_add::parse_estimate
+pub fn parse_story_budget(text: &str, day: Duration) -> Option<Estimate> {
+    let text = text.trim().to_ascii_lowercase();
+    let Some(days) = text.strip_suffix('d') else {
+        return crate::quick_add::parse_estimate(&text);
+    };
+    let (whole, tenths) = match days.split_once('.') {
+        Some((whole, fraction)) if fraction.len() == 1 => (whole, fraction.parse::<u64>().ok()?),
+        Some(_) => return None,
+        None => (days, 0),
+    };
+    let whole: u64 = whole.parse().ok()?;
+    let tenths_of_days = whole.checked_mul(10)?.checked_add(tenths)?;
+    let seconds = day.as_secs().checked_mul(tenths_of_days)? / 10;
+    Some(Estimate::new(Duration::from_secs(seconds - seconds % 60)))
+}
+
+/// The daily target from a workspace's `hours_per_day`, in whole minutes
+/// (6.5 h is 390 minutes); `None` for a value that is not a positive number
+/// of at most 24 hours.
+pub fn daily_target(hours_per_day: f64) -> Option<Duration> {
+    if !hours_per_day.is_finite() || hours_per_day <= 0.0 || hours_per_day > 24.0 {
+        return None;
+    }
+    // In range by the guard: at most 1440 minutes, so the cast is exact.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let minutes = (hours_per_day * 60.0).round() as u64;
+    Some(Duration::from_secs(minutes * 60))
+}
+
 /// Formats a duration as hours and minutes: `1h28m`, `45m`, `2h`, `0m`.
 /// Seconds are dropped, never rounded up.
 pub fn format_hours_minutes(duration: Duration) -> String {
@@ -490,5 +572,75 @@ mod tests {
             assert_eq!(SpentTime::from_minutes(minutes).to_string(), text);
         }
         assert_eq!(format_hours_minutes(Duration::from_secs(119)), "1m");
+    }
+
+    #[test]
+    fn a_story_budget_is_its_own_estimate_before_its_tasks() {
+        let hours = story_hours(
+            StoryNumber::new("WEB-142"),
+            Some(Estimate::from_minutes(360)),
+            [Some(Estimate::from_minutes(90)), None],
+            SpentTime::from_minutes(125),
+        );
+        assert_eq!(hours.budget, BudgetSource::Story);
+        assert_eq!(hours.report.remaining, Duration::from_secs(235 * 60));
+
+        let from_tasks = story_hours(
+            StoryNumber::new("ACME-9"),
+            None,
+            [
+                Some(Estimate::from_minutes(30)),
+                Some(Estimate::from_minutes(45)),
+                None,
+            ],
+            SpentTime::from_minutes(90),
+        );
+        assert_eq!(from_tasks.budget, BudgetSource::Tasks);
+        assert_eq!(from_tasks.report.estimate, Some(Estimate::from_minutes(75)));
+        assert_eq!(from_tasks.report.remaining, Duration::ZERO);
+        assert_eq!(from_tasks.report.overtime, Duration::from_secs(15 * 60));
+
+        let none = story_hours(
+            StoryNumber::new("ACME-12"),
+            None,
+            [None],
+            SpentTime::from_minutes(5),
+        );
+        assert_eq!(none.budget, BudgetSource::None);
+        assert_eq!(none.report.remaining, Duration::ZERO);
+        assert!(!none.report.is_over(), "no budget, no overtime");
+    }
+
+    #[test]
+    fn the_daily_target_comes_from_hours_per_day() {
+        assert_eq!(daily_target(6.5), Some(Duration::from_secs(390 * 60)));
+        assert_eq!(daily_target(8.0), Some(Duration::from_secs(480 * 60)));
+        for unusable in [0.0, -1.0, 24.5, f64::NAN, f64::INFINITY] {
+            assert_eq!(daily_target(unusable), None, "{unusable}");
+        }
+    }
+
+    #[test]
+    fn story_budgets_in_days_use_the_working_day() {
+        let day = Duration::from_secs(8 * 3600);
+        assert_eq!(
+            parse_story_budget("3d", day),
+            Some(Estimate::from_minutes(3 * 480))
+        );
+        assert_eq!(
+            parse_story_budget("1.5d", day),
+            Some(Estimate::from_minutes(720))
+        );
+        assert_eq!(
+            parse_story_budget("6h", day),
+            Some(Estimate::from_minutes(360))
+        );
+        assert_eq!(
+            parse_story_budget("1d", Duration::from_secs(390 * 60)),
+            Some(Estimate::from_minutes(390))
+        );
+        for unusable in ["", "d", "1.25d", "soon", "-1d"] {
+            assert_eq!(parse_story_budget(unusable, day), None, "{unusable}");
+        }
     }
 }

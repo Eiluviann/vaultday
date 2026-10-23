@@ -385,6 +385,8 @@ pub fn format_task_line(
         assigned_to: assigned_to.map(str::to_owned),
         scheduled: None,
         estimate: None,
+        due: None,
+        reminder: None,
     };
     Ok(task_line(&task)?)
 }
@@ -413,6 +415,8 @@ pub fn add_story_task(
         assigned_to: request.assigned_to.clone(),
         scheduled: request.scheduled,
         estimate: request.estimate.clone(),
+        due: None,
+        reminder: None,
     };
     let writer = VaultWriter::new(file_access, workspace);
     let receipt = match &request.begin_marker {

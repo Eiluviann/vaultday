@@ -54,6 +54,8 @@ targets:
         com.apple.security.network.client: true
         # EventKit with full access: read events, keep the private calendar.
         com.apple.security.personal-information.calendars: true
+        # Reminders with full access: the intake reads and deletes items.
+        com.apple.security.personal-information.reminders: true
         # The App Group container (app state, volatile state, the API token).
         # An application group is also a Keychain access group on the data
         # protection keychain; Vaultday's items live in this one.
@@ -73,6 +75,9 @@ targets:
           Vaultday reads the calendars you pick to plan your day around your
           events, and keeps your time boxes in a private Vaultday calendar in
           iCloud.
+        NSRemindersFullAccessUsageDescription: >-
+          Vaultday files the items of the Reminders lists you pick as tasks in
+          your workspace, then removes them from Reminders.
         CFBundleURLTypes:
           - CFBundleURLName: com.eiluviann.vaultday
             CFBundleURLSchemes: [vaultday]

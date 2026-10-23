@@ -54,6 +54,8 @@ public final class WorkspaceModel {
 	public private(set) var syncSummary: SyncSummary?
 	/// The calendars this workspace reads, by EventKit calendar identifier.
 	public private(set) var pickedCalendarIds: Set<String> = []
+	/// The Reminders lists this workspace files items from, by EventKit calendar identifier.
+	public private(set) var intakeLists: [IntakeList] = []
 	/// The footer dot's view of the open workspace; `nil` while none is open.
 	public private(set) var health: VaultHealth?
 
@@ -208,6 +210,27 @@ public final class WorkspaceModel {
 		refreshPickedCalendars()
 	}
 
+	/// Makes a Reminders list one of this workspace's intake lists, filing
+	/// into `story` (`nil`: the intake note), or drops it. A pick is a
+	/// reminder-list connection plus a source of this workspace whose subpath
+	/// names the story.
+	public func setIntakeList(id: String, title: String, isPicked: Bool, story: String? = nil) {
+		guard !workspaceId.isEmpty else { return }
+		do {
+			for existing in session.appState.sources(workspace: workspaceId) where existing.connection == id {
+				try session.appState.removeSource(source: existing)
+			}
+			if isPicked {
+				try session.appState.putConnection(connection: ConnectionView(id: id, kind: .reminderList, label: title))
+				try session.appState.addSource(source: SourceView(workspace: workspaceId, connection: id, subpath: story ?? ""))
+			}
+			try session.save()
+		} catch {
+			appStateStatus = coreErrorMessage(error)
+		}
+		refreshPickedCalendars()
+	}
+
 	/// Applies change files that arrived from other devices.
 	public func pull() {
 		guard let state else { return }
@@ -347,6 +370,7 @@ public final class WorkspaceModel {
 		appStateStatus = ""
 		syncSummary = nil
 		pickedCalendarIds = []
+		intakeLists = []
 		health = nil
 		scope = .single
 		phase = .noFolder
@@ -369,8 +393,15 @@ public final class WorkspaceModel {
 	}
 
 	private func refreshPickedCalendars() {
-		let calendars = Set(session.appState.connections().filter { $0.kind == .calendar }.map(\.id))
-		pickedCalendarIds = Set(session.appState.sources(workspace: workspaceId).map(\.connection)).intersection(calendars)
+		let connections = session.appState.connections()
+		let sources = session.appState.sources(workspace: workspaceId)
+		let calendars = Set(connections.filter { $0.kind == .calendar }.map(\.id))
+		pickedCalendarIds = Set(sources.map(\.connection)).intersection(calendars)
+		let lists = Dictionary(connections.filter { $0.kind == .reminderList }.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+		intakeLists = sources.compactMap { source in
+			lists[source.connection].map { IntakeList(listId: source.connection, title: $0, story: source.subpath.isEmpty ? nil : source.subpath) }
+		}
+		.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 	}
 
 	private func refreshSyncSummary() {

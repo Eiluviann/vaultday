@@ -156,7 +156,7 @@ final class CalendarSourceTests: XCTestCase {
 	}
 }
 
-private final class FakeEventStore: EventStoreAccess, @unchecked Sendable {
+final class FakeEventStore: EventStoreAccess, @unchecked Sendable {
 	var access: CalendarAccess
 	var sourceList: [CalendarSourceInfo]
 	var calendarList: [CalendarInfo] = []

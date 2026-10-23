@@ -138,6 +138,12 @@ pub enum DomainError {
         /// The task without a time box.
         id: TaskId,
     },
+    /// A box would be locked over another locked box; two pins never share time.
+    #[error("Another locked block already holds that time")]
+    LockedTimeTaken {
+        /// The task whose locked box holds the time.
+        holder: TaskId,
+    },
     /// A span of local time ends before it starts, or a working day has no length.
     #[error("the span from {start} to {end} runs backwards or is empty")]
     ReversedSpan {

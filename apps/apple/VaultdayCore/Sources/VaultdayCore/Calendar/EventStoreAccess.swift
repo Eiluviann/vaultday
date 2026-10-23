@@ -52,8 +52,14 @@ public struct StoredEvent: Sendable, Hashable {
 	public let end: Date
 	public let isAllDay: Bool
 	public let url: URL?
+	/// The occurrence's identity that a rename or a move keeps; `nil` when
+	/// the store has no external identifier.
+	public let meetingKey: String?
+	/// `false` for an invitation the user declined, a cancelled event, or
+	/// time that shows as free: no meeting the user sat in.
+	public let isAttended: Bool
 
-	public init(id: String, calendarId: String, title: String, start: Date, end: Date, isAllDay: Bool, url: URL?) {
+	public init(id: String, calendarId: String, title: String, start: Date, end: Date, isAllDay: Bool, url: URL?, meetingKey: String? = nil, isAttended: Bool = true) {
 		self.id = id
 		self.calendarId = calendarId
 		self.title = title
@@ -61,6 +67,8 @@ public struct StoredEvent: Sendable, Hashable {
 		self.end = end
 		self.isAllDay = isAllDay
 		self.url = url
+		self.meetingKey = meetingKey
+		self.isAttended = isAttended
 	}
 }
 
@@ -137,8 +145,26 @@ public final class EKEventStoreAccess: EventStoreAccess, @unchecked Sendable {
 				end: event.endDate,
 				isAllDay: event.isAllDay,
 				url: event.url,
+				meetingKey: Self.meetingKey(of: event),
+				isAttended: Self.isAttended(event),
 			)
 		}
+	}
+
+	/// The external identifier every device and server shares; for a repeating
+	/// event, with the occurrence's original start, which stays put when that
+	/// one occurrence is moved. A single event's start is left out, so moving
+	/// it keeps its key.
+	private static func meetingKey(of event: EKEvent) -> String? {
+		guard let external = event.calendarItemExternalIdentifier, !external.isEmpty else { return nil }
+		guard event.hasRecurrenceRules || event.isDetached, let occurrence = event.occurrenceDate else { return external }
+		return "\(external)@\(Int(occurrence.timeIntervalSince1970))"
+	}
+
+	private static func isAttended(_ event: EKEvent) -> Bool {
+		if event.availability == .free || event.status == .canceled { return false }
+		let me = event.attendees?.first { $0.isCurrentUser }
+		return me?.participantStatus != .declined
 	}
 
 	public func saveEvent(id: String?, calendarId: String, title: String, start: Date, end: Date, url: URL) throws -> String {
