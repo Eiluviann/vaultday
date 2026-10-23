@@ -6,7 +6,9 @@
 //! (the encrypted app state). The platform supplies the ports as foreign
 //! traits: [`secrets::SecretStorePort`] (the Keychain),
 //! [`files::SyncFilesPort`] (coordinated file access inside granted folders)
-//! and [`calendar::CalendarPort`] (EventKit). The Swift package maps the
+//! and [`calendar::CalendarPort`] (EventKit). Mail ([`mail_accounts`]) runs in the
+//! core itself; its calls block on the network, so the app makes them off
+//! the main actor. The Swift package maps the
 //! records into `@Observable` models, so views never see them.
 
 // The workspace lints forbid `unwrap`/`expect` in shipped code; tests may use them.
@@ -17,6 +19,7 @@ pub mod browse;
 pub mod calendar;
 pub mod files;
 pub mod home;
+pub mod mail_accounts;
 pub mod onboarding;
 pub mod preferences;
 pub mod secrets;
@@ -66,6 +69,9 @@ pub enum CoreError {
     /// The app state refused the operation.
     #[error("{0}")]
     AppState(String),
+    /// A mail server or the Microsoft sign-in service failed.
+    #[error("{0}")]
+    Mail(String),
 }
 
 /// An opened workspace: its root and its manifest, ready for queries.

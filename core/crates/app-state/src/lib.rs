@@ -3,7 +3,7 @@
 //!
 //! - [`WorkspaceState`]: one Automerge document per workspace (day order,
 //!   time boxes, sessions, rollover history, ritual answers, notification
-//!   state, id counters), synced through [`WorkspaceSync`] as encrypted,
+//!   state, id counters, the mail signal store), synced through [`WorkspaceSync`] as encrypted,
 //!   batched change files under `<workspace>/.vaultday/sync/<device-id>/`.
 //! - [`AppState`]: the app-level document (connections, sources, feature
 //!   enablement, settings, security fields), stored by [`AppStateStore`] as
@@ -30,6 +30,7 @@ pub mod keys;
 mod random;
 pub mod secret_store;
 pub mod settings_guard;
+pub mod signals;
 pub mod signed;
 pub mod sync_files;
 pub mod sync_folder;
@@ -44,6 +45,7 @@ pub use app_doc::{
     ProviderKind, SecurityMode, ShortcutCaps, Source, SyncChoice, SyncHome, SyncService,
     WorkingHours, WorkingHoursKind, WorkspaceSecurity,
 };
+pub use app_doc::{DEFAULT_MAIL_FETCH_INTERVAL, MailAccount, MailAuth, MailProvider};
 pub use device::DeviceId;
 pub use error::AppStateError;
 pub use ids::{IdBlock, IdKind};
@@ -55,6 +57,10 @@ pub use secret_store::{
     Availability, InMemorySecretStore, SecretBytes, SecretId, SecretItem, SecretKind, SecretStore,
     SecretStoreError,
 };
+pub use signals::{
+    IncomingSignal, Signal, SignalAction, SignalId, SignalInsert, SignalRecord, SignalState,
+    SignalTransitionRefused,
+};
 pub use signed::{AppStateLoad, AppStateStore, RefusedSnapshot, SnapshotRefusal};
 pub use sync_files::{PlainSyncFiles, SyncEntry, SyncFiles};
 pub use sync_folder::{
@@ -63,4 +69,4 @@ pub use sync_folder::{
     sync_folder,
 };
 pub use volatile::{GITIGNORE_SNIPPET, VolatileStateDir};
-pub use workspace_state::{PlannedTimeBox, RolloverEntry, WorkspaceState};
+pub use workspace_state::{MAX_RAW_TEXT_BYTES, PlannedTimeBox, RolloverEntry, WorkspaceState};

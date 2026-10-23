@@ -21,6 +21,7 @@ jiff = { version = "0.2", default-features = false, features = ["std", "tz-syste
 thiserror = "2"
 app-state = { package = "vaultday-app-state", path = "../app-state" }
 domain = { package = "vaultday-domain", path = "../domain" }
+mail = { package = "vaultday-mail", path = "../mail" }
 vaultday-vault-base = { path = "../vault-base" }
 serde_json = "1"
 

@@ -20,8 +20,11 @@ use crate::doc::{
 };
 use crate::error::AppStateError;
 
+mod mail;
 mod onboarding;
 mod preferences;
+
+pub use mail::{DEFAULT_MAIL_FETCH_INTERVAL, MailAccount, MailAuth, MailProvider};
 
 pub use onboarding::{
     AccountPart, FeatureScopeChoice, FeatureScopeMode, ONBOARDING_STEP_COUNT, OnboardingProgress,

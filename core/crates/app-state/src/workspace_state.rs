@@ -21,15 +21,22 @@ use jiff::civil::{Date, DateTime};
 
 use crate::device::DeviceId;
 use crate::doc::{
-    composite_key, delete_if_present, get_all_str, get_bool, get_map, get_str, get_u64, keys,
-    put_optional_str, root_object, schema_document,
+    composite_key, delete_if_present, extend_schema, get_all_str, get_bool, get_map, get_str,
+    get_u64, keys, put_optional_str, root_object, schema_document,
 };
 use crate::error::AppStateError;
 use crate::ids::{self, IdBlock, IdKind, IdMaps};
 
+mod mail;
+
+pub use mail::MAX_RAW_TEXT_BYTES;
+
 /// Version of this document's schema, carried in every file's header.
 pub const WORKSPACE_SCHEMA_VERSION: u16 = 1;
 const SCHEMA_ACTOR: &str = "vaultday:schema:workspace:1";
+/// The second schema change: the mail signal store (PR 12). A separate
+/// change keeps the first one's hash, so documents started before it merge.
+const MAIL_SCHEMA_ACTOR: &str = "vaultday:schema:workspace:mail:1";
 
 const DAY_ORDER: &str = "day_order";
 const TIME_BOXES: &str = "time_boxes";
@@ -41,6 +48,11 @@ const NOTIFICATIONS: &str = "notifications";
 const THRESHOLD_ALERTS: &str = "threshold_alerts";
 const ID_BLOCKS: &str = "id_blocks";
 const ID_COUNTERS: &str = "id_counters";
+const SIGNALS: &str = "signals";
+const SIGNAL_STATES: &str = "signal_states";
+const SIGNAL_TEXTS: &str = "signal_texts";
+const MAIL_CURSORS: &str = "mail_cursors";
+const MAIL_MAPS: [&str; 4] = [SIGNALS, SIGNAL_STATES, SIGNAL_TEXTS, MAIL_CURSORS];
 const MAPS: [&str; 9] = [
     DAY_ORDER,
     TIME_BOXES,
@@ -105,13 +117,18 @@ struct Objects {
     threshold_alerts: ObjId,
     id_blocks: ObjId,
     id_counters: ObjId,
+    signals: ObjId,
+    signal_states: ObjId,
+    signal_texts: ObjId,
+    mail_cursors: ObjId,
 }
 
 impl WorkspaceState {
     /// A document holding only the schema change, writing as `device`.
     pub(crate) fn new(device: DeviceId) -> Result<WorkspaceState, AppStateError> {
+        let doc = schema_document(SCHEMA_ACTOR, &MAPS, &[ROLLOVERS])?;
         let doc =
-            schema_document(SCHEMA_ACTOR, &MAPS, &[ROLLOVERS])?.with_actor(device.run_actor()?);
+            extend_schema(doc, MAIL_SCHEMA_ACTOR, &MAIL_MAPS)?.with_actor(device.run_actor()?);
         let objects = Objects {
             day_order: root_object(&doc, DAY_ORDER)?,
             time_boxes: root_object(&doc, TIME_BOXES)?,
@@ -123,6 +140,10 @@ impl WorkspaceState {
             threshold_alerts: root_object(&doc, THRESHOLD_ALERTS)?,
             id_blocks: root_object(&doc, ID_BLOCKS)?,
             id_counters: root_object(&doc, ID_COUNTERS)?,
+            signals: root_object(&doc, SIGNALS)?,
+            signal_states: root_object(&doc, SIGNAL_STATES)?,
+            signal_texts: root_object(&doc, SIGNAL_TEXTS)?,
+            mail_cursors: root_object(&doc, MAIL_CURSORS)?,
         };
         let run_seed = doc.get_actor().to_bytes().to_vec();
         Ok(WorkspaceState {

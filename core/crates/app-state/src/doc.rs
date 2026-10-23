@@ -34,6 +34,23 @@ pub(crate) fn schema_document(
     Ok(doc)
 }
 
+/// Adds a later schema change on top of `doc`: `maps` as new top-level
+/// objects, written under its own fixed actor at time zero. Like the first
+/// change it hashes alike on every device, so documents that started from an
+/// older schema merge with ones that started from this one.
+pub(crate) fn extend_schema(
+    mut doc: AutoCommit,
+    actor: &str,
+    maps: &[&str],
+) -> Result<AutoCommit, AppStateError> {
+    doc.set_actor(ActorId::from(actor.as_bytes()));
+    for key in maps {
+        doc.put_object(ROOT, *key, ObjType::Map)?;
+    }
+    doc.commit_with(CommitOptions::default().with_time(0));
+    Ok(doc)
+}
+
 /// A top-level object the schema change created.
 pub(crate) fn root_object(doc: &AutoCommit, key: &str) -> Result<ObjId, AppStateError> {
     match doc.get(ROOT, key)? {

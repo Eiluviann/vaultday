@@ -1,8 +1,9 @@
 import SwiftUI
 import VaultdayCore
 
-/// The 300 px Inbox column. Signals arrive with mail (PR 12 and 13); until
-/// then it holds only its empty state.
+/// The 300 px Inbox column. Mail is fetched into the signal store since
+/// PR 12; the signal cards themselves arrive with PR 13, so the column holds
+/// its empty state: "Connect a mail account" until one exists, then "No new mail".
 struct InboxColumn: View {
 	let app: AppModel
 
@@ -34,7 +35,7 @@ private struct InboxEmptyState: View {
 			Image(systemName: hasMailAccount ? "checkmark.circle" : "envelope")
 				.font(.system(size: 16))
 				.foregroundStyle(hasMailAccount ? Tokens.Colors.positive : Tokens.Colors.inkMuted)
-			Text(hasMailAccount ? "Nothing to decide" : "Connect a mail account")
+			Text(hasMailAccount ? "No new mail" : "Connect a mail account")
 				.fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 		}

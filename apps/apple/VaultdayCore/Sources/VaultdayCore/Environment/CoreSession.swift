@@ -61,7 +61,7 @@ func coreErrorMessage(_ error: any Error) -> String {
 		case let .NotAWorkspace(message), let .InvalidSettings(message), let .FileAccess(message),
 		     let .InvalidDate(message), let .InvalidInput(message), let .NotFound(message),
 		     let .Conflict(message), let .SecretStore(message), let .KeyNotArrived(message),
-		     let .AppState(message):
+		     let .AppState(message), let .Mail(message):
 			message
 		}
 	case let error as LocalizedError:

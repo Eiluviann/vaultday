@@ -17,6 +17,10 @@ struct SettingsWindow: View {
 						.tabItem { Label("Day", systemImage: "sun.max") }
 					WorkspaceSettings(workspaces: workspaces, onChange: { app.workspacesChanged() })
 						.tabItem { Label("Workspaces", systemImage: "square.stack") }
+					if let accounts = app.setup?.accounts {
+						AccountSettings(workspaces: workspaces, accounts: accounts, scheduler: app.mailScheduler)
+							.tabItem { Label("Accounts", systemImage: "envelope") }
+					}
 					DeviceSettings(settings: settings)
 						.tabItem { Label("This Mac", systemImage: "desktopcomputer") }
 				}
@@ -155,6 +159,48 @@ private struct WorkspaceSettings: View {
 				onChange()
 			})
 		}
+	}
+}
+
+// MARK: Accounts
+
+/// The Accounts step's panel, and how often mail is fetched.
+private struct AccountSettings: View {
+	let workspaces: WorkspacesModel
+	let accounts: AccountsStepModel
+	let scheduler: MailFetchScheduler?
+
+	var body: some View {
+		SettingsPane {
+			SetupCard(icon: "arrow.clockwise", title: "Fetch mail", description: "How often each Mac checks its accounts for new mail") {
+				SegmentedChoice(
+					label: "Fetch interval",
+					options: AccountsStepModel.fetchIntervalChoices.map { ($0, $0 == 60 ? "1 h" : "\($0) min") },
+					selection: Binding(get: { accounts.fetchIntervalMinutes }, set: { accounts.setFetchInterval(minutes: $0) }),
+				)
+			}
+			if let scheduler {
+				SetupCard(icon: "tray.and.arrow.down", title: "Fetch now", description: scheduler.lastFetch.map(Self.lastFetchLine) ?? "Not fetched yet in this session") {
+					Button {
+						Task { await scheduler.fetchNow() }
+					} label: {
+						SetupLabel(title: "Fetch", icon: "arrow.clockwise")
+					}
+					.buttonStyle(SetupButtonStyle(isSmall: true))
+					.disabled(scheduler.isFetching || !accounts.hasMailAccount)
+					.accessibilityLabel("Fetch mail now")
+				}
+			}
+			AccountsPanel(workspaces: workspaces, accounts: accounts)
+		}
+	}
+
+	private static func lastFetchLine(_ summary: MailFetchSummary) -> String {
+		let time = summary.finishedAt.formatted(date: .omitted, time: .shortened)
+		guard summary.failures.isEmpty else {
+			return "Last fetch at \(time) · \(summary.failures.joined(separator: "; "))"
+		}
+		return "Last fetch at \(time) · \(summary.added) new"
 	}
 }
 

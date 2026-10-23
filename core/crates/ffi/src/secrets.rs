@@ -29,6 +29,10 @@ pub enum SecretKind {
     ProviderApiKey,
     /// The localhost API's bearer token, named `local-api`; this device only.
     LocalApiToken,
+    /// A mail account's app password, named by its connection id; this device only.
+    MailPassword,
+    /// A mail account's OAuth refresh token, named by its connection id; this device only.
+    MailRefreshToken,
 }
 
 /// Names one item.
@@ -100,6 +104,7 @@ pub trait SecretStorePort: Send + Sync {
 }
 
 /// [`app_state::SecretStore`] over a platform [`SecretStorePort`].
+#[derive(Clone)]
 pub struct ForeignSecretStore(Arc<dyn SecretStorePort>);
 
 /// Whether items of `kind` synchronise; the core decides, the platform obeys.
@@ -189,6 +194,8 @@ impl From<SecretKind> for CoreSecretKind {
             SecretKind::DevicePublicKey => CoreSecretKind::DevicePublicKey,
             SecretKind::ProviderApiKey => CoreSecretKind::ProviderApiKey,
             SecretKind::LocalApiToken => CoreSecretKind::LocalApiToken,
+            SecretKind::MailPassword => CoreSecretKind::MailPassword,
+            SecretKind::MailRefreshToken => CoreSecretKind::MailRefreshToken,
         }
     }
 }
@@ -202,6 +209,8 @@ impl From<CoreSecretKind> for SecretKind {
             CoreSecretKind::DevicePublicKey => SecretKind::DevicePublicKey,
             CoreSecretKind::ProviderApiKey => SecretKind::ProviderApiKey,
             CoreSecretKind::LocalApiToken => SecretKind::LocalApiToken,
+            CoreSecretKind::MailPassword => SecretKind::MailPassword,
+            CoreSecretKind::MailRefreshToken => SecretKind::MailRefreshToken,
         }
     }
 }

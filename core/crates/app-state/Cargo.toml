@@ -18,6 +18,7 @@ getrandom = "0.3"
 # Same features as `domain`: civil dates and timestamps, no zone database.
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 serde_json = "1"
+sha2 = "0.10"
 thiserror = "2"
 zeroize = "1"
 

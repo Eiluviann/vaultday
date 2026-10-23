@@ -90,15 +90,14 @@ final class StepModelsTests: XCTestCase {
 
 	// MARK: Accounts
 
-	func testAccountsAreInertAndStoreWhatEachWorkspaceWants() throws {
+	func testAccountsStoreWhatEachWorkspaceWants() throws {
 		let harness = try OnboardingHarness(self)
 		let workspaces = WorkspacesModel(session: harness.session)
 		let work = try workspace(harness, workspaces, name: "Work", sphere: .work)
 		let life = try workspace(harness, workspaces, name: "Life", sphere: .life)
 		let accounts = AccountsStepModel(session: harness.session)
 		accounts.refresh(workspaces: workspaces.entries)
-		XCTAssertFalse(accounts.canAddAccounts)
-		XCTAssertFalse(AccountsStepModel.plannedNote.hasSuffix("."))
+		XCTAssertTrue(accounts.canAddAccounts, "the step is live: no Planned tag")
 		XCTAssertFalse(accounts.isOn(.mail, workspace: work.id))
 
 		accounts.set(.mail, isOn: true, workspace: work.id)
@@ -113,7 +112,7 @@ final class StepModelsTests: XCTestCase {
 		XCTAssertTrue(relaunched.isOn(.mail, workspace: work.id))
 		XCTAssertTrue(relaunched.isOn(.reminders, workspace: life.id))
 		XCTAssertFalse(relaunched.isOn(.mail, workspace: life.id))
-		XCTAssertEqual(try harness.session.appState.connections().filter { $0.kind == .mailAccount }.count, 0, "no account is created")
+		XCTAssertEqual(try harness.session.appState.connections().filter { $0.kind == .mailAccount }.count, 0, "ticking parts creates no account")
 	}
 
 	// MARK: Feature sets

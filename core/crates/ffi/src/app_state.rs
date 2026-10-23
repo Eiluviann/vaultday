@@ -579,9 +579,10 @@ impl From<AppStateError> for CoreError {
                 CoreError::Conflict(message)
             }
             AppStateError::Io { .. } => CoreError::FileAccess(message),
-            AppStateError::InvalidDeviceId(_) | AppStateError::InvalidSetting(_) => {
-                CoreError::InvalidInput(message)
-            }
+            AppStateError::InvalidDeviceId(_)
+            | AppStateError::InvalidSetting(_)
+            | AppStateError::InvalidMailAccount(_) => CoreError::InvalidInput(message),
+            AppStateError::UnknownSignal(_) => CoreError::NotFound(message),
             _ => CoreError::AppState(message),
         }
     }
@@ -593,6 +594,11 @@ impl AppStateHandle {
     /// Reads from the document.
     pub(crate) fn read_state<T>(&self, read: impl FnOnce(&app_state::AppState) -> T) -> T {
         read(lock(&self.store).state())
+    }
+
+    /// The secret store the handle was opened with.
+    pub(crate) fn secrets(&self) -> &ForeignSecretStore {
+        &self.secrets
     }
 
     /// Edits the document.

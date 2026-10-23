@@ -75,6 +75,23 @@ pub enum AppStateError {
     /// holds a character the encoding uses as a separator.
     #[error("{0}")]
     InvalidSetting(String),
+    /// No signal of this id is in the store.
+    #[error("no signal {0} in this workspace")]
+    UnknownSignal(String),
+    /// The signal state machine refused a move (a dismissed or converted
+    /// signal is final; a snooze must end in the future).
+    #[error("signal {signal}: a {from} signal cannot {action}")]
+    SignalTransition {
+        /// The signal.
+        signal: String,
+        /// Its state.
+        from: &'static str,
+        /// The refused action.
+        action: &'static str,
+    },
+    /// A mail account record is incomplete or malformed.
+    #[error("{0}")]
+    InvalidMailAccount(String),
     /// A volatile state folder was placed inside a workspace folder.
     #[error("{path} is inside the workspace folder {workspace}; volatile state lives outside it")]
     VolatileInsideWorkspace {

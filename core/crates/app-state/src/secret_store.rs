@@ -29,6 +29,13 @@ pub enum SecretKind {
     /// stays on this device; the app also writes it, mode 0600, into its App
     /// Group container for the command line.
     LocalApiToken,
+    /// A mail account's app password, named by the account's connection id.
+    /// It stays on this device: every device signs in on its own.
+    MailPassword,
+    /// A mail account's OAuth refresh token (Microsoft 365 through the
+    /// device-code flow, or IMAP with XOAUTH2), named by the account's
+    /// connection id. It stays on this device, like the password.
+    MailRefreshToken,
 }
 
 /// Whether an item travels to the user's other devices.
@@ -130,7 +137,9 @@ impl SecretKind {
             }
             SecretKind::DeviceSigningKey
             | SecretKind::ProviderApiKey
-            | SecretKind::LocalApiToken => Availability::DeviceOnly,
+            | SecretKind::LocalApiToken
+            | SecretKind::MailPassword
+            | SecretKind::MailRefreshToken => Availability::DeviceOnly,
         }
     }
 
@@ -144,6 +153,8 @@ impl SecretKind {
             SecretKind::DevicePublicKey => "device-public-key",
             SecretKind::ProviderApiKey => "provider-api-key",
             SecretKind::LocalApiToken => "local-api-token",
+            SecretKind::MailPassword => "mail-password",
+            SecretKind::MailRefreshToken => "mail-refresh-token",
         }
     }
 }

@@ -83,6 +83,8 @@ final class AppModel {
 	private(set) var browseQueryFocusRequest = 0
 	/// The All view's model; `nil` until the app document is open.
 	private(set) var allWorkspaces: AllWorkspacesModel?
+	/// Fetches the open workspace's mail on the Settings interval and on demand; `nil` until the app document is open.
+	private(set) var mailScheduler: MailFetchScheduler?
 	let focus: PaneFocusModel
 	let dispatcher: KeyDispatcher
 	/// Strokes to effects: the register, undo and repeat, the change editor.
@@ -179,6 +181,8 @@ final class AppModel {
 			)
 			self.setup = setup
 			allWorkspaces = AllWorkspacesModel(session: session)
+			mailScheduler = MailFetchScheduler(session: session)
+			setup.accounts.onAccountsChange = { [weak self] in self?.restartMailFetch(isForced: true) }
 			workspaces.onChange = { [weak self] in self?.workspacesChanged() }
 			keyboard.setScheme(KeyScheme(settings.keyboardScheme))
 			focus.hoverSelects = settings.hoverSelects
@@ -724,9 +728,20 @@ final class AppModel {
 		)
 	}
 
-	/// Whether no mail account is connected; the Inbox column's empty state says so.
+	/// Whether a mail account is connected; the Inbox column's empty state says so.
 	var hasMailAccount: Bool {
-		settings?.connections.contains { $0.kind == .mailAccount } ?? false
+		setup?.accounts.hasMailAccount ?? false
+	}
+
+	/// Starts the mail schedule for the open workspace (after a switch, an
+	/// account change or a new interval); the first fetch runs at once.
+	func restartMailFetch(isForced: Bool = false) {
+		guard let mailScheduler else { return }
+		guard let workspace, workspace.phase == .open else {
+			mailScheduler.stop()
+			return
+		}
+		mailScheduler.start(for: workspace, isForced: isForced)
 	}
 
 	private func afterPlanChange() {
@@ -980,6 +995,7 @@ final class AppModel {
 		syncTodayItemCount()
 		syncSidePanelItemCount()
 		refreshSidePanel()
+		restartMailFetch()
 		Task { await runIntake() }
 		if isShowingAll {
 			reloadAllWorkspaces()

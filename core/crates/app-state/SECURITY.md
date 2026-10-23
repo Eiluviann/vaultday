@@ -94,6 +94,61 @@ ritual answers, notification state, id counters) and the app-level document
   CLI goes through the app's localhost API. Connection ids are chosen
   randomly by the app, so two devices never add one id for two connections.
 
+## Mail accounts and the signal store (PR 12)
+
+Mail is fetched by `crates/mail` (IMAP over TLS, Microsoft Graph) and
+recorded in the workspace document's signal store.
+
+Protected:
+
+- **Credentials live only in the secret store.** An IMAP app password
+  (`MailPassword`) and an OAuth refresh token (`MailRefreshToken`) are
+  device-only items named by the account's connection id: never in the
+  vault, `settings.json`, the app document or a change file. Every device
+  signs in on its own. Access tokens stay in memory; a rotated refresh token
+  replaces the stored one. Removing an account deletes its items; cancelling
+  an unsaved one deletes what its connection test stored.
+- **Account records hold no secret.** The app document (signed) keeps the
+  provider, host, port, address, sign-in method, workspace and folders, so a
+  synced or edited file cannot add an account or point one at another server.
+- **Signals are encrypted at rest.** Sender, subject, excerpt, link, thread
+  and the raw text (at most 16 KiB per message) sit in the workspace
+  document and travel only inside ChaCha20-Poly1305 change files under the
+  workspace key; a test reads the files back and finds none of it.
+- **The raw text has a reserved compacted shape**: `{text, source_hash,
+  compacted}` with `compacted` null. v1 has no model and compacts nothing;
+  the SHA-256 `source_hash` says which text a later summary was made from.
+- **Dismissed stays dismissed.** A signal's id is derived from the account,
+  `Message-ID` and conversation id, so a refetch, on this device or another,
+  lands on the same record and leaves its state alone; concurrent states
+  resolve to the most final one (converted, then dismissed, then snoozed).
+- **Transport.** IMAP runs only over implicit TLS (rustls, Mozilla roots,
+  `ring`); there is no plaintext connector outside tests. Folders are
+  `EXAMINE`d, never `SELECT`ed, so nothing is marked read. Graph and the
+  Microsoft authority are reached over HTTPS only.
+- **Links leave the core checked.** Only `message:` and `https:` links with
+  no whitespace or control characters are handed to the app to open; a
+  Graph cursor or `nextLink` is followed only under the Graph base URL, so a
+  cursor planted in a change file cannot send the access token elsewhere.
+- **Sign-in needs a real client id.** Under the placeholder client id the
+  device-code flow refuses to start and nothing reaches Microsoft.
+
+Not protected:
+
+- **Signals are not signed.** Any holder of the workspace key can write a
+  change file that adds, edits or dismisses signals (see "Workspace change
+  files are encrypted but not signed" above). The checks above bound what
+  such a record can make the app do: open a `message:` or `https:` link.
+- **Plaintext in memory.** Passwords, tokens and message text are plaintext
+  while the app runs; the password crosses the UniFFI bridge in a plain
+  buffer before it reaches a `zeroize` type.
+- **What the mail server sees.** The server learns that this device fetched,
+  when and from which folders; Graph sees the access token's scopes
+  (`Mail.Read`, `User.Read`, `offline_access`).
+- **Cursors leak timing.** Each device's cursor (UIDVALIDITY and highest UID,
+  or a Graph delta link) is stored in the encrypted document per device;
+  other devices of the user can read it.
+
 ## The Mac's Keychain store (PR 7a)
 
 `apps/apple/VaultdayCore/Sources/VaultdayCore/Keychain/` implements the

@@ -1,0 +1,31 @@
+[package]
+name = "vaultday-mail"
+description = "Vaultday's mail sources: IMAP over TLS and Microsoft Graph behind one trait, and the fetch that fills the signal store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "mail"
+
+[dependencies]
+app-state = { package = "vaultday-app-state", path = "../app-state" }
+base64 = "0.22"
+# Same features as `domain`: timestamps, no zone database.
+jiff = { version = "0.2", default-features = false, features = ["std"] }
+# `ring` rather than the default `aws-lc-rs`: it builds on the Linux CI job
+# and for the Apple targets without CMake or NASM.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+webpki-roots = "1"
+
+[dev-dependencies]
+domain = { package = "vaultday-domain", path = "../domain" }
+tempfile = "3"
+
+[lints]
+workspace = true
