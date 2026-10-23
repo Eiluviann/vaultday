@@ -141,7 +141,7 @@ private struct VimModeLine: View {
 						.foregroundStyle(Tokens.Colors.ink)
 				}
 			}
-			.font(.custom(Tokens.Typography.mono.family, size: 10))
+			.textStyle(Tokens.Typography.kbd)
 			.fixedSize()
 			.allowsHitTesting(false)
 			.accessibilityLabel("Field in \(controller.mode.title.lowercased()) mode")
