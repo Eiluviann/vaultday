@@ -65,6 +65,7 @@ struct SetupSidebar: View {
 /// The twelve steps: steps reached are links back, the shown one is raised with a sunrise mark.
 struct StepList: View {
 	let onboarding: OnboardingModel
+	@Environment(\.setupKeyboard) private var keyboard
 
 	var body: some View {
 		VStack(spacing: Tokens.Spacing.space2) {
@@ -97,6 +98,7 @@ struct StepList: View {
 					.contentShape(Rectangle())
 				}
 				.buttonStyle(.plain)
+				.keyboardHighlight(keyboard?.isHighlighted(stepRow: step.rawValue - 1) == true)
 				.disabled(mark == .upcoming)
 				.accessibilityLabel("\(step.title), step \(step.rawValue)")
 				.accessibilityAddTraits(mark == .current ? .isSelected : [])

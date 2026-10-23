@@ -119,6 +119,38 @@ extension AppModel {
 		}
 	}
 
+	// MARK: The setup flow
+
+	/// A key in the setup flow under Vim motions: `h` `j` `k` `l` walk the
+	/// step list and the shown step's controls, ⏎ presses the highlighted
+	/// control or continues, Esc drops the highlight. `false` leaves the key
+	/// to AppKit (Standard, a field being typed in, ⌘ keys).
+	func handleSetupKey(_ stroke: KeyStroke, isTyping: Bool) -> Bool {
+		guard dispatcher.scheme == .vim, !isTyping, stroke.modifiers.isDisjoint(with: [.command, .control]), let onboarding = setup?.onboarding else {
+			return false
+		}
+		let steps = SetupStep.allCases
+		setupKeyboard.setSteps(count: steps.count, reachable: onboarding.furthest.rawValue, current: onboarding.current.rawValue - 1)
+		switch dispatcher.handle(stroke) {
+		case .pending, .cancelled:
+			return true
+		case .unbound:
+			return false
+		case let .action(action):
+			switch setupKeyboard.apply(action) {
+			case .none:
+				return [.moveDown, .moveUp, .moveLeft, .moveRight, .moveFirst, .moveLast, .dismiss].contains(action)
+			case let .activate(id):
+				SetupOptionActions.shared.run(id)
+			case let .openStep(index):
+				if steps.indices.contains(index) { _ = onboarding.jump(to: steps[index]) }
+			case .continueSetup:
+				if onboarding.isLastStep { finishSetup() } else { onboarding.goForward() }
+			}
+			return true
+		}
+	}
+
 	// MARK: Text inputs in the focus tree
 
 	/// The pane each Home text input belongs to: Esc in it comes back there.

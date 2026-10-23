@@ -13,6 +13,8 @@ struct SetupFrame<Content: View>: View {
 	var body: some View {
 		HStack(spacing: 0) {
 			SetupSidebar(onboarding: onboarding, scheme: $scheme)
+				// The step list is the keys' other area, walked by row, not by place.
+				.environment(\.registersSetupKeyOptions, false)
 			VStack(spacing: 0) {
 				content
 					.frame(maxWidth: .infinity, maxHeight: .infinity)

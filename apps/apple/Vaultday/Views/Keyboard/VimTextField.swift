@@ -91,6 +91,8 @@ private struct VimFieldModifier: ViewModifier {
 	func body(content: Content) -> some View {
 		content
 			.background(VimFieldAnchor(controller: controller))
+			// In the setup a field is one of the step's options: ⏎ clicks into it, in Normal mode.
+			.setupKeyOption()
 			.overlay(alignment: .bottomLeading) {
 				if scheme == .vim, !drawsModeLineOutside { VimModeLine(controller: controller).hangingBelow() }
 			}

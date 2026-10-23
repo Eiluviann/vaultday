@@ -20,6 +20,7 @@ struct SetupMenu<Value: Hashable>: View {
 		.labelsHidden()
 		.pickerStyle(.menu)
 		.frame(width: width)
+		.setupKeyOption()
 		.accessibilityLabel(label)
 	}
 }
@@ -34,6 +35,7 @@ struct SetupSwitch: View {
 			.labelsHidden()
 			.toggleStyle(.switch)
 			.controlSize(.small)
+			.setupKeyOption(cornerRadius: 10) { isOn.toggle() }
 	}
 }
 

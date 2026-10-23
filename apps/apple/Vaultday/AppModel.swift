@@ -144,6 +144,8 @@ final class AppModel {
 	var dayHeaderControls: [DayHeaderControl] = []
 	/// The health list under the sidebar's footer dot, opened by a click or ⏎.
 	var isShowingHealth = false
+	/// Vim motions in the setup flow: the step list and the shown step's controls.
+	let setupKeyboard = SetupKeyboardModel()
 
 	/// A Home text field gained or lost keyboard focus. A field of a pane is
 	/// the input level of the focus tree: Esc in it comes back to the pane.

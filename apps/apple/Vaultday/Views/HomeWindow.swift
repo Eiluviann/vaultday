@@ -202,7 +202,7 @@ final class LeftOfOneMonitor {
 /// Whether a text field is being typed in: AppKit's field editor holds a
 /// window's first responder then, whichever field it is, Adjust's included.
 @MainActor
-private var isTypingInTextField: Bool {
+var isTypingInTextField: Bool {
 	NSApp.windows.contains { $0.isVisible && $0.firstResponder is NSText }
 }
 
