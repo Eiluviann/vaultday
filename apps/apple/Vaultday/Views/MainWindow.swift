@@ -28,5 +28,22 @@ struct MainWindow: View {
 			}
 		}
 		.environment(\.mainWindow, app.mainWindow)
+		.alert(
+			"Folders now join a workspace inside its folder",
+			isPresented: Binding(get: { !(app.setup?.workspaces.pendingConversion.isEmpty ?? true) }, set: { _ in }),
+			presenting: app.setup?.workspaces,
+		) { workspaces in
+			Button("Link them") { workspaces.convertFolders(.link) }
+				.keyboardShortcut(.defaultAction)
+			Button("Move them") { workspaces.convertFolders(.move) }
+		} message: { workspaces in
+			Text(conversionMessage(workspaces.pendingConversion))
+		}
+	}
+
+	/// The one-time question about an earlier build's further folders.
+	private func conversionMessage(_ folders: [UnconvertedFolder]) -> String {
+		let names = folders.map { "\(URL(filePath: $0.path).lastPathComponent) (\($0.workspaceName))" }.joined(separator: ", ")
+		return "Vaultday keeps each workspace in one folder. These folders sit beside theirs: \(names). Link them to leave them where they are, or move them into their workspace's folder. Linked folders stay on this Mac; iCloud Drive does not carry links"
 	}
 }

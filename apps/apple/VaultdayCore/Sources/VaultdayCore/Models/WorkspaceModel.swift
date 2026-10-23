@@ -72,28 +72,32 @@ public final class WorkspaceModel {
 	}
 
 	/// Resolves the folder grants stored for this device and opens the one of
-	/// the last single workspace shown, or the first that still resolves when
-	/// that one is gone. A stale bookmark is refreshed and stored; one that no
-	/// longer resolves is listed in ``grantProblems``.
+	/// the last single workspace shown, or the first active workspace root
+	/// that still resolves when that one is gone. A stale bookmark is
+	/// refreshed and stored; one that no longer resolves is listed in
+	/// ``grantProblems``. The open workspace keeps access to its root and to
+	/// its linked folders' targets; every other scope closes.
 	public func restoreAtLaunch() {
 		grantProblems = []
 		scope = .single
+		var resolved: [(connection: String, url: URL)] = []
 		for grant in grantsLastWorkspaceFirst() {
 			switch session.environment.grants.resolve(grant.bookmark) {
 			case let .resolved(url, refreshedBookmark):
 				if let refreshedBookmark {
 					storeGrant(connection: grant.connection, bookmark: refreshedBookmark, path: url.path)
 				}
-				if phase != .open {
-					open(root: url, connection: grant.connection)
-				}
-				// One workspace is open at a time in this shell; the scopes of the others close.
-				if accessedFolder != url {
-					session.environment.grants.stopAccessing(url)
-				}
+				resolved.append((grant.connection, url))
 			case let .unresolvable(reason):
 				grantProblems.append(GrantProblem(id: grant.connection, path: grant.path, reason: reason))
 			}
+		}
+		for (connection, url) in resolved where phase != .open && Self.isActiveRoot(url) {
+			open(root: url, connection: connection)
+		}
+		let openConnections = phase == .open ? Set(session.appState.sources(workspace: workspaceId).map(\.connection)) : []
+		for (connection, url) in resolved where url != accessedFolder && !openConnections.contains(connection) {
+			session.environment.grants.stopAccessing(url)
 		}
 	}
 
@@ -114,12 +118,8 @@ public final class WorkspaceModel {
 			scope = .single
 			return
 		}
-		guard let rootFolder = entry.folders.first(where: \.isWorkspaceRoot) else {
-			phase = .failed("\(entry.name) has no folder holding its settings")
-			return
-		}
 		close()
-		open(root: URL(fileURLWithPath: entry.rootPath, isDirectory: true), connection: rootFolder.id)
+		open(root: URL(fileURLWithPath: entry.rootPath, isDirectory: true), connection: entry.rootConnection)
 	}
 
 	/// Reads the vault's health and the app state's sync again, for the footer dot.
@@ -279,8 +279,12 @@ public final class WorkspaceModel {
 			name = vault.name()
 			workspaceId = id
 			rootPath = vault.root()
-			try session.appState.addSource(source: SourceView(workspace: workspaceId, connection: connection, subpath: ""))
-			try session.save()
+			// Registration writes the source; a grant from before sources
+			// existed gets one here, and a connection never gets a second.
+			if !session.appState.allSources().contains(where: { $0.connection == connection }) {
+				try session.appState.addSource(source: SourceView(workspace: workspaceId, connection: connection, subpath: ""))
+				try session.save()
+			}
 			refreshPickedCalendars()
 			phase = .open
 		} catch {
@@ -290,6 +294,14 @@ public final class WorkspaceModel {
 		}
 		rememberAsLastSingleWorkspace()
 		openAppState()
+	}
+
+	/// Whether `url` is a workspace root a launch may open: a folder that
+	/// holds `.vaultday`, not a linked folder's target, and not deactivated.
+	private static func isActiveRoot(_ url: URL) -> Bool {
+		let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+		guard (try? isWorkspaceFolder(path: path)) == true else { return false }
+		return (try? workspaceIsActive(root: path)) ?? false
 	}
 
 	/// The grants of this Mac, the ones that read the last single workspace first.

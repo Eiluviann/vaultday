@@ -285,9 +285,24 @@ final class AppModel {
 	var grantMessage: String? { setup?.workspaces.message }
 
 	/// The workspaces changed in setup or Settings: the open workspace follows.
+	/// When it was removed or deactivated, a running timer on it stops first,
+	/// writing its day-log line as any stop does, and the next active
+	/// workspace opens.
 	func workspacesChanged() {
 		guard let workspace, let workspaces = setup?.workspaces else { return }
-		let isOpenOneGone = workspace.phase == .open && !workspaces.entries.contains { $0.id == workspace.workspaceId }
+		let isOpenOneGone = workspace.phase == .open && !workspaces.activeEntries.contains { $0.id == workspace.workspaceId }
+		if isOpenOneGone, sessions.openSession != nil {
+			stopTimer()
+			if sessions.openSession == nil {
+				Logger(subsystem: "com.eiluviann.vaultday", category: "timer").notice("stopped the timer: its workspace left the active list")
+				// The workspace closes once the stop's day-log line is written.
+				Task { [weak self] in
+					await self?.sessions.waitForDayLog()
+					self?.workspacesChanged()
+				}
+				return
+			}
+		}
 		if isOpenOneGone {
 			workspace.close()
 		}
@@ -316,7 +331,7 @@ final class AppModel {
 	func finishSetup() {
 		mainWindow.showHome()
 		guard let setup, let workspace else { return }
-		setup.onboarding.finish(workspaces: setup.workspaces.entries)
+		setup.onboarding.finish(workspaces: setup.workspaces.activeEntries)
 		workspace.close()
 		workspace.restoreAtLaunch()
 		reloadWorkspaceContent()
@@ -901,8 +916,9 @@ final class AppModel {
 	/// Whether the Today column shows every workspace together.
 	var isShowingAll: Bool { workspace?.scope == .all }
 
-	/// The workspaces in the sidebar's order: work first, then by name.
-	var workspaceEntries: [WorkspaceEntry] { setup?.workspaces.entries ?? [] }
+	/// The active workspaces in the sidebar's order: work first, then by name.
+	/// A deactivated workspace is listed only in setup and Settings.
+	var workspaceEntries: [WorkspaceEntry] { setup?.workspaces.activeEntries ?? [] }
 
 	/// The open workspace's sidebar entry.
 	var currentEntry: WorkspaceEntry? {

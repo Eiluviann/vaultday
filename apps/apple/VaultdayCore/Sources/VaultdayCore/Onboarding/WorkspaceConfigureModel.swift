@@ -3,7 +3,9 @@ import Observation
 
 /// The Configure sheet of one workspace: the fields of its
 /// `.vaultday/settings.json` as text the controls edit. The core checks every
-/// value and writes the file; keys this build does not know are kept.
+/// value and writes the file; keys this build does not know are kept. A
+/// draft, the sheet of a workspace being added, writes nothing until its
+/// first save, which hands the values to the draft's commit instead.
 @MainActor
 @Observable
 public final class WorkspaceConfigureModel {
@@ -25,6 +27,8 @@ public final class WorkspaceConfigureModel {
 	/// Set when the file could not be read or written at all.
 	public private(set) var errorMessage: String?
 	public private(set) var isLoaded = false
+	/// True until a draft's first save created the workspace.
+	public private(set) var isDraft = false
 
 	/// The workspace folder.
 	public let root: String
@@ -32,9 +36,23 @@ public final class WorkspaceConfigureModel {
 	public var settingsPath: String { "\(root)/.vaultday/settings.json" }
 
 	private var loaded: WorkspaceFormView?
+	private var draftForm: WorkspaceFormView?
+	private let commit: (@MainActor (WorkspaceFormView) throws -> Void)?
 
 	public init(root: String) {
 		self.root = root
+		commit = nil
+		reload()
+	}
+
+	/// The sheet of a workspace being added: it starts from `form`, and its
+	/// first save calls `commit`, which creates the workspace; nothing is
+	/// written before.
+	public init(draft form: WorkspaceFormView, root: String, commit: @escaping @MainActor (WorkspaceFormView) throws -> Void) {
+		self.root = root
+		self.commit = commit
+		draftForm = form
+		isDraft = true
 		reload()
 	}
 
@@ -44,8 +62,16 @@ public final class WorkspaceConfigureModel {
 		return form() != loaded
 	}
 
-	/// Reads the file again, dropping edits.
+	/// Reads the file again, dropping edits; a draft goes back to its first values.
 	public func reload() {
+		if isDraft, let draftForm {
+			apply(draftForm)
+			loaded = draftForm
+			issues = [:]
+			errorMessage = nil
+			isLoaded = true
+			return
+		}
 		do {
 			let form = try readWorkspaceForm(root: root)
 			apply(form)
@@ -73,6 +99,19 @@ public final class WorkspaceConfigureModel {
 	@discardableResult
 	public func save() -> Bool {
 		guard validate() else { return false }
+		if isDraft, let commit {
+			do {
+				let form = form()
+				try commit(form)
+				isDraft = false
+				loaded = form
+				errorMessage = nil
+				return true
+			} catch {
+				errorMessage = coreErrorMessage(error)
+				return false
+			}
+		}
 		do {
 			let written = try updateWorkspaceForm(root: root, form: form())
 			loaded = written

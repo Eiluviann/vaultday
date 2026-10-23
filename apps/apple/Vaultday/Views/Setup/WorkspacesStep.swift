@@ -1,20 +1,26 @@
 import SwiftUI
 import VaultdayCore
 
-/// Step 2: the workspaces of each sphere. A workspace is a folder holding
-/// `.vaultday/settings.json`, so Add asks for its first folder; the folders
-/// step adds further ones.
+/// Step 2: the workspaces of each sphere. A workspace is one folder holding
+/// `.vaultday/settings.json`, so Add creates one in an empty folder or
+/// imports a folder that already holds it; nothing is written until the
+/// Configure sheet's Done. Other folders join a workspace on the next step.
 struct WorkspacesStep: View {
 	let workspaces: WorkspacesModel
 	/// Screen-share mode leaves the life sphere out.
 	var showsSphere: (WorkspaceSphere) -> Bool = { _ in true }
 	@State private var configuring: ConfigureTarget?
+	@State private var drafting: WorkspaceDraft?
+	/// The draft on screen, kept past the sheet's own binding, which is
+	/// already cleared when its dismissal runs.
+	@State private var shownDraft: WorkspaceDraft?
 	@State private var removing: WorkspaceEntry?
 	@State private var addingTo: WorkspaceSphere?
+	@State private var refusal: RefusedPick?
 
 	var body: some View {
-		StepPane(title: "Your workspaces", lede: "Each sphere holds one or more workspaces. A workspace has its own folder, color and rules; further folders come in the next step") {
-			SetupCallout(text: "A workspace is a folder with a .vaultday folder inside; Vaultday makes it for a new folder and reads an existing one in place")
+		StepPane(title: "Your workspaces", lede: "Each sphere holds one or more workspaces. A workspace has its own folder, color and rules; other folders join it in the next step") {
+			SetupCallout(text: "A workspace is one folder with a .vaultday folder inside. Create one in a new or empty folder, or import a folder that already holds one")
 			if let message = workspaces.message {
 				SetupCallout(tone: .caution, icon: "exclamationmark.triangle", text: message)
 			}
@@ -44,6 +50,22 @@ struct WorkspacesStep: View {
 			ConfigureSheet(model: target.model, onDone: { workspaces.reload() })
 				.mainWindowChildSheet()
 		}
+		.sheet(item: $drafting, onDismiss: dropUnconfirmedDraft) { draft in
+			// Done creates the workspace through the draft's model; Cancel leaves no trace.
+			ConfigureSheet(model: draft.configure, onDone: {})
+				.mainWindowChildSheet()
+		}
+		.alert(
+			refusal?.problem.title ?? "",
+			isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } }),
+			presenting: refusal,
+		) { pick in
+			Button("Choose another folder") { Task { await addWorkspace(sphere: pick.sphere, choice: pick.choice) } }
+				.keyboardShortcut(.defaultAction)
+			Button("Cancel", role: .cancel) {}
+		} message: { pick in
+			Text(pick.problem.message)
+		}
 		.confirmationDialog(
 			removing.map { "Remove \($0.name)?" } ?? "",
 			isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
@@ -67,22 +89,23 @@ struct WorkspacesStep: View {
 		.popover(isPresented: Binding(get: { addingTo == sphere }, set: { if !$0 { addingTo = nil } }), arrowEdge: .bottom) {
 			AddFolderPopover(
 				title: "Add a \(sphere.rawValue) workspace",
-				existing: "Any folder of markdown: a whole vault or any subfolder of one. A folder that already is a workspace keeps its settings",
-				fresh: "Make a folder with New Folder in the next window; Vaultday adds its .vaultday folder, ready to write in",
-				footnote: "Nothing is copied or moved; Vaultday reads folders in place",
-				choose: { isNew in
-					addingTo = nil
-					Task { await addWorkspace(sphere: sphere, isNew: isNew) }
-				},
+				options: [
+					AddFolderOption(icon: "plus", title: "Create a workspace", detail: "In a new folder, made with New Folder in the next window, or in an empty one") {
+						choose(sphere: sphere, choice: .create)
+					},
+					AddFolderOption(icon: "folder", title: "Import a workspace", detail: "A folder that already holds a .vaultday folder keeps its settings") {
+						choose(sphere: sphere, choice: .import)
+					},
+				],
+				footnote: "Folders of notes join a workspace on the Folders step",
 			)
 		}
 	}
 
 	private func card(_ entry: WorkspaceEntry) -> some View {
-		let number = (workspaces.entries.firstIndex(of: entry) ?? 0) + 1
-		return SetupCard(
+		SetupCard(
 			title: entry.name,
-			tags: [SetupTag(text: "Active", tone: .on, icon: "checkmark")],
+			tags: [entry.isActive ? SetupTag(text: "Active", tone: .on, icon: "checkmark") : SetupTag(text: "Inactive")],
 		) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Button {
@@ -92,6 +115,12 @@ struct WorkspacesStep: View {
 				}
 				.buttonStyle(SetupButtonStyle(isSmall: true))
 				Menu {
+					if entry.isActive {
+						Button("Deactivate") { workspaces.setActive(false, workspaceId: entry.id) }
+					} else {
+						Button("Reactivate") { workspaces.setActive(true, workspaceId: entry.id) }
+					}
+					Divider()
 					Button("Remove workspace…", role: .destructive) { removing = entry }
 				} label: {
 					Image(systemName: "ellipsis")
@@ -102,29 +131,52 @@ struct WorkspacesStep: View {
 				.accessibilityLabel("Options for \(entry.name)")
 			}
 		} extra: {
-			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-				HStack(spacing: Tokens.Spacing.space8) {
-					WorkspaceBadge(number: number, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
-					Text(entry.rootPath.abbreviatedPath)
-						.font(Tokens.Typography.mono.font)
-						.foregroundStyle(Tokens.Colors.inkSecondary)
-						.lineLimit(1)
-						.truncationMode(.middle)
+			HStack(spacing: Tokens.Spacing.space8) {
+				// Only active workspaces have a number: it is their ⌘ key in the sidebar.
+				if let index = workspaces.activeEntries.firstIndex(of: entry) {
+					WorkspaceBadge(number: index + 1, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
 				}
-				Text(entry.folders.count == 1 ? "1 folder" : "\(entry.folders.count) folders")
-					.font(Tokens.Typography.callout.font)
-					.foregroundStyle(Tokens.Colors.inkMuted)
+				Text(entry.rootPath.abbreviatedPath)
+					.font(Tokens.Typography.mono.font)
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+					.lineLimit(1)
+					.truncationMode(.middle)
 			}
 		}
 	}
 
-	private func addWorkspace(sphere: WorkspaceSphere, isNew: Bool) async {
-		let message = isNew ? "Make a new folder, then choose it" : "Choose the workspace's folder"
-		guard let url = await FolderPicker.pick(message: message, prompt: isNew ? "Use this folder" : "Choose", canCreate: true) else { return }
-		if let entry = workspaces.addWorkspace(folder: url, sphere: sphere) {
-			configuring = ConfigureTarget(model: WorkspaceConfigureModel(root: entry.rootPath))
+	private func choose(sphere: WorkspaceSphere, choice: AddWorkspaceChoice) {
+		addingTo = nil
+		Task { await addWorkspace(sphere: sphere, choice: choice) }
+	}
+
+	private func addWorkspace(sphere: WorkspaceSphere, choice: AddWorkspaceChoice) async {
+		let message = choice == .create ? "Make a new folder or choose an empty one" : "Choose a folder that holds a .vaultday folder"
+		guard let url = await FolderPicker.pick(message: message, prompt: choice == .create ? "Create here" : "Import", canCreate: choice == .create) else { return }
+		switch workspaces.beginWorkspace(folder: url, sphere: sphere, choice: choice) {
+		case let .draft(draft):
+			shownDraft = draft
+			drafting = draft
+		case let .refused(problem):
+			refusal = RefusedPick(problem: problem, sphere: sphere, choice: choice)
+		case let .failed(reason):
+			refusal = RefusedPick(problem: FolderProblem(title: "\(url.lastPathComponent) cannot be added", message: reason, workspaceName: ""), sphere: sphere, choice: choice)
 		}
 	}
+
+	private func dropUnconfirmedDraft() {
+		guard let draft = shownDraft else { return }
+		workspaces.cancel(draft)
+		shownDraft = nil
+	}
+}
+
+/// A refused folder and what was being added, so the popup can offer the picker again.
+private struct RefusedPick: Identifiable {
+	var id: String { problem.id }
+	let problem: FolderProblem
+	let sphere: WorkspaceSphere
+	let choice: AddWorkspaceChoice
 }
 
 /// Makes the Configure sheet's model usable as a sheet item.
@@ -139,13 +191,20 @@ struct ConfigureTarget: Identifiable {
 	var leaveSources: [String] = []
 }
 
-/// The Add-folder popover: an existing folder or a new one.
+/// One row of the Add popover.
+struct AddFolderOption: Identifiable {
+	var id: String { title }
+	let icon: String
+	let title: String
+	let detail: String
+	let choose: () -> Void
+}
+
+/// The Add popover of the Workspaces and Folders steps: one row per way to add.
 struct AddFolderPopover: View {
 	let title: String
-	let existing: String
-	let fresh: String
+	let options: [AddFolderOption]
 	let footnote: String
-	let choose: (_ isNewFolder: Bool) -> Void
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
@@ -155,8 +214,9 @@ struct AddFolderPopover: View {
 				.padding(.horizontal, Tokens.Spacing.space12)
 				.padding(.top, 6)
 				.padding(.bottom, Tokens.Spacing.space4)
-			row(icon: "folder", title: "Choose an existing folder", detail: existing, isNew: false)
-			row(icon: "plus", title: "Create a new folder", detail: fresh, isNew: true)
+			ForEach(options) { option in
+				row(option)
+			}
 			Text(footnote)
 				.font(Tokens.Typography.caption.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
@@ -167,15 +227,15 @@ struct AddFolderPopover: View {
 		.frame(width: 360)
 	}
 
-	private func row(icon: String, title: String, detail: String, isNew: Bool) -> some View {
+	private func row(_ option: AddFolderOption) -> some View {
 		Button {
-			choose(isNew)
+			option.choose()
 		} label: {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-				Image(systemName: icon).frame(width: 18).foregroundStyle(Tokens.Colors.primary)
+				Image(systemName: option.icon).frame(width: 18).foregroundStyle(Tokens.Colors.primary)
 				VStack(alignment: .leading, spacing: 2) {
-					Text(title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
-					Text(detail)
+					Text(option.title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+					Text(option.detail)
 						.font(Tokens.Typography.caption.font)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.fixedSize(horizontal: false, vertical: true)
