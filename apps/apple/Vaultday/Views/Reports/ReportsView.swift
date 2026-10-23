@@ -17,7 +17,7 @@ struct ReportsView: View {
 			actions
 			if let message = model.errorMessage {
 				Text(message)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 			if let written = model.writtenReport {
@@ -25,7 +25,7 @@ struct ReportsView: View {
 			}
 			if let notice = model.copyNotice {
 				Text(notice)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			if let bundle = model.bundle {
@@ -50,34 +50,28 @@ struct ReportsView: View {
 				.labelsHidden()
 				.accessibilityLabel("Client")
 			}
-			Picker("Range", selection: Binding(get: { model.preset }, set: { model.select(preset: $0) })) {
-				ForEach(ReportPreset.allCases) { preset in
-					Text(preset.rawValue).tag(preset)
-				}
-			}
-			.pickerStyle(.segmented)
-			.labelsHidden()
-			.accessibilityLabel("Range")
+			SegmentedChoice(
+				label: "Range",
+				options: ReportPreset.allCases.map { ($0, $0.rawValue) },
+				selection: Binding(get: { model.preset }, set: { model.select(preset: $0) }),
+				ground: .sunken,
+				fills: true,
+			)
 			if model.preset == .custom {
 				HStack(spacing: Tokens.Spacing.space8) {
 					DatePicker("From", selection: Binding(get: { model.customFrom }, set: { model.setCustomRange(from: $0, to: model.customTo) }), displayedComponents: .date)
 					DatePicker("To", selection: Binding(get: { model.customTo }, set: { model.setCustomRange(from: model.customFrom, to: $0) }), displayedComponents: .date)
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 			}
 			Text(model.rangeText)
-				.font(Tokens.Typography.mono.font)
+				.textStyle(Tokens.Typography.mono)
 				.foregroundStyle(Tokens.Colors.inkMuted)
-			if let note = model.variantNote {
-				Label(note, systemImage: "rectangle.on.rectangle")
-					.font(Tokens.Typography.caption.font)
-					.foregroundStyle(Tokens.Colors.inkMuted)
-			}
 		}
 	}
 
 	private var actions: some View {
-		HStack(spacing: Tokens.Spacing.space6) {
+		FlowRow(spacing: Tokens.Spacing.space6) {
 			ReportActionButton(title: "Copy JSON", symbol: "curlybraces", help: help("Copy the report as JSON", .copyReportJSON), isEnabled: model.bundle != nil) {
 				model.copyJSON()
 			}
@@ -104,12 +98,9 @@ private struct ReportActionButton: View {
 
 	var body: some View {
 		Button(action: action) {
-			Label(title, systemImage: symbol)
-				.font(Tokens.Typography.callout.font)
-				.lineLimit(1)
+			SetupLabel(title: title, icon: symbol)
 		}
-		.buttonStyle(.bordered)
-		.controlSize(.small)
+		.buttonStyle(SetupButtonStyle(isSmall: true))
 		.disabled(!isEnabled)
 		.help(help)
 	}
@@ -123,11 +114,11 @@ private struct WrittenReportRow: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			Text("Written for Claude Code")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space6) {
 				Text(written.relativePath)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.ink)
 					.textSelection(.enabled)
 					.lineLimit(3)
@@ -165,7 +156,7 @@ private struct ReportSummary: View {
 			HomeEyebrow(text: "Log")
 			if bundle.logGroups.isEmpty {
 				Text("No log lines in this range")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			ForEach(bundle.logGroups) { group in
@@ -173,7 +164,7 @@ private struct ReportSummary: View {
 			}
 			HomeEyebrow(text: "Authorship")
 			Text(ReportBundle.authorshipText)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
@@ -188,7 +179,7 @@ private struct ReportSummary: View {
 			countRow("Sessions", sessionsText)
 			countRow("Billing", bundle.billing?.rawValue ?? "Not set")
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 	}
 
 	private var sessionsText: String {
@@ -212,15 +203,15 @@ private struct StoryBlock: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			Text(story.heading)
-				.font(.system(size: 13, weight: .semibold))
+				.textStyle(Tokens.Typography.headline)
 				.foregroundStyle(Tokens.Colors.ink)
 			Text(story.status ?? "Status not set")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Text("Next Steps: \(story.nextSteps.text)")
 			Text("Pending Input: \(story.pendingInput.text)")
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.foregroundStyle(Tokens.Colors.inkSecondary)
 		.padding(Tokens.Spacing.space8)
 		.frame(maxWidth: .infinity, alignment: .leading)
@@ -247,7 +238,7 @@ private struct ReportHoursBlock: View {
 				total("Billable", billableMinutes)
 				stories(billable)
 				Text("Sessions round up to \(rounding) min")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				total("Non-billable", nonBillableMinutes)
 				stories(nonBillable)
@@ -259,13 +250,13 @@ private struct ReportHoursBlock: View {
 					VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
 						Text(task.title).foregroundStyle(Tokens.Colors.ink)
 						Text(task.summary)
-							.font(Tokens.Typography.caption.font)
+							.textStyle(Tokens.Typography.caption)
 							.foregroundStyle(task.overrunMinutes > 0 ? Tokens.Colors.caution : Tokens.Colors.inkMuted)
 					}
 				}
 			}
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 	}
 
 	private func total(_ label: String, _ minutes: Int) -> some View {
@@ -279,7 +270,7 @@ private struct ReportHoursBlock: View {
 	private func stories(_ entries: [ReportStoryMinutes]) -> some View {
 		ForEach(entries) { entry in
 			HStack {
-				Text(entry.title).font(Tokens.Typography.mono.font).foregroundStyle(Tokens.Colors.inkSecondary)
+				Text(entry.title).textStyle(Tokens.Typography.mono).foregroundStyle(Tokens.Colors.inkSecondary)
 				Spacer()
 				Text(entry.text).foregroundStyle(Tokens.Colors.inkSecondary)
 			}
@@ -293,18 +284,18 @@ private struct LogGroupBlock: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			Text("\(group.title) (\(group.lines.count))")
-				.font(.system(size: 12, weight: .semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.ink)
 			ForEach(group.lines) { line in
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
 					Text(line.text).foregroundStyle(Tokens.Colors.inkSecondary)
 					Text(detail(line))
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 	}
 
 	private func detail(_ line: ReportLogLine) -> String {

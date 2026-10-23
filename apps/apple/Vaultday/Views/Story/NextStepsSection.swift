@@ -15,18 +15,18 @@ struct NextStepsSection: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text("In the note's order · one step open at a time")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				Spacer()
 				if let caption = accordion.completedCaption {
 					Label(caption, systemImage: "arrow.up")
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
 			if accordion.steps.isEmpty {
 				Text("No next steps in the note")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			} else {
 				ScrollViewReader { proxy in
@@ -107,14 +107,14 @@ private struct StepRow: View {
 					Spacer()
 					if let taskId = step.taskId {
 						Text(taskId)
-							.font(Tokens.Typography.mono.font)
+							.textStyle(Tokens.Typography.mono)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 							.textSelection(.enabled)
 					} else {
 						meta("no id, change it in Obsidian")
 					}
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.padding(.leading, 22)
 			}
 		}
@@ -128,7 +128,7 @@ private struct StepRow: View {
 
 	private func meta(_ text: String) -> some View {
 		Text(text)
-			.font(Tokens.Typography.caption.font)
+			.textStyle(Tokens.Typography.caption)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 			.lineLimit(1)
 	}
@@ -182,11 +182,11 @@ struct PendingInputList: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			Text("Waiting on others")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			if content.pendingInput.isEmpty {
 				Text("Nothing waits on anyone")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			ForEach(content.pendingInput) { step in
@@ -204,11 +204,11 @@ struct PendingInputList: View {
 						CautionChip(text: waiting.detail)
 					} else if let person = step.assignedTo {
 						Text(step.completionLabel.map { "\(person) · answered \($0)" } ?? person)
-							.font(Tokens.Typography.caption.font)
+							.textStyle(Tokens.Typography.caption)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 					}
 				}
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 				.padding(.leading, CGFloat(step.depth) * Tokens.Spacing.space20)
 			}
 		}

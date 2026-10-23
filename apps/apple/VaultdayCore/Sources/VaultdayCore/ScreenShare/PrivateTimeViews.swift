@@ -5,28 +5,25 @@ extension EnvironmentValues {
 	@Entry public var screenShare: ScreenShareModel?
 }
 
-/// What every private-time surface says: one definition of the hand, its
-/// tooltip, and what takes the value's place while screen-share mode is on.
+/// What every private-time surface says: one definition of the hand and its
+/// tooltip, and what a private value shows while screen-share mode is on.
 ///
-/// While the mode is on a private value is not drawn at all. The hand stays
-/// (or draws on, where the surface did not carry it) with the caption
-/// "Private" beside it. The hand reads as "kept to yourself" and needs no
-/// slash; a crossed hand would read as the opposite, that the value is
-/// allowed out. The caption names the state in words for VoiceOver and for a
-/// person watching the share.
+/// While the mode is on a private value is not drawn at all, and nothing
+/// takes its place: no hand, no "Private" caption. A caption saying that
+/// something is withheld would tell the people watching the share exactly
+/// that, which defeats the mode; the surface reads as if it had no such value.
+/// The hand reads as "kept to yourself" beside a shown value and needs no
+/// slash; a crossed hand would read as the opposite.
 public enum PrivateTimeMark {
 	/// The hand, the closest system symbol until the custom one is authored.
 	public static var mark: IconMark { TypeMark.privateTime.mark }
 
 	public static let tooltip = "Private: real timer time. Hidden in screen-share mode and never in a report"
-	public static let caption = "Private"
 
-	/// The text a private value shows: the value, or the caption while hidden.
-	/// A labelled value reads "Tracked 3h 10m", hidden "Tracked · private".
-	public static func displayedText(value: String, label: String?, isHidden: Bool) -> String {
-		if isHidden {
-			return label.map { "\($0) · private" } ?? caption
-		}
+	/// The text a private value shows: the value, labelled ("Tracked 3h 10m"),
+	/// or nothing at all while screen-share mode hides it.
+	public static func displayedText(value: String, label: String?, isHidden: Bool) -> String? {
+		guard !isHidden else { return nil }
 		return label.map { "\($0) \(value)" } ?? value
 	}
 }
@@ -70,12 +67,13 @@ public struct PrivateTimeValue: View {
 	}
 
 	public var body: some View {
-		let isHidden = screenShare?.isOn ?? false
-		return HStack(spacing: isHidden || carriesHand ? 4 : 0) {
-			PrivateHandGlyph(isShown: isHidden || carriesHand)
-			Text(PrivateTimeMark.displayedText(value: value, label: label, isHidden: isHidden))
+		if let text = PrivateTimeMark.displayedText(value: value, label: label, isHidden: screenShare?.isOn ?? false) {
+			HStack(spacing: carriesHand ? 4 : 0) {
+				PrivateHandGlyph(isShown: carriesHand)
+				Text(text)
+			}
+			.help(carriesHand ? PrivateTimeMark.tooltip : "")
+			.accessibilityElement(children: .combine)
 		}
-		.help(isHidden || carriesHand ? PrivateTimeMark.tooltip : "")
-		.accessibilityElement(children: .combine)
 	}
 }

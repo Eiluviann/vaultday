@@ -47,7 +47,7 @@ struct SecurityStep: View {
 		return VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Image(systemName: icon).foregroundStyle(level == .enhanced ? Tokens.Colors.work : Tokens.Colors.inkMuted)
-				Text(level.title).font(Tokens.Typography.headline.font).foregroundStyle(Tokens.Colors.ink)
+				Text(level.title).textStyle(Tokens.Typography.headline).foregroundStyle(Tokens.Colors.ink)
 				Spacer()
 				if level != .off { PlannedTag() }
 			}
@@ -56,7 +56,7 @@ struct SecurityStep: View {
 					Text("•")
 					Text(point)
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 			}
 		}

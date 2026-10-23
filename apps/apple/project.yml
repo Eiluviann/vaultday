@@ -82,6 +82,10 @@ targets:
       # with the tokens instead of hosting the whole app.
       - path: Vaultday/Tokens.swift
       - path: Vaultday/Views/Setup
+      - path: Vaultday/Views/DesignSystem
+      # The bundled faces, so the tests measure what the app draws.
+      - path: Vaultday/Fonts
+        buildPhase: resources
     dependencies:
       - package: VaultdayCore
     settings:

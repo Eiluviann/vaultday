@@ -50,14 +50,14 @@ struct AiLevelStep: View {
 				levelRow(title: entry.name, target: entry.id)
 			}
 			if workspaces.entries.isEmpty {
-				Text("Add a workspace to pick its level").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text("Add a workspace to pick its level").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
 	}
 
 	private func levelRow(title: String, target: String) -> some View {
 		HStack {
-			Text(title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+			Text(title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 			Spacer()
 			SegmentedChoice(
 				label: "Level for \(title)",
@@ -71,18 +71,18 @@ struct AiLevelStep: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Image(systemName: icon).foregroundStyle(Tokens.Colors.inkMuted)
-				Text(title).font(Tokens.Typography.headline.font).foregroundStyle(Tokens.Colors.ink)
+				Text(title).textStyle(Tokens.Typography.headline).foregroundStyle(Tokens.Colors.ink)
 			}
 			ForEach(points, id: \.self) { point in
 				HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space6) {
 					Text("•")
 					Text(point)
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 			}
 			if let note {
-				Text(note).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text(note).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
 		.padding(Tokens.Spacing.space12)

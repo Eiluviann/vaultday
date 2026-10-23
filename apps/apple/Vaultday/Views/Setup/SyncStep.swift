@@ -65,7 +65,7 @@ struct SyncStep: View {
 		} extra: {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 				Text(sync.gitignoreLine)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.ink)
 					.textSelection(.enabled)
 					.padding(Tokens.Spacing.space8)
@@ -73,14 +73,14 @@ struct SyncStep: View {
 					.background(Tokens.Colors.surfaceSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
 				if sync.gitWorkspaces.isEmpty {
 					Text("None of your workspaces sits in a git repository")
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				ForEach(sync.gitWorkspaces) { target in
 					HStack(spacing: Tokens.Spacing.space8) {
-						Text(target.workspaceName).font(Tokens.Typography.callout.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+						Text(target.workspaceName).textStyle(Tokens.Typography.callout).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 						Text(target.ignoreFilePath.abbreviatedPath)
-							.font(Tokens.Typography.caption.font)
+							.textStyle(Tokens.Typography.caption)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 							.lineLimit(1)
 							.truncationMode(.middle)
@@ -94,7 +94,7 @@ struct SyncStep: View {
 					}
 				}
 				if let message = sync.gitMessage {
-					Text(message).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkSecondary)
+					Text(message).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkSecondary)
 				}
 			}
 		}

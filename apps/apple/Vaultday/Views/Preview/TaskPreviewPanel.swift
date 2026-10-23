@@ -15,13 +15,13 @@ struct TaskPreviewPanel: View {
 		VStack(alignment: .leading, spacing: 12) {
 			topBar
 			Text(content.text)
-				.font(Tokens.Typography.title.font)
+				.textStyle(Tokens.Typography.title)
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
 			facts
 			if let notice = content.obsidianLinkNotice {
 				Label(notice, systemImage: "info.circle")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.info)
 					.lineLimit(1)
 					.help(notice)
@@ -52,7 +52,7 @@ struct TaskPreviewPanel: View {
 				app.preview.close()
 			} label: {
 				Image(systemName: "xmark")
-					.font(.system(size: 10, weight: .semibold))
+					.iconGlyph(.tag, weight: .semibold)
 					.frame(width: 28, height: 24)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
@@ -61,12 +61,12 @@ struct TaskPreviewPanel: View {
 			.buttonStyle(.plain)
 			.accessibilityLabel("Close preview")
 			Text(content.headerLine)
-				.font(.custom(Tokens.Typography.mono.family, size: 12))
+				.textStyle(Tokens.Typography.mono)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.lineLimit(1)
 			if let status = content.storyStatusLabel {
 				Text(status)
-					.font(Tokens.Typography.callout.font.weight(.semibold))
+					.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.onWs)
 					.padding(.horizontal, 10)
 					.padding(.vertical, 2)
@@ -93,7 +93,7 @@ struct TaskPreviewPanel: View {
 						.background(Tokens.Colors.primary, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
 				}
 				.buttonStyle(.plain)
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 				.help("Open the story screen: the note, its steps, the Story block and Hours")
 			}
 		}
@@ -116,9 +116,9 @@ struct TaskPreviewPanel: View {
 			HomeEyebrow(text: "Story preview · read-only")
 			ScrollView {
 				VStack(alignment: .leading, spacing: 8) {
-					if content.blocks.isEmpty {
-						Text(screenShare?.hides(.taskPreview) == true ? "The story note is hidden while screen-share mode is on" : "The story note has no text beyond its tasks")
-							.font(Tokens.Typography.callout.font)
+					if content.blocks.isEmpty, screenShare?.hides(.taskPreview) != true {
+						Text("The story note has no text beyond its tasks")
+							.textStyle(Tokens.Typography.callout)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 					}
 					ForEach(Array(content.blocks.enumerated()), id: \.offset) { _, block in
@@ -150,11 +150,11 @@ struct TaskPreviewPanel: View {
 							.frame(maxWidth: .infinity, alignment: .leading)
 						if let estimate = subtask.estimateLabel {
 							Text(estimate)
-								.font(Tokens.Typography.caption.font)
+								.textStyle(Tokens.Typography.caption)
 								.foregroundStyle(Tokens.Colors.inkMuted)
 						}
 					}
-					.font(Tokens.Typography.body.font)
+					.textStyle(Tokens.Typography.body)
 				}
 				HomeEyebrow(text: "Waiting on")
 					.padding(.top, 10)
@@ -167,7 +167,7 @@ struct TaskPreviewPanel: View {
 							.frame(maxWidth: .infinity, alignment: .leading)
 						CautionChip(text: item.detail)
 					}
-					.font(Tokens.Typography.body.font)
+					.textStyle(Tokens.Typography.body)
 				}
 				HomeEyebrow(text: "Activity")
 					.padding(.top, 10)
@@ -186,7 +186,7 @@ struct TaskPreviewPanel: View {
 
 	private func quiet(_ text: String) -> some View {
 		Text(text)
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 	}
 }
@@ -202,7 +202,7 @@ private struct PreviewButton: View {
 			HStack(spacing: 6) {
 				Text(title)
 				Image(systemName: symbol)
-					.font(.system(size: 10))
+					.iconGlyph(.tag)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			.padding(.horizontal, 10)
@@ -212,7 +212,7 @@ private struct PreviewButton: View {
 			.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm).strokeBorder(Tokens.Colors.lineButton))
 		}
 		.buttonStyle(.plain)
-		.font(Tokens.Typography.body.font.weight(.medium))
+		.textStyle(Tokens.Typography.body).fontWeight(.medium)
 		.help(help)
 	}
 }
@@ -225,7 +225,7 @@ private struct FlowChips: View {
 		FlowLayout(spacing: 8) {
 			ForEach(chips, id: \.self) { chip in
 				Text(chip)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.ink)
 					.padding(.horizontal, 10)
 					.padding(.vertical, 3)
@@ -284,7 +284,7 @@ private struct NoteBlockRow: View {
 				.padding(.top, level <= 2 ? 6 : 2)
 		case let .paragraph(text):
 			Text(PreviewText.attributed(text))
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 				.lineSpacing(3)
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
@@ -305,11 +305,11 @@ private struct NoteBlockRow: View {
 					.foregroundStyle(state == .done ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
 					.fixedSize(horizontal: false, vertical: true)
 			}
-			.font(Tokens.Typography.body.font)
+			.textStyle(Tokens.Typography.body)
 			.padding(.leading, CGFloat(depth) * 16)
 		case let .code(text):
 			Text(text)
-				.font(.custom(Tokens.Typography.mono.family, size: 11))
+				.textStyle(Tokens.Typography.mono)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.textSelection(.enabled)
 				.padding(.horizontal, 10)

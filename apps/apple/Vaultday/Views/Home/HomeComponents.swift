@@ -7,8 +7,7 @@ struct HomeEyebrow: View {
 
 	var body: some View {
 		Text(text.uppercased())
-			.font(Tokens.Typography.eyebrow.font)
-			.tracking(Tokens.Typography.eyebrow.tracking)
+			.textStyle(Tokens.Typography.eyebrow)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 	}
 }
@@ -19,10 +18,17 @@ struct TotalPill: View {
 	let value: String
 	var isCaution = false
 	var help = ""
-	/// Tracked time: the hand and "Private" take the value's place in screen-share mode.
+	/// Tracked time: the whole pill leaves while screen-share mode is on.
 	var isPrivateTime = false
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
+		if !(isPrivateTime && screenShare?.isOn == true) {
+			pill
+		}
+	}
+
+	private var pill: some View {
 		HStack(spacing: 0) {
 			Text(name)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
@@ -36,7 +42,7 @@ struct TotalPill: View {
 				.padding(.vertical, 5)
 				.background(Tokens.Colors.surfaceRaised)
 		}
-		.font(Tokens.Typography.callout.font.weight(.semibold))
+		.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 		.clipShape(Capsule())
 		.overlay(Capsule().strokeBorder(Tokens.Colors.line))
 		.help(help)
@@ -60,7 +66,7 @@ struct MonoChip: View {
 
 	var body: some View {
 		Text(text)
-			.font(.custom(Tokens.Typography.mono.family, size: 11))
+			.textStyle(Tokens.Typography.mono)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 			.lineLimit(1)
 			.padding(.horizontal, isRounded ? 8 : 5)
@@ -75,7 +81,7 @@ struct CautionChip: View {
 
 	var body: some View {
 		Text(text)
-			.font(Tokens.Typography.caption.font.weight(.semibold))
+			.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 			.foregroundStyle(Tokens.Colors.caution)
 			.lineLimit(1)
 			.padding(.horizontal, 8)
@@ -96,7 +102,7 @@ struct HeaderIconButton: View {
 		Button(action: action) {
 			Group {
 				if let symbol {
-					Image(systemName: symbol).font(.system(size: 11))
+					Image(systemName: symbol).iconGlyph(.row)
 				} else {
 					Text(text ?? "")
 				}
@@ -146,7 +152,7 @@ struct ActionCap: View {
 	var body: some View {
 		if let label = app.keyLabel(action) {
 			Text(label)
-				.font(Tokens.Typography.kbd.font)
+				.textStyle(Tokens.Typography.kbd)
 				.foregroundStyle(onFill ?? Tokens.Colors.inkSecondary)
 				.padding(.horizontal, 4)
 				.padding(.vertical, 2)
@@ -213,8 +219,6 @@ enum WorkspaceWash {
 	static let unlockedBoxOpacity = 0.10
 	/// The tracked share of a task box, and its legend swatch.
 	static let trackedOpacity = 0.18
-	/// The selected row of a list.
-	static let selectionOpacity = 0.10
 }
 
 /// A workspace's identity color, from its sidebar entry.

@@ -66,7 +66,7 @@ private struct TodayPlan: View {
 				.zIndex(2)
 			if let message = plan.errorMessage {
 				Text(message)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 			if app.calendarPanel.span != .list {
@@ -147,17 +147,18 @@ struct DayHeader: View {
 	var body: some View {
 		HStack(spacing: 10) {
 			Text(title)
-				.font(Tokens.Typography.titleLarge.font)
+				.textStyle(Tokens.Typography.titleLarge)
 				.foregroundStyle(Tokens.Colors.ink)
 				.lineLimit(1)
 			Button {
 				app.perform(.showToday)
 			} label: {
 				Text("today")
-					.font(Tokens.Typography.caption.font.weight(.semibold))
+					.textStyle(Tokens.Typography.caption)
+					.fontWeight(.semibold)
 					.foregroundStyle(isToday ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
 					.padding(.horizontal, Tokens.Spacing.space8)
-					.padding(.vertical, 3)
+					.frame(height: 20)
 					.background(Tokens.Colors.fillControl, in: Capsule())
 			}
 			.buttonStyle(.plain)
@@ -173,14 +174,11 @@ struct DayHeader: View {
 			}
 			Spacer()
 			if showsSpanSwitch {
-				Picker("View", selection: Binding(get: { app.calendarPanel.span }, set: { app.showSpan($0) })) {
-					ForEach(CalendarSpan.allCases) { span in
-						Text(span.rawValue).tag(span)
-					}
-				}
-				.pickerStyle(.segmented)
-				.labelsHidden()
-				.controlSize(.small)
+				SegmentedChoice(
+					label: "View",
+					options: CalendarSpan.allCases.map { ($0, $0.rawValue) },
+					selection: Binding(get: { app.calendarPanel.span }, set: { app.showSpan($0) }),
+				)
 				.fixedSize()
 				.help("The day as a list, or the calendar over three days or a week")
 			}
@@ -235,27 +233,17 @@ private struct DayTotalsRow: View {
 	}
 }
 
-/// The day without tasks.
+/// The day without tasks: the muted empty state, no border.
 private struct EmptyDay: View {
 	let title: String
 	let app: AppModel
 
 	var body: some View {
-		VStack(spacing: Tokens.Spacing.space6) {
-			Image(systemName: "sun.horizon")
-				.font(.system(size: 16))
-				.foregroundStyle(Tokens.Colors.inkMuted)
-			Text("No plan yet for \(title.split(separator: " ").first.map(String.init) ?? title)")
-				.fontWeight(.semibold)
-				.foregroundStyle(Tokens.Colors.inkSecondary)
-			Text(app.keyLabel(.addTask).map { "Add the first task above, or press \($0)" } ?? "Add the first task above")
-		}
-		.font(Tokens.Typography.callout.font)
-		.foregroundStyle(Tokens.Colors.inkMuted)
-		.multilineTextAlignment(.center)
-		.padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
-		.frame(maxWidth: .infinity)
-		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.lineControl, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+		EmptyState(
+			icon: "sun.horizon",
+			text: "No plan yet for \(title.split(separator: " ").first.map(String.init) ?? title)",
+			detail: app.keyLabel(.addTask).map { "Add the first task above, or press \($0)" } ?? "Add the first task above",
+		)
 	}
 }
 
@@ -289,14 +277,14 @@ private struct PlanToastView: View {
 				app.dayPlan.dismissToast()
 			} label: {
 				Image(systemName: "xmark")
-					.font(.system(size: 10, weight: .semibold))
+					.iconGlyph(.tag, weight: .semibold)
 					.frame(width: 22, height: 22)
 			}
 			.buttonStyle(.plain)
 			.foregroundStyle(Tokens.Colors.lineControl)
 			.accessibilityLabel("Dismiss")
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.foregroundStyle(Tokens.Colors.onPrimary)
 		.padding(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 10))
 		.background(Tokens.Colors.primary, in: RoundedRectangle(cornerRadius: 10))
@@ -319,8 +307,8 @@ private struct TipsLine: View {
 			}
 			Spacer()
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.foregroundStyle(Tokens.Colors.inkMuted)
-		.padding(.top, 10)
+		.padding(.top, Tokens.Spacing.space8)
 	}
 }
