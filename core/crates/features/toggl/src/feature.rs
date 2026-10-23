@@ -13,9 +13,9 @@ use crate::settings::TogglSettings;
 /// The feature's id, under which enablement and settings are stored.
 pub const FEATURE_ID: &str = "toggl-billing";
 
-/// Story frontmatter keys the feature owns: a task's billable flag and a
-/// story's Toggl project override.
-const OWNED_KEYS: [&str; 2] = ["billable", "toggl_project"];
+/// Story note keys the feature reads: a task's `billable::` inline field.
+/// A story's Toggl project comes from the app-level mapping, not the note.
+const OWNED_KEYS: [&str; 1] = ["billable"];
 
 /// The feature is on for one workspace. Only [`TogglFeature::for_workspace`]
 /// makes one, so holding it means the registry said yes.
@@ -60,7 +60,7 @@ pub fn settings_schema() -> String {
 }
 
 /// What the feature declares about itself: per workspace, no requirements,
-/// its frontmatter keys, its settings schema, and egress to Toggl.
+/// the story note keys it reads, its settings schema, and egress to Toggl.
 #[must_use]
 pub fn manifest() -> FeatureManifest {
     FeatureManifest {
@@ -124,7 +124,7 @@ mod tests {
         assert_eq!(manifest.id, feature_id());
         assert_eq!(manifest.scope, FeatureScope::Workspace);
         assert!(manifest.requires.is_empty() && manifest.enhances.is_empty());
-        assert_eq!(manifest.owned_keys, ["billable", "toggl_project"]);
+        assert_eq!(manifest.owned_keys, ["billable"]);
         assert!(manifest.raises_egress && planned.raises_egress);
         let schema: serde_json::Value = serde_json::from_str(&manifest.settings_schema).unwrap();
         assert_eq!(schema["title"], "toggl-billing");

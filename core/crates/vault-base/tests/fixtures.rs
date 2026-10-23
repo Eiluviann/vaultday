@@ -293,7 +293,7 @@ fn the_today_view_keeps_only_stories_with_open_work_and_the_days_log() {
     assert_eq!(checkout.pending_input[0].id(), Some("task-6"));
 
     let times: Vec<String> = view.log.iter().map(|line| line.time.to_string()).collect();
-    assert_eq!(times, ["08:45", "09:30", "11:15", "14:00"]);
+    assert_eq!(times, ["08:45", "09:30", "10:15", "11:15", "14:00"]);
     assert!(vault.today(date("2026-10-23")).log.is_empty());
 }
 
@@ -333,13 +333,14 @@ fn todays_log_lines_come_in_time_order() {
         [
             ("08:45".to_owned(), "done", Some("task-1")),
             ("09:30".to_owned(), "session", Some("task-5")),
+            ("10:15".to_owned(), "session", Some("task-5")),
             ("11:15".to_owned(), "done", None),
             ("14:00".to_owned(), "note", Some("task-9")),
         ]
     );
-    assert_eq!(today[2].line.project(), Some("Website"));
-    assert_eq!(today[2].line.field("agent"), Some("claude-fable-5-1"));
-    assert_eq!(vault.log_lines_on(date("2026-10-21")).len(), 4);
+    assert_eq!(today[3].line.project(), Some("Website"));
+    assert_eq!(today[3].line.field("agent"), Some("claude-fable-5-1"));
+    assert_eq!(vault.log_lines_on(date("2026-10-21")).len(), 5);
     assert!(vault.log_lines_on(date("2026-10-23")).is_empty());
 }
 

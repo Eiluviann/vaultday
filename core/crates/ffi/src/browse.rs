@@ -847,7 +847,11 @@ mod tests {
                 .obsidian_link
                 .ends_with("&file=Projects%2FWebsite%2FWEB-142%20Checkout%20redesign%2FWEB-142%20Checkout%20redesign")
         );
-        assert_eq!(preview.task_activity.len(), 1);
+        assert_eq!(
+            preview.task_activity.len(),
+            2,
+            "a session and a measured one"
+        );
         assert_eq!(preview.obsidian_link_notice, None, "inside its vault");
 
         let mut outside = workspace.workspace.clone();
@@ -882,8 +886,8 @@ mod tests {
 
         assert_eq!(log.relative_path, "Log/2026-10-22.md");
         let times: Vec<&str> = log.lines.iter().map(|line| line.time.as_str()).collect();
-        assert_eq!(times, ["08:45", "09:30", "11:15", "14:00"]);
-        assert_eq!(log.lines[2].agent.as_deref(), Some("claude-fable-5-1"));
+        assert_eq!(times, ["08:45", "09:30", "10:15", "11:15", "14:00"]);
+        assert_eq!(log.lines[3].agent.as_deref(), Some("claude-fable-5-1"));
         let empty = day_log(&workspace, Some("2026-01-01".to_owned())).unwrap();
         assert!(empty.lines.is_empty());
     }

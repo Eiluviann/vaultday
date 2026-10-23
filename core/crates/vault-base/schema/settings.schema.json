@@ -170,7 +170,13 @@
         "model"
       ],
       "additionalProperties": true,
-      "description": "The `billing` block of `settings.json`. Each model reads only its own\nkeys; a key of another model is refused so a switch never leaves a stale\nvalue behind. Unknown keys are kept."
+      "description": "The `billing` block of `settings.json`. Each model reads only its own\nkeys; a key of another model is refused so a switch never leaves a stale\nvalue behind. Unknown keys are kept.",
+      "propertyNames": {
+        "not": {
+          "pattern": "(^|[-_. ])(rate|rates|currency|currencies|price|prices|amount|amounts|fee|fees|cost|costs|money|salary)($|[-_. A-Z])|(^|[-_. a-z0-9])(Rate|RAte|RATe|Rates|RAtes|RATes|RATEs|Currency|CUrrency|CURrency|CURRency|CURREncy|CURRENcy|CURRENCy|Currencies|CUrrencies|CURrencies|CURRencies|CURREncies|CURRENcies|CURRENCies|CURRENCIes|CURRENCIEs|Price|PRice|PRIce|PRICe|Prices|PRices|PRIces|PRICes|PRICEs|Amount|AMount|AMOunt|AMOUnt|AMOUNt|Amounts|AMounts|AMOunts|AMOUnts|AMOUNts|AMOUNTs|Fee|FEe|Fees|FEes|FEEs|Cost|COst|COSt|Costs|COsts|COSts|COSTs|Money|MOney|MONey|MONEy|Salary|SAlary|SALary|SALAry|SALARy)($|[-_. A-Z])|(^|[-_. a-z0-9])(RATE|RATES|CURRENCY|CURRENCIES|PRICE|PRICES|AMOUNT|AMOUNTS|FEE|FEES|COST|COSTS|MONEY|SALARY)($|[-_. ])"
+        },
+        "description": "Keys naming money (rate, currency, price, ...) as one of their words; rates and currencies live in the app-level document only. The reader refuses them at any depth, the schema only directly inside the block."
+      }
     },
     "BillingModel": {
       "oneOf": [

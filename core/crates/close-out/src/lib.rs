@@ -40,6 +40,7 @@ use domain::task::StoryNumber;
 use domain::week::{DayKind, DaysOff, Period, PeriodDay, PeriodKind};
 use jiff::Timestamp;
 use jiff::civil::{Date, DateTime, Weekday};
+use vault_base::log::VERB_SEPARATOR;
 use vault_base::{
     BillingModel, LeaveNote, LogAppend, LogKind, VaultWriter, WorkspaceKind, WorkspaceSettings,
 };
@@ -630,10 +631,13 @@ pub fn set_row_ticked(
     Ok(())
 }
 
-/// Step 4: appends the `status` line "week closed" (or "month closed") to
-/// the day log of the period's last working day and records the closing.
+/// Step 4: records the closing and appends the `status` line "week closed"
+/// (or "month closed") to the day log of the period's last working day.
 /// The line carries the time of closing; closing after that day puts it at
-/// 23:59, the end of the day it belongs to. Closing twice writes once.
+/// 23:59, the end of the day it belongs to. Closing twice writes once, and
+/// so does a retry after the record was lost (a failed edit, a crash before
+/// the document was saved): a day log that already holds the line gets no
+/// second one.
 ///
 /// # Errors
 /// [`CloseOutError::NotReady`] while another step is open, or the day log or
@@ -682,8 +686,11 @@ pub fn close(
         PeriodKind::Week => WEEK_CLOSED,
         PeriodKind::Month => MONTH_CLOSED,
     };
-    let receipt = writer.append_log(day, &LogAppend::new(time, text).with_kind(LogKind::Status))?;
     store::store_closed(state, &ctx.period, now)?;
+    if has_closing_line(writer, day, text)? {
+        return Ok(Closed { line: None, date });
+    }
+    let receipt = writer.append_log(day, &LogAppend::new(time, text).with_kind(LogKind::Status))?;
     Ok(Closed {
         line: Some(receipt.new_line),
         date,
@@ -1099,6 +1106,20 @@ fn steps(
         status,
     })
     .collect()
+}
+
+/// Whether `day`'s log already holds the `status` line `text`, written by a
+/// closing whose record did not survive.
+fn has_closing_line(
+    writer: &VaultWriter<'_>,
+    day: vault_base::Date,
+    text: &str,
+) -> Result<bool, CloseOutError> {
+    let closing = format!("{} {VERB_SEPARATOR} {text}", LogKind::Status.as_str());
+    Ok(writer
+        .day_log_lines(day)?
+        .iter()
+        .any(|line| line.kind == Some(LogKind::Status) && line.text == closing))
 }
 
 fn hours_text(hours: f64) -> String {

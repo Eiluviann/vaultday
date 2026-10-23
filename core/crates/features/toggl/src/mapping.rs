@@ -118,10 +118,12 @@ pub fn allow_live(app_state: &AppState) -> bool {
 }
 
 /// Switches `allow_live`. Switching it off removes the value, so the
-/// default is what remains.
+/// default is what remains. Tests only: built under `cfg(test)` or the
+/// `test-support` feature, so no shipped path can flip the live guard.
 ///
 /// # Errors
 /// The document refused the edit.
+#[cfg(any(test, feature = "test-support"))]
 pub fn set_allow_live(app_state: &mut AppState, is_allowed: bool) -> Result<(), TogglError> {
     app_state.set_feature_value(
         &feature_id(),

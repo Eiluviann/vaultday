@@ -22,8 +22,15 @@ thiserror = "2"
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 vaultday-vault-base = { path = "../../vault-base" }
 
+[features]
+# Exposes `set_allow_live` to this crate's integration tests; no shipped crate
+# enables it, so no production path can switch the live guard on.
+test-support = []
+
 [dev-dependencies]
 tempfile = "3"
+# Itself with `test-support`, for `tests/live_guard.rs`.
+vaultday-feature-toggl = { path = ".", features = ["test-support"] }
 
 [lints]
 workspace = true

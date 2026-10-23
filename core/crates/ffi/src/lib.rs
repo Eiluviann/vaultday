@@ -534,7 +534,7 @@ mod tests {
             view.stories[0].pending_input[0].assigned_to.as_deref(),
             Some("Dana")
         );
-        assert_eq!(view.log.len(), 4);
+        assert_eq!(view.log.len(), 5);
         assert_eq!(view.log[0].kind.as_deref(), Some("done"));
         assert_eq!(view.log[0].story.as_deref(), Some("WEB-142"));
     }
@@ -600,7 +600,7 @@ mod tests {
         .unwrap();
         assert_eq!(report.subject_kind, "client");
         assert_eq!(report.stories.len(), 2);
-        assert_eq!(report.log.len(), 8);
+        assert_eq!(report.log.len(), 10);
         let reversed = super::report(
             &workspace,
             "Website".to_owned(),

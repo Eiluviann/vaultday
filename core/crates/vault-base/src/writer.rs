@@ -21,7 +21,7 @@ use crate::buffer::{LineBuffer, end_of_section_content, outside_model_text, stat
 use crate::date::Date;
 use crate::file_access::{FileAccess, FileAccessError};
 use crate::log::{LogAppend, LogFormatError, day_log_path, format_log_line, new_day_log_header};
-use crate::note::{LOG_HEADING, NEXT_STEPS_HEADING, PENDING_INPUT_HEADING};
+use crate::note::{DayLog, LOG_HEADING, LogLine, NEXT_STEPS_HEADING, PENDING_INPUT_HEADING};
 use crate::scan::{Document, InlineField, Task, TaskStatus, inline_fields};
 use crate::workspace::Workspace;
 
@@ -672,6 +672,26 @@ impl<'a> VaultWriter<'a> {
             Ok(())
         })?;
         single_receipt(receipts, &relative)
+    }
+
+    /// The well-formed lines of `<log_folder>/<date>.md`; empty when the day
+    /// has no log yet. Lets a caller check for a line before appending it.
+    ///
+    /// # Errors
+    /// File errors other than a missing day log.
+    pub fn day_log_lines(&self, date: Date) -> Result<Vec<LogLine>, WriteError> {
+        let (relative, absolute) = self.resolve(&day_log_path(&self.log_folder, date))?;
+        let text = match self.file_access.read_to_string(&absolute) {
+            Ok(text) => text,
+            Err(FileAccessError::NotFound(_)) => return Ok(Vec::new()),
+            Err(error) => return Err(error.into()),
+        };
+        let document = Document::parse(&text);
+        Ok(
+            DayLog::from_document(&document, &relative, &self.log_folder)
+                .map(|log| log.lines)
+                .unwrap_or_default(),
+        )
     }
 
     fn apply_changes(

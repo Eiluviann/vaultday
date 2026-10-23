@@ -23,6 +23,8 @@ serde_norway = "0.9"
 thiserror = "2"
 
 [dev-dependencies]
+# Checks the schema's patterns against the reader's rules.
+regex = "1"
 tempfile = "3"
 
 [lints]
