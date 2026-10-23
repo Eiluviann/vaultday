@@ -27,27 +27,26 @@ struct TriageScreen: View {
 					.foregroundStyle(Tokens.Colors.link)
 					.help("Back to the day")
 					Text("Inbox")
-						.font(Tokens.Typography.titleLarge.font)
+						.textStyle(Tokens.Typography.titleLarge)
 						.foregroundStyle(Tokens.Colors.ink)
 					Text("\(inbox.cards.count) to decide · \(inbox.snoozed.count) snoozed")
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 					Spacer()
 				}
-				Picker("Show", selection: $tab) {
-					Text("New \(inbox.cards.count)").tag(TriageTab.new)
-					Text("Snoozed \(inbox.snoozed.count)").tag(TriageTab.snoozed)
-				}
-				.pickerStyle(.segmented)
-				.labelsHidden()
-				.frame(width: 260)
+				SegmentedChoice(
+					label: "Show",
+					options: [(TriageTab.new, "New \(inbox.cards.count)"), (.snoozed, "Snoozed \(inbox.snoozed.count)")],
+					selection: $tab,
+				)
+				.fixedSize()
 				if let message = inbox.message {
 					InboxMessage(text: message)
 				}
 				switch tab {
 				case .new:
 					if inbox.cards.isEmpty {
-						ContentUnavailableView("Nothing to decide", systemImage: "checkmark.circle", description: Text("New mail lands here after the next fetch"))
+						EmptyState(icon: "checkmark.circle", text: "Nothing to decide", detail: "New mail lands here after the next fetch")
 					} else {
 						SignalList(app: app, cards: inbox.cards)
 							.frame(maxWidth: 640)
@@ -56,7 +55,7 @@ struct TriageScreen: View {
 					SnoozedList(cards: inbox.snoozed)
 				}
 				Text(keyLine)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			.padding(18)
@@ -86,7 +85,7 @@ private struct SnoozedList: View {
 
 	var body: some View {
 		if cards.isEmpty {
-			ContentUnavailableView("Nothing snoozed", systemImage: "moon.zzz")
+			EmptyState(icon: "moon.zzz", text: "Nothing snoozed")
 		} else {
 			ScrollView {
 				LazyVStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
@@ -120,15 +119,15 @@ private struct SnoozedRow: View {
 			VStack(alignment: .leading, spacing: 2) {
 				Text(card.headline).foregroundStyle(Tokens.Colors.ink)
 				if !card.sender.isEmpty {
-					Text(card.sender).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					Text(card.sender).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
 			Spacer()
 			Text(until)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.padding(10)
 		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
 		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(Tokens.Colors.line))
@@ -168,11 +167,11 @@ private struct TriageAside: View {
 			PlannedLane(symbol: "figure.run", title: "Chasers", detail: "Replies you wait on resurface here from Sent Items") // custom symbol pending: running figure
 			PlannedLane(symbol: "line.3.horizontal.decrease.circle", title: "Screener", detail: "First mail from a new sender waits here before the Inbox")
 			Text("Notifications are quiet: one per fetch that brings new mail, never one per message")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			Spacer()
 		}
-		.font(Tokens.Typography.callout.font)
+		.textStyle(Tokens.Typography.callout)
 		.padding(18)
 		.frame(maxHeight: .infinity, alignment: .topLeading)
 		.background(Tokens.Colors.surfaceSunken)
@@ -200,7 +199,7 @@ private struct PlannedLane: View {
 				PlannedTag()
 			}
 			Text(detail)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.fixedSize(horizontal: false, vertical: true)
 				.padding(.leading, 22)

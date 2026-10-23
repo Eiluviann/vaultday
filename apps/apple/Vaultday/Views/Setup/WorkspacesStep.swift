@@ -29,7 +29,7 @@ struct WorkspacesStep: View {
 						let inSphere = workspaces.entries(in: sphere)
 						if inSphere.isEmpty {
 							Text(sphere == .work ? "No work workspace yet" : "No life workspace yet")
-								.font(Tokens.Typography.callout.font)
+								.textStyle(Tokens.Typography.callout)
 								.foregroundStyle(Tokens.Colors.inkMuted)
 								.padding(.vertical, Tokens.Spacing.space8)
 						}
@@ -81,6 +81,7 @@ struct WorkspacesStep: View {
 	private func card(_ entry: WorkspaceEntry) -> some View {
 		let number = (workspaces.entries.firstIndex(of: entry) ?? 0) + 1
 		return SetupCard(
+			badge: WorkspaceBadge(number: number, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere)),
 			title: entry.name,
 			tags: [SetupTag(text: "Active", tone: .on, icon: "checkmark")],
 		) {
@@ -91,28 +92,19 @@ struct WorkspacesStep: View {
 					SetupLabel(title: "Configure", icon: "gearshape")
 				}
 				.buttonStyle(SetupButtonStyle(isSmall: true))
-				Menu {
+				RowOptionsMenu(label: "Options for \(entry.name)") {
 					Button("Remove workspace…", role: .destructive) { removing = entry }
-				} label: {
-					Image(systemName: "ellipsis")
 				}
-				.menuStyle(.borderlessButton)
-				.menuIndicator(.hidden)
-				.frame(width: Tokens.Size.sizeControlSm)
-				.accessibilityLabel("Options for \(entry.name)")
 			}
 		} extra: {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-				HStack(spacing: Tokens.Spacing.space8) {
-					WorkspaceBadge(number: number, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
-					Text(entry.rootPath.abbreviatedPath)
-						.font(Tokens.Typography.mono.font)
-						.foregroundStyle(Tokens.Colors.inkSecondary)
-						.lineLimit(1)
-						.truncationMode(.middle)
-				}
+				Text(entry.rootPath.abbreviatedPath)
+					.textStyle(Tokens.Typography.mono)
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+					.lineLimit(1)
+					.truncationMode(.middle)
 				Text(entry.folders.count == 1 ? "1 folder" : "\(entry.folders.count) folders")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
@@ -150,18 +142,18 @@ struct AddFolderPopover: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
 			Text(title)
-				.font(Tokens.Typography.heading.font)
+				.textStyle(Tokens.Typography.heading)
 				.foregroundStyle(Tokens.Colors.ink)
 				.padding(.horizontal, Tokens.Spacing.space12)
-				.padding(.top, 6)
+				.padding(.top, Tokens.Spacing.space6)
 				.padding(.bottom, Tokens.Spacing.space4)
 			row(icon: "folder", title: "Choose an existing folder", detail: existing, isNew: false)
 			row(icon: "plus", title: "Create a new folder", detail: fresh, isNew: true)
 			Text(footnote)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.padding(.horizontal, Tokens.Spacing.space12)
-				.padding(.vertical, 6)
+				.padding(.vertical, Tokens.Spacing.space6)
 		}
 		.padding(Tokens.Spacing.space8)
 		.frame(width: 360)
@@ -172,11 +164,11 @@ struct AddFolderPopover: View {
 			choose(isNew)
 		} label: {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-				Image(systemName: icon).frame(width: 18).foregroundStyle(Tokens.Colors.primary)
-				VStack(alignment: .leading, spacing: 2) {
-					Text(title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+				Image(systemName: icon).iconBox(.menu).foregroundStyle(Tokens.Colors.primary)
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
+					Text(title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 					Text(detail)
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.fixedSize(horizontal: false, vertical: true)
 				}

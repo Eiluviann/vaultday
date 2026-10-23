@@ -12,10 +12,10 @@ struct AllWorkspacesColumn: View {
 			DayHeader(title: all.title, isToday: all.isToday, app: app, showsScheduling: false)
 			HStack(alignment: .firstTextBaseline, spacing: 14) {
 				Text("Everything")
-					.font(Tokens.Typography.heading.font)
+					.textStyle(Tokens.Typography.heading)
 					.foregroundStyle(Tokens.Colors.ink)
 				Text("Read-only; open a workspace to change its plan")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				Spacer()
 			}
@@ -26,11 +26,11 @@ struct AllWorkspacesColumn: View {
 							.padding(.top, group.id == all.groups.first?.id ? 6 : 8)
 						if let problem = group.problem {
 							Label(problem, systemImage: "exclamationmark.triangle")
-								.font(Tokens.Typography.caption.font)
+								.textStyle(Tokens.Typography.caption)
 								.foregroundStyle(Tokens.Colors.caution)
 						} else if group.items.isEmpty {
 							Text("Nothing planned")
-								.font(Tokens.Typography.callout.font)
+								.textStyle(Tokens.Typography.callout)
 								.foregroundStyle(Tokens.Colors.inkMuted)
 								.padding(.leading, 18)
 						}
@@ -59,11 +59,10 @@ private struct GroupHeader: View {
 				.fill(group.color)
 				.frame(width: 10, height: 10)
 			Text(group.name.uppercased())
-				.font(Tokens.Typography.eyebrow.font)
-				.tracking(Tokens.Typography.eyebrow.tracking)
+				.textStyle(Tokens.Typography.eyebrow)
 				.foregroundStyle(group.color)
 			Text(summary)
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 		.accessibilityElement(children: .combine)

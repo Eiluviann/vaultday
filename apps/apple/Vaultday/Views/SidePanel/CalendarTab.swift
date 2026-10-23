@@ -12,7 +12,7 @@ struct CalendarTab: View {
 			CalendarLegend()
 			if let message = panel.errorMessage {
 				Text(message)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.danger)
 					.fixedSize(horizontal: false, vertical: true)
 			}
@@ -41,7 +41,7 @@ private struct CalendarLegend: View {
 			}
 			swatch("Tracked") { Rectangle().fill(accent.opacity(WorkspaceWash.trackedOpacity)) }
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 	}
 
@@ -75,7 +75,7 @@ struct DayGrid: View {
 					Spacer().frame(width: Self.labelWidth)
 					ForEach(days) { day in
 						Text(day.heading)
-							.font(Tokens.Typography.caption.font.weight(.semibold))
+							.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 							.foregroundStyle(day.isToday ? Tokens.Colors.ink : Tokens.Colors.inkMuted)
 							.frame(maxWidth: .infinity)
 					}
@@ -112,7 +112,7 @@ private struct HourRows: View {
 			ForEach(scale.hours, id: \.self) { hour in
 				let y = scale.y(forMinute: hour * 60, height: height)
 				Text(CalendarGridScale.label(hour: hour))
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.padding(.top, Tokens.Spacing.space2)
 					.offset(y: y)
@@ -187,7 +187,7 @@ private struct DayColumn: View {
 				Rectangle().fill(Tokens.Colors.sunrise).frame(height: 2)
 				Circle().fill(Tokens.Colors.sunrise).frame(width: 8, height: 8).offset(x: -4)
 				Text(DayTime(minuteOfDay: minute)?.text ?? "")
-					.font(.system(size: 10, weight: .semibold))
+					.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.onSunrise)
 					.padding(.horizontal, 3)
 					.padding(.vertical, 1)
@@ -258,7 +258,7 @@ private struct BlockTile: View {
 			HStack(spacing: Tokens.Spacing.space4) {
 				icon
 				Text(block.title).font(titleFont).foregroundStyle(titleColor)
-				Text("· \(block.detail)").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text("· \(block.detail)").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			.lineLimit(1)
 			.truncationMode(.tail)
@@ -269,7 +269,7 @@ private struct BlockTile: View {
 					Text(block.title).font(titleFont).foregroundStyle(titleColor)
 				}
 				Text(block.detail)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			.lineLimit(1)
@@ -280,13 +280,13 @@ private struct BlockTile: View {
 	private var icon: some View {
 		let mark = block.isTask ? TypeMark.task.mark : SourceMark.calendar.mark
 		return Image(systemName: mark.symbol)
-			.font(.system(size: 10))
+			.iconGlyph(.tag)
 			.foregroundStyle(mark.tone.color)
 			.accessibilityLabel(mark.name)
 	}
 
 	private var titleFont: Font {
-		block.isTask ? .system(size: 12, weight: .semibold) : .system(size: 11, weight: .medium)
+		block.isTask ? Tokens.Typography.callout.font.weight(.semibold) : Tokens.Typography.caption.font.weight(.medium)
 	}
 
 	private var titleColor: Color {
@@ -307,7 +307,7 @@ private struct Padlock: View {
 			app.togglePin(taskId: taskId, on: date)
 		} label: {
 			Image(systemName: isLocked ? "lock" : "lock.open")
-				.font(.system(size: 10))
+				.iconGlyph(.tag)
 				.foregroundStyle(isLocked ? accent : Tokens.Colors.inkMuted)
 				.iconReplace(value: isLocked)
 				.frame(width: 18, height: 18)
@@ -354,7 +354,7 @@ private struct CalendarSourcesPanel: View {
 			.padding(.top, Tokens.Spacing.space6)
 		} label: {
 			Text("Calendars and Reminders lists")
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 		}
 		.onAppear { isExpanded = !app.hasCalendarAccess || (app.workspace?.pickedCalendarIds.isEmpty ?? true) }
@@ -363,14 +363,14 @@ private struct CalendarSourcesPanel: View {
 	@ViewBuilder private var calendars: some View {
 		if app.calendarStatus.isEmpty {
 			Text("Vaultday plans around the calendars you pick and keeps time boxes in a private Vaultday calendar in iCloud")
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 			Button("Allow calendar access") {
 				Task { await app.requestCalendarAccess() }
 			}
 		} else {
 			Text(app.calendarStatus)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -382,7 +382,7 @@ private struct CalendarSourcesPanel: View {
 					set: { app.setCalendar(calendar, isPicked: $0) },
 				)) {
 					Text("\(calendar.title) · \(calendar.source.title)")
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 				}
 				.toggleStyle(.checkbox)
 			}
@@ -393,7 +393,7 @@ private struct CalendarSourcesPanel: View {
 		let intake = app.remindersIntake
 		if !intake.hasAccess {
 			Text("Items you add to an intake list in Reminders become tasks here, then leave Reminders")
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 			Button("Allow Reminders access") {
 				Task { await app.requestRemindersAccess() }
@@ -401,7 +401,7 @@ private struct CalendarSourcesPanel: View {
 		}
 		if let message = intake.message {
 			Text(message)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -411,7 +411,7 @@ private struct CalendarSourcesPanel: View {
 				IntakeListRow(app: app, workspace: workspace, list: list)
 			}
 			Text("Pick lists only you use: each item is deleted from Reminders once its task is written")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -432,7 +432,7 @@ private struct IntakeListRow: View {
 				set: { app.setIntakeList(list, isPicked: $0, story: picked?.story) },
 			)) {
 				Text("\(list.title) · \(list.sourceTitle)")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.lineLimit(1)
 			}
 			.toggleStyle(.checkbox)

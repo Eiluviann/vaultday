@@ -71,7 +71,7 @@ struct StoryBlockRow: View {
 			StoryHeadingText(level: level, spans: spans)
 		case let .paragraph(spans):
 			Text(StorySpanText.attributed(spans))
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 				.lineSpacing(Tokens.Typography.body.lineSpacing + 2)
 				.foregroundStyle(Tokens.Colors.ink)
 				.textSelection(.enabled)
@@ -94,11 +94,11 @@ struct StoryBlockRow: View {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 				if let language {
 					Text(language)
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				Text(text)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.textSelection(.enabled)
 					.fixedSize(horizontal: false, vertical: true)
@@ -185,7 +185,7 @@ private struct StoryListItemRow: View {
 						.textSelection(.enabled)
 						.fixedSize(horizontal: false, vertical: true)
 				}
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 				ForEach(item.children) { child in
 					StoryListItemRow(app: app, story: story, content: content, item: child, ordinal: nil)
 						.padding(.leading, Tokens.Spacing.space20)
@@ -221,7 +221,7 @@ struct StoryCheckboxButton: View {
 	private var glyph: some View {
 		Image(systemName: symbol)
 			.foregroundStyle(checkbox.isDone ? accent : Tokens.Colors.lineControl)
-			.font(.system(size: 13))
+			.iconGlyph(.row)
 	}
 
 	private var symbol: String {
@@ -257,7 +257,7 @@ private struct StoryCalloutBox<Inner: View>: View {
 				Image(systemName: style.symbol)
 					.foregroundStyle(style.color)
 				Text(title.isEmpty ? AttributedString(kind.capitalized) : StorySpanText.attributed(title))
-					.font(Tokens.Typography.body.font.weight(.semibold))
+					.textStyle(Tokens.Typography.body).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 				Spacer(minLength: 0)
 				if fold != .fixed {
@@ -311,7 +311,7 @@ private struct StoryTable: View {
 			GridRow {
 				ForEach(Array(header.enumerated()), id: \.offset) { column, cell in
 					Text(StorySpanText.attributed(cell))
-						.font(Tokens.Typography.body.font.weight(.semibold))
+						.textStyle(Tokens.Typography.body).fontWeight(.semibold)
 						.gridColumnAlignment(alignment(column))
 				}
 			}
@@ -320,7 +320,7 @@ private struct StoryTable: View {
 				GridRow {
 					ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
 						Text(StorySpanText.attributed(cell))
-							.font(Tokens.Typography.body.font)
+							.textStyle(Tokens.Typography.body)
 					}
 				}
 			}
@@ -378,28 +378,27 @@ struct StoryPlaceholder: View {
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			Image(systemName: symbol)
-				.font(.system(size: 16))
+				.iconGlyph(.menu)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.frame(width: 20)
 			VStack(alignment: .leading, spacing: 2) {
 				Text(title)
-					.font(Tokens.Typography.body.font.weight(.semibold))
+					.textStyle(Tokens.Typography.body).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 				Text(caption)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer(minLength: Tokens.Spacing.space8)
 			if let link {
 				Button("Open in Obsidian") { NSWorkspace.shared.open(link) }
 					.buttonStyle(.link)
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 			}
 		}
 		.padding(Tokens.Spacing.space12)
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.background(Tokens.Colors.surfaceSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
-		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(Tokens.Colors.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
 	}
 }
 
@@ -411,7 +410,7 @@ struct StoryActivityList: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			if content.activity.isEmpty {
 				Text("No log lines about this story yet")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			ForEach(content.activity) { entry in

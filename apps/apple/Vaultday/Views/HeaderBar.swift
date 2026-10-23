@@ -14,7 +14,7 @@ struct HeaderBar: View {
 				app.perform(.toggleSidebar)
 			} label: {
 				Image(systemName: app.focus.isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
-					.font(.system(size: 14))
+					.iconGlyph(.menu)
 					.iconReplace(value: app.focus.isSidebarCollapsed)
 					.frame(width: 24, height: 24)
 			}
@@ -48,13 +48,13 @@ private struct RitualButton: View {
 		Button(action: action) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Image(systemName: "checkmark.seal")
-					.font(.system(size: 11))
+					.iconGlyph(.row)
 				Text(due.title)
 					.fontWeight(.semibold)
 				Text(due.timeText)
 					.foregroundStyle(due.isOverdue ? Tokens.Colors.danger : Tokens.Colors.inkMuted)
 			}
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 			.foregroundStyle(Tokens.Colors.ink)
 			.padding(.horizontal, Tokens.Spacing.space8)
 			.frame(height: 24)
@@ -68,8 +68,9 @@ private struct RitualButton: View {
 	}
 }
 
-/// Screen-share mode's place in the header: off, outlined; on, filled with
-/// a caption beside it. Drawn disabled, with the reason as its tooltip, while
+/// Screen-share mode's place in the header: off, outlined; on, filled, with
+/// no caption beside it, since nothing on screen may say that the mode hides
+/// something. Drawn disabled, with the reason as its tooltip, while
 /// All workspaces or a life workspace is shown: the mode starts from a work
 /// workspace. A refused switch says why next to it for a few seconds.
 private struct ScreenShareToggle: View {
@@ -82,7 +83,7 @@ private struct ScreenShareToggle: View {
 		HStack(spacing: Tokens.Spacing.space6) {
 			if let notice = app.screenShare.notice {
 				Text(notice)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.caution)
 					.lineLimit(1)
 					.task(id: notice) {
@@ -90,17 +91,12 @@ private struct ScreenShareToggle: View {
 						app.screenShare.dismissNotice()
 					}
 			}
-			if isOn {
-				Text("Screen-share on")
-					.font(Tokens.Typography.caption.font.weight(.semibold))
-					.foregroundStyle(Tokens.Colors.inkSecondary)
-			}
 			Button {
 				app.toggleScreenShare()
 			} label: {
 				// custom symbol pending: screen-share
 				Image(systemName: isOn ? "rectangle.fill.on.rectangle.fill" : "rectangle.on.rectangle")
-					.font(.system(size: 13))
+					.iconGlyph(.row)
 					.iconReplace(value: isOn)
 					.foregroundStyle(isOn ? Tokens.Colors.onPrimary : disabledReason == nil ? Tokens.Colors.inkSecondary : Tokens.Colors.inkDisabled)
 					.frame(width: 24, height: 24)
@@ -134,12 +130,12 @@ private struct SearchField: View {
 		} label: {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Image(systemName: "magnifyingglass")
-					.font(.system(size: 11))
+					.iconGlyph(.row)
 				Text(placeholder)
 					.frame(maxWidth: .infinity, alignment: .leading)
 				ActionCap(app: app, action: .openPalette)
 			}
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 			.padding(.horizontal, Tokens.Spacing.space8)
 			.frame(width: 220, height: 24)

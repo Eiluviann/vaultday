@@ -34,9 +34,16 @@ struct FoldersStep: View {
 	private func workspaceCard(_ entry: WorkspaceEntry) -> some View {
 		let number = (workspaces.entries.firstIndex(of: entry) ?? 0) + 1
 		return VStack(spacing: 0) {
+			// The badge and every folder icon share one 18 pt icon column, 16 pt in from the card's edge.
 			HStack(spacing: Tokens.Spacing.space8) {
 				WorkspaceBadge(number: number, color: WorkspaceColor.resolve(accent: entry.accent, sphere: entry.sphere))
-				Text(entry.name).font(Tokens.Typography.headline.font).foregroundStyle(Tokens.Colors.ink)
+					.frame(width: IconBox.menu.size, height: IconBox.menu.size)
+					.padding(.leading, Tokens.Spacing.space4)
+				Text(entry.name)
+					.textStyle(Tokens.Typography.headline)
+					.foregroundStyle(Tokens.Colors.ink)
+					.lineLimit(1)
+					.layoutPriority(-1)
 				SetupTag(text: "Active", tone: .on, icon: "checkmark")
 				Spacer()
 				Button {
@@ -74,36 +81,38 @@ struct FoldersStep: View {
 
 	private func folderRow(_ folder: FolderEntry, in entry: WorkspaceEntry) -> some View {
 		let path = folder.path.abbreviatedPath as NSString
-		return HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-			Image(systemName: "folder").frame(width: 18).foregroundStyle(Tokens.Colors.inkMuted)
-			VStack(alignment: .leading, spacing: 2) {
-				(Text(path.deletingLastPathComponent + "/").foregroundStyle(Tokens.Colors.inkMuted) + Text(path.lastPathComponent).foregroundStyle(Tokens.Colors.ink).bold())
-					.font(Tokens.Typography.mono.font)
-					.lineLimit(1)
-					.truncationMode(.middle)
+		return HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
+			Image(systemName: "folder")
+				.textStyle(Tokens.Typography.mono)
+				.frame(width: IconBox.menu.size)
+				.foregroundStyle(Tokens.Colors.inkMuted)
+				.padding(.leading, Tokens.Spacing.space4)
+			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 				HStack(spacing: Tokens.Spacing.space8) {
-					Text(folder.kindLabel).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+					(Text(path.deletingLastPathComponent + "/").foregroundStyle(Tokens.Colors.inkMuted) + Text(path.lastPathComponent).foregroundStyle(Tokens.Colors.ink).bold())
+						.textStyle(Tokens.Typography.mono)
+						.lineLimit(1)
+						.truncationMode(.middle)
+					// The folder new notes, captures and the day log go to.
 					if folder.isWorkspaceRoot {
-						Label("New notes go here", systemImage: "square.and.pencil")
-					} else {
-						Label("Read-only", systemImage: "lock")
+						SetupTag(text: "Primary")
 					}
 				}
-				.font(Tokens.Typography.caption.font)
+				HStack(spacing: Tokens.Spacing.space8) {
+					Text(folder.kindLabel)
+					if !folder.isWorkspaceRoot {
+						Label("Read-only", systemImage: "lock")
+							.labelStyle(.titleAndIcon)
+					}
+				}
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
-				.labelStyle(.titleAndIcon)
 			}
 			Spacer(minLength: 0)
 			if !folder.isWorkspaceRoot {
-				Menu {
+				RowOptionsMenu(label: "Folder options for \(folder.name)") {
 					Button("Remove folder", role: .destructive) { workspaces.removeFolder(folder.id, from: entry.id) }
-				} label: {
-					Image(systemName: "ellipsis")
 				}
-				.menuStyle(.borderlessButton)
-				.menuIndicator(.hidden)
-				.frame(width: Tokens.Size.sizeControlSm)
-				.accessibilityLabel("Folder options for \(folder.name)")
 			}
 		}
 		.padding(.vertical, Tokens.Spacing.space8)

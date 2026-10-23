@@ -1,7 +1,8 @@
 import SwiftUI
 import VaultdayCore
 
-/// The sticky footer: Back (Restore on the first step), the count, Continue.
+/// The sticky footer: the step count on the left, and on the right Back
+/// (Restore on the first step) directly beside Continue.
 struct SetupFooter: View {
 	let onboarding: OnboardingModel
 	let chooseRestoreFolder: (RestoreSource) -> Void
@@ -11,6 +12,10 @@ struct SetupFooter: View {
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
+			Text(onboarding.progressText)
+				.textStyle(Tokens.Typography.caption)
+				.foregroundStyle(Tokens.Colors.inkMuted)
+			Spacer()
 			if onboarding.isRestoreAvailable {
 				Button {
 					isShowingRestore.toggle()
@@ -28,10 +33,6 @@ struct SetupFooter: View {
 				.buttonStyle(SetupButtonStyle())
 				.disabled(!onboarding.canGoBack)
 			}
-			Spacer()
-			Text(onboarding.progressText)
-				.font(Tokens.Typography.callout.font)
-				.foregroundStyle(Tokens.Colors.inkMuted)
 			Button {
 				if onboarding.isLastStep { finish() } else { onboarding.goForward() }
 			} label: {
@@ -51,13 +52,14 @@ struct SetupFooter: View {
 			restoreRow(.localFolder, icon: "folder", title: "A local folder", detail: "A backup, or a copy of your notes from another Mac")
 			if let message = onboarding.restoreMessage {
 				Text(message)
-					.font(Tokens.Typography.caption.font.weight(.semibold))
+					.textStyle(Tokens.Typography.caption)
+					.fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 					.padding(.horizontal, Tokens.Spacing.space12)
 					.padding(.top, 6)
 			}
 			Text("Protected app data never syncs; it stays on the Mac it was created on")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.padding(.horizontal, Tokens.Spacing.space12)
 				.padding(.top, 6)
@@ -73,10 +75,10 @@ struct SetupFooter: View {
 			chooseRestoreFolder(source)
 		} label: {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
-				Image(systemName: icon).frame(width: 18).foregroundStyle(Tokens.Colors.primary)
-				VStack(alignment: .leading, spacing: 0) {
-					Text(title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
-					Text(detail).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Image(systemName: icon).iconBox(.menu).foregroundStyle(Tokens.Colors.primary)
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
+					Text(title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
+					Text(detail).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				Spacer(minLength: 0)
 			}

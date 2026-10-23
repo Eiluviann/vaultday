@@ -15,7 +15,7 @@ struct ReadyStep: View {
 					let lines = ready.lines[sphere] ?? []
 					if lines.isEmpty {
 						Text(sphere == .work ? "No work workspace yet" : "No life workspace yet")
-							.font(Tokens.Typography.callout.font)
+							.textStyle(Tokens.Typography.callout)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 							.padding(.vertical, Tokens.Spacing.space8)
 					}
