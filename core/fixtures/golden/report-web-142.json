@@ -172,6 +172,15 @@
       "story": "WEB-142"
     },
     {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
+      "time": "15:10",
+      "kind": "session",
+      "text": "session · Write the end-to-end checkout test · 45m",
+      "story": "WEB-142",
+      "task": "task-5"
+    },
+    {
       "relativePath": "Log/2026-10-22.md",
       "date": "2026-10-22",
       "time": "08:45",
@@ -186,15 +195,6 @@
       "time": "09:30",
       "kind": "session",
       "text": "Session on the end-to-end test",
-      "story": "WEB-142",
-      "task": "task-5"
-    },
-    {
-      "relativePath": "Log/2026-10-22.md",
-      "date": "2026-10-22",
-      "time": "10:15",
-      "kind": "session",
-      "text": "session · Write the end-to-end checkout test · 45m",
       "story": "WEB-142",
       "task": "task-5"
     }

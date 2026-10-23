@@ -886,8 +886,8 @@ mod tests {
 
         assert_eq!(log.relative_path, "Log/2026-10-22.md");
         let times: Vec<&str> = log.lines.iter().map(|line| line.time.as_str()).collect();
-        assert_eq!(times, ["08:45", "09:30", "10:15", "11:15", "14:00"]);
-        assert_eq!(log.lines[3].agent.as_deref(), Some("claude-fable-5-1"));
+        assert_eq!(times, ["08:45", "09:30", "11:15", "14:00"]);
+        assert_eq!(log.lines[2].agent.as_deref(), Some("claude-fable-5-1"));
         let empty = day_log(&workspace, Some("2026-01-01".to_owned())).unwrap();
         assert!(empty.lines.is_empty());
     }

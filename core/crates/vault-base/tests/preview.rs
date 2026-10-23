@@ -65,8 +65,8 @@ fn a_story_preview_holds_the_note_blocks_the_waiting_items_and_the_activity() {
     assert_eq!(
         lines[0],
         (
-            "2026-10-22 10:15".to_owned(),
-            "session · Write the end-to-end checkout test · 45m"
+            "2026-10-22 09:30".to_owned(),
+            "Session on the end-to-end test"
         )
     );
     assert_eq!(

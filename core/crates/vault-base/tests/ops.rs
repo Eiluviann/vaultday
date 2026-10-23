@@ -470,7 +470,7 @@ fn a_story_report_carries_frontmatter_task_state_and_its_log_lines() {
     assert_eq!(
         kinds,
         [
-            "status", "decision", "session", "session", "blocker", "done", "session", "session"
+            "status", "decision", "session", "session", "blocker", "session", "done", "session"
         ]
     );
 }

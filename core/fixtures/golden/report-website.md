@@ -71,8 +71,8 @@ Pending Input (1: 1 open)
 
 - 2026-10-21 10:05 Session on the payment form (WEB-142 · task-2)
 - 2026-10-21 11:40 session · Wire the payment form to the gateway sandbox · 1h 30m (WEB-142 · task-2)
+- 2026-10-21 15:10 session · Write the end-to-end checkout test · 45m (WEB-142 · task-5)
 - 2026-10-22 09:30 Session on the end-to-end test (WEB-142 · task-5)
-- 2026-10-22 10:15 session · Write the end-to-end checkout test · 45m (WEB-142 · task-5)
 
 ### Blocker (1)
 

@@ -534,7 +534,7 @@ mod tests {
             view.stories[0].pending_input[0].assigned_to.as_deref(),
             Some("Dana")
         );
-        assert_eq!(view.log.len(), 5);
+        assert_eq!(view.log.len(), 4);
         assert_eq!(view.log[0].kind.as_deref(), Some("done"));
         assert_eq!(view.log[0].story.as_deref(), Some("WEB-142"));
     }

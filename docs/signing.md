@@ -114,7 +114,7 @@ How to tell which mode a build runs in:
   log stream --style compact --predicate 'subsystem == "com.eiluviann.vaultday" AND category == "signing"'
   ```
 
-  It prints, for example, `signing mode loginKeychain, state in /Users/you/Library/Application Support/Vaultday/login-keychain`.
+  It prints, for example, `signing mode loginKeychain, state in <private>`. The folder is logged as private data, since it holds the user's home path; the sidebar notice shows it, and `sudo log config --mode "private_data:on"` reveals it in the log on a development Mac.
 - **Signature.** What the build claims:
 
   ```bash
@@ -124,6 +124,8 @@ How to tell which mode a build runs in:
 **Switching.** App state opens only with the keys of the keychain that wrote it. Each keychain therefore gets its own state folder, and switching between ad hoc, Personal Team and the full set starts that mode fresh. Nothing is migrated: add the workspaces again. Each mode's old state stays where it was. The vault is never touched by any of this.
 
 **The CLI** looks in the shipped App Group's `API` folder first, then in any `<TEAM>.com.eiluviann.vaultday` group container, then in `~/Library/Application Support/Vaultday/API`. It uses the first folder, in that order, that holds both `token` and `port` and whose server answers the `/v1/hello` proof for that token; the app removes `port` when it quits, and a port a crashed build left behind is skipped because nothing answers on it. The order is a trust order, not file age: files planted in the unprotected Application Support folder never outrank a running App Group build. `VAULTDAY_API_DIR` still overrides all of them.
+
+**Two local builds at once.** The `teamKeychain` and `loginKeychain` modes share one `~/Library/Application Support/Vaultday/API` folder, though their app state lives apart. Run a Personal Team build and an ad hoc build at the same time and the one that starts last overwrites the other's `token` and `port`, so the CLI reaches only that build; quitting either one removes the shared `port`, and the CLI then reaches neither until a build starts again. Run one local build at a time, or point the CLI at the right folder with `VAULTDAY_API_DIR`.
 
 If the sandbox container path is ever used instead (when the folder exception is missing), the CLI does not look there. Set `VAULTDAY_API_DIR` to `~/Library/Containers/com.eiluviann.vaultday/Data/Library/Application Support/Vaultday/API`.
 
