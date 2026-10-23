@@ -42,7 +42,7 @@ struct StoryPanelColumn: View {
 		case .hours:
 			StoryHoursTab(hours: story.hours, togglWeek: story.togglWeek)
 		case .reports:
-			PlannedTab(title: "Reports", blurb: "Reports on this story, what they will include and their authorship will live here")
+			ReportsView(app: app, model: story.reports, showsClientPicker: false)
 		case .claudeCode:
 			PlannedTab(title: "Claude Code", blurb: "Claude Code sessions in this story's folder will show up here")
 		}

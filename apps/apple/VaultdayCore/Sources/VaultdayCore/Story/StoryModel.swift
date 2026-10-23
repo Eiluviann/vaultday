@@ -20,6 +20,8 @@ public final class StoryModel {
 	public private(set) var currentSection: String?
 	/// The Hours tab's "Toggl · this week" slot, for the open story.
 	public let togglWeek = TogglWeekModel()
+	/// The Reports tab for the open story.
+	public let reports = ReportsModel()
 
 	private var vault: WorkspaceHandle?
 	private var state: WorkspaceStateHandle?
@@ -40,6 +42,7 @@ public final class StoryModel {
 		state = workspace.state
 		lines = workspace.vault.map(CoreStoryLines.init)
 		togglSource = workspace.togglWeekSource
+		reports.attach(to: workspace)
 		close()
 	}
 
@@ -56,6 +59,7 @@ public final class StoryModel {
 		state = nil
 		togglSource = nil
 		self.lines = lines ?? vault.map(CoreStoryLines.init)
+		reports.attach(source: vault.map(CoreReportSource.init))
 		close()
 	}
 
@@ -63,6 +67,7 @@ public final class StoryModel {
 	public func open(number: String) {
 		panelTab = .hours
 		currentSection = nil
+		reports.show(subject: number)
 		load(number: number)
 		accordion.select(id: nil)
 	}
@@ -71,12 +76,16 @@ public final class StoryModel {
 	public func reload() {
 		guard let number else { return }
 		load(number: number)
+		// A line edit or a change on disk makes a report read before stale.
+		reports.clear()
+		if panelTab == .reports { reports.loadIfNeeded() }
 	}
 
 	public func close() {
 		content = nil
 		hours = nil
 		togglWeek.clear()
+		reports.show(subject: nil)
 		errorMessage = nil
 		writeMessage = nil
 		accordion = NextStepsAccordion(steps: [])
@@ -87,16 +96,26 @@ public final class StoryModel {
 
 	public func showTab(_ tab: StoryPanelTab) {
 		panelTab = tab
+		panelTabChanged()
 	}
 
 	/// `]` and `[`: the next and the previous tab.
 	public func stepTab(by step: Int) {
 		panelTab = panelTab.stepped(by: step)
+		panelTabChanged()
 	}
 
 	/// A bare digit: the tab at that place on the rail.
 	public func showTab(place: Int) {
-		if let tab = StoryPanelTab.at(place: place) { panelTab = tab }
+		if let tab = StoryPanelTab.at(place: place) {
+			panelTab = tab
+			panelTabChanged()
+		}
+	}
+
+	/// The Reports tab reads its report when it first shows.
+	private func panelTabChanged() {
+		if panelTab == .reports, isOpen { reports.loadIfNeeded() }
 	}
 
 	// MARK: Accordion

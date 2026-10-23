@@ -262,6 +262,51 @@ describe('vaultday report', () => {
 		});
 	});
 
+	it('is the core bundle with only the authorship slot filled in', async () => {
+		const vault = copyMockVault();
+		const run = await runVaultday(
+			['report', 'WEB-142', '--from', '2026-10-21', '--to', '2026-10-22'],
+			vault,
+		);
+		expect(run.code).toBe(0);
+		const bundle = JSON.parse(run.out);
+		expect(bundle.authorship).not.toBeNull();
+		// The golden is what the core's own test pins; the app shows the same bundle.
+		const golden = readFileSync(
+			path.join(path.dirname(MOCK_VAULT), 'golden', 'report-web-142.json'),
+			'utf8',
+		);
+		const withoutAuthorship = JSON.stringify(
+			{ ...bundle, authorship: null },
+			undefined,
+			2,
+		);
+		expect(`${withoutAuthorship}\n`).toBe(golden);
+	});
+
+	it('gives an FTE workspace logged hours and never tracked time', async () => {
+		const vault = copyMockVault();
+		const settingsPath = path.join(vault, '.vaultday', 'settings.json');
+		const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ ...settings, billing: { model: 'fte' } }),
+		);
+		const run = await runVaultday(
+			['report', 'Website', '--from', '2026-10-21', '--to', '2026-10-22'],
+			vault,
+		);
+		expect(run.code).toBe(0);
+		const bundle = JSON.parse(run.out);
+		expect(bundle.billing).toBe('fte');
+		expect(Object.keys(bundle.hours)).toEqual([
+			'model',
+			'loggedMinutes',
+			'byStory',
+		]);
+		expect(run.out.toLowerCase()).not.toContain('tracked');
+	});
+
 	it('reports unknown subjects and reversed ranges as failures', async () => {
 		const vault = copyMockVault();
 		expect(

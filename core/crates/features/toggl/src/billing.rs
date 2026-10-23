@@ -9,6 +9,7 @@
 
 use std::time::Duration;
 
+use domain::billing::round_up_to_increment;
 use vault_base::{BillingModel, BillingSettings};
 
 /// How one session of a workspace is billed.
@@ -91,7 +92,7 @@ pub fn billed_parts(
         } => vec![BilledPart {
             suffix: None,
             offset: Duration::ZERO,
-            duration: round_up(actual, rounding_minutes),
+            duration: round_up_to_increment(actual, rounding_minutes),
             is_billable,
         }],
         BillingPolicy::Fixed { estimate } => {
@@ -123,13 +124,6 @@ pub fn billed_parts(
     }
 }
 
-/// `duration` rounded up to a whole number of `minutes` increments.
-fn round_up(duration: Duration, minutes: u32) -> Duration {
-    let step = u64::from(minutes.max(1)) * 60;
-    let seconds = duration.as_secs();
-    Duration::from_secs(seconds.div_ceil(step).saturating_mul(step))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +134,19 @@ mod tests {
         BillingPolicy::Hourly {
             rounding_minutes,
             is_billable: true,
+        }
+    }
+
+    #[test]
+    fn hourly_bills_what_the_shared_rounding_gives() {
+        // The report bundle rounds with the same function, so its billable
+        // hours and the Toggl entries cannot drift apart.
+        for (seconds, rounding) in [(1, 15), (25 * 60, 30), (50 * 60, 30), (7 * 60, 6)] {
+            let actual = Duration::from_secs(seconds);
+            assert_eq!(
+                billed_parts(&hourly(rounding), actual, Duration::ZERO)[0].duration,
+                round_up_to_increment(actual, rounding)
+            );
         }
     }
 

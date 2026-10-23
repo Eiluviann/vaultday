@@ -23,6 +23,7 @@ pub mod inbox;
 pub mod mail_accounts;
 pub mod onboarding;
 pub mod preferences;
+pub mod reports;
 pub mod secrets;
 pub mod side_panel;
 pub mod story;

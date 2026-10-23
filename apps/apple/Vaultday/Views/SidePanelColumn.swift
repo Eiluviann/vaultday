@@ -2,8 +2,8 @@ import SwiftUI
 import VaultdayCore
 
 /// The side panel tabs in rail order: Calendar and Hours (PR 9a), Chasers,
-/// Backlog, Objectives, Day log and Claude (PR 9b). Chasers, Objectives and
-/// Claude are Planned in the base version.
+/// Backlog, Objectives, Day log and Claude (PR 9b), then Reports (PR 18).
+/// Chasers, Objectives and Claude are Planned in the base version.
 enum SidePanelTab: String, CaseIterable, Identifiable {
 	case calendar = "Calendar"
 	case hours = "Hours"
@@ -12,6 +12,7 @@ enum SidePanelTab: String, CaseIterable, Identifiable {
 	case objectives = "Objectives"
 	case dayLog = "Day log"
 	case claude = "Claude"
+	case reports = "Reports"
 
 	var id: String { rawValue }
 
@@ -27,6 +28,7 @@ enum SidePanelTab: String, CaseIterable, Identifiable {
 		case .objectives: "target"
 		case .dayLog: "doc.text"
 		case .claude: "sparkles"
+		case .reports: "doc.richtext"
 		}
 	}
 }
@@ -111,6 +113,8 @@ extension SidePanelColumn {
 			PlannedTab(title: "Objectives", blurb: "Objectives and their key results will live here")
 		case .claude:
 			PlannedTab(title: "Claude", blurb: "Claude Code sessions for your stories will show up here")
+		case .reports:
+			ReportsView(app: app, model: app.reports, showsClientPicker: true)
 		}
 	}
 }

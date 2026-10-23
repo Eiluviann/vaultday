@@ -299,6 +299,10 @@ pub struct Report {
     pub stories: Vec<StoryReport>,
     /// Their day-log lines in range, oldest first.
     pub log: Vec<ReportLogLine>,
+    /// The folder, relative to the workspace root, a report for this subject is
+    /// stored beside: the story's folder, the client's project folder, or the
+    /// root (empty) for the whole workspace.
+    pub home_folder: String,
 }
 
 /// Resolves the workspace holding `start` (a file or folder): the deepest
@@ -663,6 +667,7 @@ pub fn build_report(
         subject_kind: scope.kind().to_owned(),
         from: from.to_string(),
         to: to.to_string(),
+        home_folder: path_text(&scope.home_folder()),
         stories,
         log,
     })
@@ -680,6 +685,14 @@ impl Scope {
         match self {
             Scope::Story { .. } => "story",
             Scope::Project { .. } | Scope::Workspace => "client",
+        }
+    }
+
+    fn home_folder(&self) -> PathBuf {
+        match self {
+            Scope::Story { path } => path.parent().map(Path::to_path_buf).unwrap_or_default(),
+            Scope::Project { folder, .. } => folder.clone(),
+            Scope::Workspace => PathBuf::new(),
         }
     }
 
@@ -847,7 +860,7 @@ fn log_safe_text(text: &str) -> String {
 }
 
 /// `0m`, `47m`, `1h`, `1h 5m`.
-fn minutes_text(minutes: u64) -> String {
+pub(crate) fn minutes_text(minutes: u64) -> String {
     match (minutes / 60, minutes % 60) {
         (0, rest) => format!("{rest}m"),
         (hours, 0) => format!("{hours}h"),

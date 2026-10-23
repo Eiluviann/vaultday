@@ -10,6 +10,9 @@ publish.workspace = true
 name = "vault_base"
 
 [dependencies]
+# The billing maths (rounding, the billable flag, quote durations) shared with
+# `features/toggl`, so a report and a Toggl entry bill the same.
+domain = { package = "vaultday-domain", path = "../domain" }
 globset = "0.4"
 notify = "8.2.0"
 rusqlite = { version = "0.40.2", features = ["bundled"] }

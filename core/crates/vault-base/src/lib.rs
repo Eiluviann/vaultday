@@ -11,6 +11,7 @@
 //! - [`preview`] cuts a story note into the read-only blocks the app shows
 //!   beside a task; [`render`] builds the story screen's block tree with
 //!   inline spans, the way Obsidian's Reading view shows the note.
+//! - [`report`] assembles the report bundle (JSON and markdown) the app and the CLI share.
 //! - [`ops`] holds the operations the CLI, the MCP server and the apps share,
 //!   as plain records the bindings copy.
 //! - [`FileAccess`] is the port to the file system; [`PlainFileAccess`] is the
@@ -37,6 +38,7 @@ pub mod note;
 pub mod ops;
 pub mod preview;
 pub mod render;
+pub mod report;
 pub mod scan;
 pub mod settings;
 pub mod today;

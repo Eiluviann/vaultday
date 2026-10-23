@@ -60,11 +60,15 @@ Generated from `apps/apple/Keymap.yaml` by `tools/keymap-doc`; do not edit by ha
 | Panes and tabs | `side-panel.tab.5` | Objectives tab | `⌥5` · `5` | `⌥5` |
 | Panes and tabs | `side-panel.tab.6` | Day log tab | `⌥6` · `6` | `⌥6` |
 | Panes and tabs | `side-panel.tab.7` | Claude tab | `⌥7` · `7` | `⌥7` |
+| Panes and tabs | `side-panel.tab.8` | Reports tab | `⌥8` · `8` | `⌥8` |
 | Panes and tabs | `story-panel.next` | Next story panel tab | `]` | `⌃⇥` |
 | Panes and tabs | `story-panel.previous` | Previous story panel tab | `[` | `⌃⇧⇥` |
 | Panes and tabs | `story-panel.tab.1` | Story Hours tab | `1` | `⌥1` |
 | Panes and tabs | `story-panel.tab.2` | Story Reports tab | `2` | `⌥2` |
 | Panes and tabs | `story-panel.tab.3` | Story Claude Code tab | `3` | `⌥3` |
+| Reports | `report.copy-json` | Copy the report as JSON | `y j` · `y j` | `⇧⌘J` · `⇧⌘J` |
+| Reports | `report.copy-markdown` | Copy the report as markdown | `y m` · `y m` | `⇧⌘M` · `⇧⌘M` |
+| Reports | `report.open-claude-code` | Write the report and open it in Claude Code | `y c` · `y c` | `⌥⌘C` · `⌥⌘C` |
 | Panes and tabs | `sidebar.toggle` | Show or hide the sidebar | `⌃⌘S` | `⌃⌘S` |
 | Day and workspace | `plan.auto-schedule` | Arrange the day in list order | `=` | `⇧⌘R` |
 | Day and workspace | `plan.replan` | Re-plan from now | `r` | `⌘R` |

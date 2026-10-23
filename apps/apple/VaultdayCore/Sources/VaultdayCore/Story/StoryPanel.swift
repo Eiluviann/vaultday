@@ -1,8 +1,7 @@
 import Foundation
 
 /// The story screen's panel tabs below the Story block, in rail order.
-/// Reports arrives with PR 18 of Phase 2 and Claude Code later; both are
-/// Planned in the base version.
+/// Claude Code arrives later and is Planned in the base version.
 public enum StoryPanelTab: String, CaseIterable, Identifiable, Sendable {
 	case hours = "Hours"
 	case reports = "Reports"
@@ -10,7 +9,7 @@ public enum StoryPanelTab: String, CaseIterable, Identifiable, Sendable {
 
 	public var id: String { rawValue }
 
-	public var isPlanned: Bool { self != .hours }
+	public var isPlanned: Bool { self == .claudeCode }
 
 	/// The SF Symbol on the rail.
 	public var symbol: String {

@@ -4,6 +4,7 @@ import {
 	formatTaskLine,
 	nextTaskId,
 	report,
+	reportBundleJson,
 	tickTaskDone,
 	today,
 	type WorkspaceHandle,
@@ -18,7 +19,7 @@ import {
 	summariseAuthorship,
 } from './provenance.ts';
 import { renderToday } from './render.ts';
-import { ok, type Result } from './result.ts';
+import { err, ok, type Result } from './result.ts';
 
 export const LOG_KINDS = [
 	'session',
@@ -160,38 +161,44 @@ export function runTaskDone(
 }
 
 /**
- * The report bundle for a story number or a client over a date range:
- * frontmatter, task state, log lines and an authorship summary computed with
- * the provenance core from the markers and `[agent:: …]` fields present.
+ * The report bundle for a story number or a client over a date range. The
+ * core assembles it (frontmatter, task state, log lines, sessions and hours by
+ * billing model) and the app hands out the same content; the one part the core
+ * leaves open is `authorship`, computed here with the provenance core from the
+ * markers and `[agent:: …]` fields present.
  */
 export function runReport(
 	workspace: WorkspaceHandle,
 	command: ReportCommand,
 ): CommandResult {
-	const built = callCore(() =>
+	const bundle = callCore(() =>
+		reportBundleJson(workspace, command.subject, command.from, command.to),
+	);
+	if (!bundle.ok) return bundle;
+	const sources = callCore(() =>
 		report(workspace, command.subject, command.from, command.to),
 	);
-	if (!built.ok) return built;
-	const { stories, log, ...header } = built.value;
+	if (!sources.ok) return sources;
+	const parsed: unknown = JSON.parse(bundle.value);
+	if (!isRecord(parsed)) {
+		return err({
+			kind: 'internal',
+			message: 'the core returned a report that is not an object',
+		});
+	}
 	const authorship: AuthorshipSummary = summariseAuthorship(
-		stories.map((story) => ({
+		sources.value.stories.map((story) => ({
 			relativePath: story.relativePath,
 			text: story.noteText,
 		})),
-		log.map((line) => line.agent ?? undefined),
+		sources.value.log.map((line) => line.agent ?? undefined),
 	);
-	const bundle = {
-		...header,
-		stories: stories.map(({ noteText: _noteText, frontmatter, ...story }) => ({
-			...story,
-			frontmatter: Object.fromEntries(
-				frontmatter.map((entry) => [entry.key, entry.values]),
-			),
-		})),
-		log,
-		authorship,
-	};
-	return ok({ value: bundle, text: JSON.stringify(bundle, undefined, 2) });
+	const filled = { ...parsed, authorship };
+	return ok({ value: filled, text: JSON.stringify(filled, undefined, 2) });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** `{ key: value }`, or nothing when the value is absent: the binding's optional fields reject an explicit `undefined`. */

@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use app_state::{
     AppStateError, BillingRate, EnablementScope, SecretBytes, SecretItem, SecretStore,
 };
+use domain::billing::parse_billable_flag;
 use domain::quick_add::parse_estimate;
 use domain::registry::Registry;
 use domain::session::SessionId;
@@ -738,13 +739,7 @@ fn task_facts(workspace: &Workspace, task: &str) -> Result<TaskFacts, CoreError>
             .field("estimate")
             .and_then(parse_estimate)
             .map(|estimate| estimate.as_duration()),
-        is_billable: found.task.field("billable").and_then(|value| {
-            match value.trim().to_ascii_lowercase().as_str() {
-                "true" | "yes" => Some(true),
-                "false" | "no" => Some(false),
-                _ => None,
-            }
-        }),
+        is_billable: found.task.field("billable").and_then(parse_billable_flag),
     })
 }
 

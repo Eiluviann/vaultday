@@ -220,7 +220,7 @@ final class StoryScreenTests: XCTestCase {
 		XCTAssertEqual(model.panelTab, .reports)
 		model.showTab(place: 9)
 		XCTAssertEqual(model.panelTab, .reports, "no tab at that place")
-		XCTAssertEqual(StoryPanelTab.allCases.filter(\.isPlanned), [.reports, .claudeCode])
+		XCTAssertEqual(StoryPanelTab.allCases.filter(\.isPlanned), [.claudeCode])
 		model.open(number: "WEB-157")
 		XCTAssertEqual(model.panelTab, .hours, "a story opens at Hours")
 	}

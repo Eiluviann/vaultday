@@ -2220,6 +2220,7 @@ dependencies = [
  "serde_norway",
  "tempfile",
  "thiserror",
+ "vaultday-domain",
 ]
 
 [[package]]

@@ -70,6 +70,8 @@ final class AppModel {
 	/// The side panel's Calendar tab and the Today column's three-day and week grids.
 	let calendarPanel = CalendarPanelModel()
 	let hours = HoursModel()
+	/// The side panel's Reports tab: a client or the whole workspace over a range.
+	let reports = ReportsModel()
 	/// The Toggl queue of the open workspace and its drain schedule.
 	let togglQueue = TogglQueueModel()
 	/// The app-level document, for the models Settings builds per workspace.
@@ -354,6 +356,7 @@ final class AppModel {
 	/// The match walk and the group jumps belong to the Browse table; the
 	/// story screen takes only its own keys; the story panel's keys act only there.
 	private func isEnabled(_ action: KeyAction) -> Bool {
+		if action.isReportAction { return activeReports != nil }
 		if screen == .story { return Self.isEnabledOnStory(action) }
 		switch action {
 		case .nextStoryPanelTab, .previousStoryPanelTab, .showStoryPanelTab:
@@ -497,6 +500,12 @@ final class AppModel {
 			openLinkOfSelection()
 		case .openInClaudeCode:
 			openSelectionInClaudeCode()
+		case .copyReportJSON:
+			activeReports?.copyJSON()
+		case .copyReportMarkdown:
+			activeReports?.copyMarkdown()
+		case .openReportInClaudeCode:
+			openReportInClaudeCode()
 		case _ where action.isSignalAction:
 			inbox.perform(action, on: selectedSignal?.id)
 		default:
@@ -568,6 +577,10 @@ final class AppModel {
 	func showSidePanelTab(_ tab: SidePanelTab) {
 		sidePanelTab = tab
 		if tab == .dayLog { dayLog.reload() }
+		if tab == .reports {
+			reports.refreshClients()
+			reports.reload()
+		}
 		if tab == .backlog, screen != .browse { BrowseModel.refresh([browse, backlog]) }
 		syncSidePanelItemCount()
 		focus.focus(.sidePanel)
@@ -636,6 +649,19 @@ final class AppModel {
 		let storyLink = screen == .story ? story.obsidianLink : nil
 		guard let link = preview.content?.obsidianLink ?? storyLink ?? peekSubject.flatMap({ peek.link(for: $0) }) else { return }
 		NSWorkspace.shared.open(link)
+	}
+
+	/// The Reports tab in view: the story panel's on the story screen, else the side panel's.
+	var activeReports: ReportsModel? {
+		if screen == .story { return story.panelTab == .reports ? story.reports : nil }
+		return sidePanelTab == .reports ? reports : nil
+	}
+
+	/// Open in Claude Code on a report: writes the bundle to `_agent/reports/`
+	/// beside the subject, then goes through the Open in Claude Code action.
+	func openReportInClaudeCode() {
+		guard let model = activeReports, model.writeForClaudeCode() != nil else { return }
+		handleLink(model.claudeCodeLink)
 	}
 
 	/// `⌘⇧C`: the preview's Open in Claude Code, for the open preview's task or the selected one.
@@ -1316,6 +1342,8 @@ final class AppModel {
 			if story.isOpen { syncStoryItemCounts() } else { leaveStory() }
 		}
 		dayLog.load(from: workspace)
+		reports.attach(to: workspace)
+		reports.refreshClients()
 		if workspace.phase == .open {
 			inbox.attach(store: CoreSignalStore(workspace: workspace))
 		} else {

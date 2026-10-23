@@ -1,0 +1,196 @@
+{
+  "subject": "WEB-142",
+  "subjectKind": "story",
+  "from": "2026-10-21",
+  "to": "2026-10-22",
+  "billing": null,
+  "stories": [
+    {
+      "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+      "number": "WEB-142",
+      "title": "Checkout redesign",
+      "status": "in-progress",
+      "frontmatter": {
+        "type": [
+          "story"
+        ],
+        "number": [
+          "WEB-142"
+        ],
+        "source_host": [
+          "tracker.example.test"
+        ],
+        "source_kind": [
+          "issue"
+        ],
+        "source_id": [
+          "10142"
+        ],
+        "status": [
+          "in-progress"
+        ],
+        "priority": [
+          "high"
+        ],
+        "due": [
+          "2026-10-30"
+        ],
+        "estimate": [
+          "3d"
+        ],
+        "sort_index": [
+          "10"
+        ],
+        "aliases": [
+          "Checkout v2",
+          "Cart redesign"
+        ],
+        "note_system": [
+          "1.0"
+        ]
+      },
+      "nextSteps": [
+        {
+          "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+          "storyNumber": "WEB-142",
+          "section": "next-steps",
+          "lineNumber": 42,
+          "id": "task-2",
+          "text": "Wire the payment form to the gateway sandbox",
+          "status": "open",
+          "depth": 0,
+          "created": "2026-10-20",
+          "scheduled": "2026-10-22",
+          "estimate": "2h"
+        },
+        {
+          "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+          "storyNumber": "WEB-142",
+          "section": "next-steps",
+          "lineNumber": 43,
+          "id": "task-3",
+          "text": "Add the gateway test keys to the `.env.example`",
+          "status": "open",
+          "depth": 1,
+          "created": "2026-10-21"
+        },
+        {
+          "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+          "storyNumber": "WEB-142",
+          "section": "next-steps",
+          "lineNumber": 44,
+          "id": "task-4",
+          "text": "Handle the declined-card response",
+          "status": "in-progress",
+          "depth": 1,
+          "created": "2026-10-21",
+          "estimate": "45m"
+        },
+        {
+          "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+          "storyNumber": "WEB-142",
+          "section": "next-steps",
+          "lineNumber": 45,
+          "id": "task-5",
+          "text": "Write the end-to-end checkout test",
+          "status": "open",
+          "depth": 0,
+          "created": "2026-10-21",
+          "due": "2026-10-28"
+        }
+      ],
+      "pendingInput": [
+        {
+          "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+          "storyNumber": "WEB-142",
+          "section": "pending-input",
+          "lineNumber": 48,
+          "id": "task-6",
+          "text": "Final copy for the order summary",
+          "status": "open",
+          "depth": 0,
+          "assignedTo": "Dana",
+          "created": "2026-10-10"
+        },
+        {
+          "relativePath": "Projects/Website/WEB-142 Checkout redesign/WEB-142 Checkout redesign.md",
+          "storyNumber": "WEB-142",
+          "section": "pending-input",
+          "lineNumber": 49,
+          "id": "task-7",
+          "text": "Confirm the tax rounding rule",
+          "status": "done",
+          "depth": 0,
+          "assignedTo": "Lee",
+          "created": "2026-10-12",
+          "completion": "2026-10-19"
+        }
+      ]
+    }
+  ],
+  "log": [
+    {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
+      "time": "09:10",
+      "kind": "status",
+      "text": "Planned the checkout work",
+      "story": "WEB-142"
+    },
+    {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
+      "time": "10:00",
+      "kind": "decision",
+      "text": "Coupon field stays above the fold",
+      "story": "WEB-142"
+    },
+    {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
+      "time": "10:05",
+      "kind": "session",
+      "text": "Session on the payment form",
+      "story": "WEB-142",
+      "task": "task-2"
+    },
+    {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
+      "time": "12:30",
+      "kind": "blocker",
+      "text": "Gateway sandbox returns 502 on refunds",
+      "story": "WEB-142"
+    },
+    {
+      "relativePath": "Log/2026-10-22.md",
+      "date": "2026-10-22",
+      "time": "08:45",
+      "kind": "done",
+      "text": "Address form extracted and reviewed",
+      "story": "WEB-142",
+      "task": "task-1"
+    },
+    {
+      "relativePath": "Log/2026-10-22.md",
+      "date": "2026-10-22",
+      "time": "09:30",
+      "kind": "session",
+      "text": "Session on the end-to-end test",
+      "story": "WEB-142",
+      "task": "task-5"
+    }
+  ],
+  "sessions": {
+    "count": 2,
+    "unmeasuredCount": 2,
+    "loggedMinutes": 0,
+    "byStory": []
+  },
+  "hours": {
+    "model": null,
+    "loggedMinutes": 0,
+    "byStory": []
+  },
+  "authorship": null
+}

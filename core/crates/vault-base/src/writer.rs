@@ -31,6 +31,9 @@ pub const DEFAULT_DEBOUNCE: Duration = Duration::from_millis(400);
 /// The story template used when the workspace names none.
 pub const DEFAULT_STORY_TEMPLATE: &str = "---\ntype: story\nnumber:\nstatus: draft\npriority:\ndue:\nestimate:\nsort_index:\nnote_system: \"1.0\"\n---\n# Description\n\n## Next Steps\n- [ ] \n\n## Pending Input\n- [ ] \n";
 
+/// Where reports are written, beside the note they are about.
+pub const REPORTS_FOLDER: &str = "_agent/reports";
+
 const MAX_WRITE_ATTEMPTS: usize = 3;
 const COMPLETION_KEY: &str = "completion";
 /// The line that closes a model-text block.
@@ -595,6 +598,45 @@ impl<'a> VaultWriter<'a> {
         let contents = format!("---\ntype: story\n---\n# {title}\n\n## {NEXT_STEPS_HEADING}\n");
         self.file_access.write_atomic(&absolute, &contents)?;
         Ok(true)
+    }
+
+    /// Writes a report bundle to `<folder>/_agent/reports/<from>-<to>.json`,
+    /// creating the folders and replacing an earlier report of the same range.
+    /// This is the only place a report is written: the file name is built
+    /// here from the two days, so a caller cannot pick any other, and a
+    /// folder inside the day-log folder is refused. Returns the file's path
+    /// relative to the workspace root.
+    ///
+    /// # Errors
+    /// [`WriteError::InvalidInput`] for a reversed range or a folder inside
+    /// the day-log folder, [`WriteError::OutsideWorkspace`] for a folder
+    /// outside the workspace, otherwise file errors.
+    pub fn write_report_file(
+        &self,
+        folder: &Path,
+        from: Date,
+        to: Date,
+        contents: &str,
+    ) -> Result<PathBuf, WriteError> {
+        if to < from {
+            return Err(WriteError::InvalidInput(format!(
+                "the range is reversed: {from} is after {to}"
+            )));
+        }
+        let relative = folder
+            .join(REPORTS_FOLDER)
+            .join(format!("{from}-{to}.json"));
+        let (clean, absolute) = self.resolve(&relative)?;
+        if clean.starts_with(&self.log_folder) {
+            return Err(WriteError::InvalidInput(
+                "a report is never written inside the day-log folder".to_owned(),
+            ));
+        }
+        if let Some(parent) = absolute.parent() {
+            self.file_access.create_dir_all(parent)?;
+        }
+        self.file_access.write_atomic(&absolute, contents)?;
+        Ok(clean)
     }
 
     /// Appends one line to `<log_folder>/<date>.md`, creating the file with

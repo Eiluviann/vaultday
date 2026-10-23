@@ -26,6 +26,10 @@ What PR 14 (polish, icon motion, deferred findings) could not settle in code, an
 - **Mail full length on IMAP.** `full_text_bytes` is the text part's size from the body structure, before transfer decoding; on Graph it is the decoded body. It says how much was cut, not an exact character count.
 - **The 120 s fetch deadline** is checked before each folder and each attempt; a call already on the wire is bounded by the transport's own timeouts (15 s connect, 60 s per read and write), so a trickling server can still overrun by up to one read timeout.
 
+## Pending from the Reports tab (PR 18, #24)
+
+- **Open the story folder in Claude Code.** Open in Claude Code writes `_agent/reports/<from>-<to>.json` beside the subject and emits `vaultday://claude-code/story/<number>` (or `/client/<name>`), but nothing handles that link yet. Opening the story's folder (or the hub folder or workspace root) in Claude Code with the written report named is pending; it waits on the Claude Code handler.
+
 ## Remaining non-blocking findings not taken
 
 ### PR 8, Home (#14)

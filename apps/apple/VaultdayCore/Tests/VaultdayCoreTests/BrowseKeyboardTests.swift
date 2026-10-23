@@ -52,10 +52,10 @@ final class BrowseKeyboardTests: XCTestCase {
 		let keymap = try repoKeymap()
 		for scheme in KeyScheme.allCases {
 			let dispatcher = KeyDispatcher(keymap: keymap, scheme: scheme)
-			for place in 1 ... 7 {
+			for place in 1 ... 8 {
 				XCTAssertEqual(dispatcher.handle(stroke("alt+\(place)")), .action(.showSidePanelTab(place)), "\(scheme) \(place)")
 			}
-			XCTAssertEqual(dispatcher.handle(stroke("alt+8")), .unbound)
+			XCTAssertEqual(dispatcher.handle(stroke("alt+9")), .unbound)
 		}
 		XCTAssertEqual(KeyAction(name: "side-panel.tab.3"), .showSidePanelTab(3))
 		XCTAssertNil(KeyAction(name: "side-panel.tab.0"))

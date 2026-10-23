@@ -269,6 +269,30 @@ pub fn report(
     Ok(report.into())
 }
 
+/// The report bundle as canonical JSON text: the same content the app shows,
+/// with `authorship` null for the caller to fill in.
+///
+/// # Errors
+/// As [`report`].
+#[napi]
+pub fn report_bundle_json(
+    workspace: &WorkspaceHandle,
+    subject: String,
+    from: String,
+    to: String,
+) -> Result<String, napi::Error<&'static str>> {
+    let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess).map_err(fail)?;
+    let bundle = vault_base::report::build_report_bundle(
+        &workspace.workspace,
+        &vault,
+        &subject,
+        ops::parse_date(&from).map_err(fail)?,
+        ops::parse_date(&to).map_err(fail)?,
+    )
+    .map_err(fail)?;
+    Ok(bundle.to_json())
+}
+
 fn fail(error: OpError) -> napi::Error<&'static str> {
     napi::Error::new(error.code(), error.to_string())
 }

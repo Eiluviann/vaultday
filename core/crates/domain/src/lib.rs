@@ -65,6 +65,7 @@ macro_rules! id_type {
     };
 }
 
+pub mod billing;
 pub mod browse;
 pub mod calendar_day;
 pub mod day_plan;

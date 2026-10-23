@@ -27,8 +27,9 @@
 # twice unscoped), or hides a longer one, within a scheme where both can
 # act; every action has a label. Pane jumps are `g` plus the pane number
 # (`g0` sidebar, `g1` Today, `g2` Inbox, `g3` side panel); `]` `[` and `1`
-# to `7` reach the side panel's rail, and on the story screen `]` `[` and `1`
-# to `3` reach the story panel's tabs while it holds focus.
+# to `8` reach the side panel's rail, and on the story screen `]` `[` and `1`
+# to `3` reach the story panel's tabs while it holds focus; the Reports tab's copy
+# and Claude Code keys are scoped to the story panel and the side panel.
 version: 1
 bindings:
   # Selected task
@@ -380,6 +381,15 @@ bindings:
     pane: "side-panel"
     vim: "7"
     standard: ""
+  - action: side-panel.tab.8
+    label: "Reports tab"
+    group: "Panes and tabs"
+    vim: "alt+8"
+    standard: "alt+8"
+  - action: side-panel.tab.8
+    pane: "side-panel"
+    vim: "8"
+    standard: ""
   # The story screen's panel (PR 15): its tabs step and switch only while
   # the panel holds focus. These bindings are scoped to it, so they shadow
   # the side panel's unscoped keys there and nowhere else.
@@ -413,6 +423,39 @@ bindings:
     pane: "story-panel"
     vim: "3"
     standard: "alt+3"
+  # The Reports tab's actions (PR 18), in the story panel and in the side
+  # panel, only while that panel holds focus and shows Reports. Reports stay
+  # model-free: these copy the bundle or write it for Claude Code.
+  - action: report.copy-json
+    label: "Copy the report as JSON"
+    group: "Reports"
+    pane: "story-panel"
+    vim: "y j"
+    standard: "shift+cmd+j"
+  - action: report.copy-json
+    pane: "side-panel"
+    vim: "y j"
+    standard: "shift+cmd+j"
+  - action: report.copy-markdown
+    label: "Copy the report as markdown"
+    group: "Reports"
+    pane: "story-panel"
+    vim: "y m"
+    standard: "shift+cmd+m"
+  - action: report.copy-markdown
+    pane: "side-panel"
+    vim: "y m"
+    standard: "shift+cmd+m"
+  - action: report.open-claude-code
+    label: "Write the report and open it in Claude Code"
+    group: "Reports"
+    pane: "story-panel"
+    vim: "y c"
+    standard: "alt+cmd+c"
+  - action: report.open-claude-code
+    pane: "side-panel"
+    vim: "y c"
+    standard: "alt+cmd+c"
   - action: sidebar.toggle
     label: "Show or hide the sidebar"
     group: "Panes and tabs"

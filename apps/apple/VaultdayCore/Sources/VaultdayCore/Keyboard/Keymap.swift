@@ -149,6 +149,11 @@ public enum KeyAction: Hashable, Sendable {
 	case previousStoryPanelTab
 	/// A story panel tab by its place on the rail, counted from 1.
 	case showStoryPanelTab(Int)
+	/// The Reports tab's actions, in the story panel and the side panel: copy
+	/// the report as JSON or markdown, and write it for Claude Code.
+	case copyReportJSON
+	case copyReportMarkdown
+	case openReportInClaudeCode
 	/// ⌥⌘T: shows the mini tracker, or toggles its expanded form.
 	case toggleMiniTracker
 	/// The menu-bar extra's keys, inside its popover only: the previous and
@@ -181,6 +186,11 @@ public enum KeyAction: Hashable, Sendable {
 	/// Whether this acts on the selected signal rather than a task.
 	public var isSignalAction: Bool {
 		[.signalTask, .signalWaitFor, .signalAttach, .signalDismiss, .signalSnooze, .signalReply, .signalNotASignal].contains(self)
+	}
+
+	/// Whether this is one of the Reports tab's actions.
+	public var isReportAction: Bool {
+		[.copyReportJSON, .copyReportMarkdown, .openReportInClaudeCode].contains(self)
 	}
 
 	/// Whether this acts inside the menu-bar extra only, so the Home window's
@@ -251,6 +261,9 @@ public enum KeyAction: Hashable, Sendable {
 		"side-panel.previous": .previousSidePanelTab,
 		"story-panel.next": .nextStoryPanelTab,
 		"story-panel.previous": .previousStoryPanelTab,
+		"report.copy-json": .copyReportJSON,
+		"report.copy-markdown": .copyReportMarkdown,
+		"report.open-claude-code": .openReportInClaudeCode,
 		"browse.open": .showBrowse,
 		"daylog.open": .showDayLog,
 		"browse.query": .focusBrowseQuery,
