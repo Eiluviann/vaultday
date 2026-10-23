@@ -1,11 +1,11 @@
 import SwiftUI
 import VaultdayCore
 
-/// The setup window: a 38 px title bar over the 240 px step rail and the
-/// content pane with the shown step and the sticky footer.
-struct SetupWindow: View {
+/// The setup flow, filling the main window in place of Home: a 38 px title
+/// bar over the 240 px step rail and the content pane with the shown step
+/// and the sticky footer.
+struct SetupScreen: View {
 	let app: AppModel
-	@Environment(\.dismissWindow) private var dismissWindow
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -15,10 +15,7 @@ struct SetupWindow: View {
 					onboarding: setup.onboarding,
 					scheme: Binding(get: { app.settings?.keyboardScheme ?? .standard }, set: { app.setKeyboardScheme($0) }),
 					chooseRestoreFolder: { source in Task { await restore(source, setup: setup) } },
-					finish: {
-						app.finishSetup()
-						dismissWindow(id: "setup")
-					},
+					finish: { app.finishSetup() },
 				) {
 					stepContent(setup)
 				}
@@ -37,6 +34,15 @@ struct SetupWindow: View {
 			.foregroundStyle(Tokens.Colors.ink)
 			.frame(maxWidth: .infinity)
 			.frame(height: SetupLayout.titleBarHeight)
+			// The flow used to have its own window to close; Close leaves it for Home unfinished.
+			.overlay(alignment: .trailing) {
+				Button("Close") { app.mainWindow.showHome() }
+					.buttonStyle(.plain)
+					.font(Tokens.Typography.callout.font)
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+					.padding(.trailing, Tokens.Spacing.space16)
+					.help("Leave setup for Home; Set up Vaultday… in the Vaultday menu comes back")
+			}
 			.background(Tokens.Colors.surfaceSunken)
 			.overlay(alignment: .bottom) { Rectangle().fill(Tokens.Colors.line).frame(height: 1) }
 	}

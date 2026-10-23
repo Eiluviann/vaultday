@@ -16,11 +16,11 @@ struct AccountsStep: View {
 }
 
 /// The workspaces with their mail accounts and parts, as the Accounts step
-/// and the Settings window's Accounts tab both draw them.
+/// and Settings' Accounts tab both draw them.
 struct AccountsPanel: View {
 	let workspaces: WorkspacesModel
 	let accounts: AccountsStepModel
-	/// Screen-share mode leaves the life workspaces out of the Settings window's list.
+	/// Screen-share mode leaves the life workspaces out of Settings' list.
 	var showsSphere: (WorkspaceSphere) -> Bool = { _ in true }
 
 	private let parts: [(AccountPartChoice, String, String)] = [

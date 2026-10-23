@@ -47,6 +47,7 @@ Generated from `apps/apple/Keymap.yaml` by `tools/keymap-doc`; do not edit by ha
 | Navigation | `task.add-before` | Add a task before the selection | `O` | `⌥⇧⌘N` |
 | Navigation | `palette.open` | Command palette | `⌘K` · `:` | `⌘K` |
 | Navigation | `dismiss` | Close the palette, the toast or the confirmation | `Esc` | `Esc` |
+| Navigation | `settings.toggle` | Open or close Settings | `⌘,` | `⌘,` |
 | Panes and tabs | `pane.sidebar` | Sidebar | `g 0` | `⌃0` |
 | Panes and tabs | `pane.today` | Today | `g 1` | `⌃1` |
 | Panes and tabs | `pane.inbox` | Inbox | `g 2` | `⌃2` |

@@ -5,7 +5,7 @@ import OSLog
 import SwiftUI
 import VaultdayCore
 
-/// The models behind the setup window's steps, built once the app document is open.
+/// The models behind the setup flow's steps, built once the app document is open.
 struct SetupModels {
 	let onboarding: OnboardingModel
 	let workspaces: WorkspacesModel
@@ -42,8 +42,12 @@ final class AppModel {
 	private(set) var setupError: String?
 	private(set) var workspace: WorkspaceModel?
 	private(set) var settings: SettingsModel?
-	/// The setup window's models; `nil` until the app document is open.
+	/// The setup flow's models; `nil` until the app document is open.
 	private(set) var setup: SetupModels?
+	/// The one window's root (setup or Home) and the sheet over it (Settings, Sync Check).
+	let mainWindow = MainWindowModel()
+	/// Opens the main window's scene again after it was closed; set by the app.
+	@ObservationIgnored var showMainWindowScene: (() -> Void)?
 	let dayPlan = DayPlanModel()
 	let sessions = SessionModel()
 	/// The menu-bar extra's list of tasks to start.
@@ -247,6 +251,7 @@ final class AppModel {
 			refreshSetupSteps()
 			startTimerSurfaces(environment: environment)
 			configureScreenShare(settings: settings)
+			mainWindow.launched(needsSetup: needsSetup)
 		} catch {
 			setupError = error.localizedDescription
 		}
@@ -264,7 +269,7 @@ final class AppModel {
 		}
 	#endif
 
-	/// Whether the setup window opens at launch: the flow is not finished and no workspace exists yet.
+	/// Whether setup fills the main window at launch: the flow is not finished and no workspace exists yet.
 	var needsSetup: Bool {
 		guard let setup else { return false }
 		return !setup.onboarding.isFinished && setup.workspaces.entries.isEmpty
@@ -278,7 +283,7 @@ final class AppModel {
 	/// Why the last folder could not be added, for the empty Today column.
 	var grantMessage: String? { setup?.workspaces.message }
 
-	/// The workspaces changed in the setup window: the open workspace follows.
+	/// The workspaces changed in setup or Settings: the open workspace follows.
 	func workspacesChanged() {
 		guard let workspace, let workspaces = setup?.workspaces else { return }
 		let isOpenOneGone = workspace.phase == .open && !workspaces.entries.contains { $0.id == workspace.workspaceId }
@@ -305,9 +310,10 @@ final class AppModel {
 		setup.sync.refreshGitWorkspaces()
 	}
 
-	/// The Ready step's hand-off: the setup is finished, and the main window
-	/// opens on the last single workspace, else the first one.
+	/// The Ready step's hand-off: the setup is finished, and Home fills the
+	/// main window on the last single workspace, else the first one.
 	func finishSetup() {
+		mainWindow.showHome()
 		guard let setup, let workspace else { return }
 		setup.onboarding.finish(workspaces: setup.workspaces.entries)
 		workspace.close()
@@ -315,10 +321,29 @@ final class AppModel {
 		reloadWorkspaceContent()
 	}
 
-	/// The day's settings, shared by the Rituals step and the Settings window.
+	/// The app menu's "Set up Vaultday…": the flow fills the main window again.
+	func showSetup() {
+		mainWindow.showSetup()
+		openMainWindow()
+	}
+
+	/// ⌘, from the keymap, the app menu or the sidebar's gear: Settings over
+	/// the main window, or closed again.
+	func toggleSettings() {
+		mainWindow.toggleSettings()
+		if mainWindow.panel != nil { openMainWindow() }
+	}
+
+	/// Window › Sync Check: the probes over the main window.
+	func showSyncCheck() {
+		mainWindow.showSyncCheck()
+		openMainWindow()
+	}
+
+	/// The day's settings, shared by the Rituals step and Settings.
 	var rhythm: RhythmModel? { setup?.rhythm }
 
-	/// The workspaces list, shared by the setup and the Settings window.
+	/// The workspaces list, shared by the setup and Settings.
 	var workspaces: WorkspacesModel? { setup?.workspaces }
 
 	/// Feeds one key press to the dispatcher; `true` when it was a binding or a
@@ -394,7 +419,7 @@ final class AppModel {
 		switch action {
 		case .moveUp, .moveDown, .moveLeft, .moveRight, .moveFirst, .moveLast, .moveHalfPageUp, .moveHalfPageDown,
 		     .nextStoryPanelTab, .previousStoryPanelTab, .showStoryPanelTab,
-		     .open, .dismiss, .openPalette, .showToday, .toggleTimer, .toggleMiniTracker,
+		     .open, .dismiss, .openPalette, .showToday, .toggleTimer, .toggleMiniTracker, .toggleSettings,
 		     .completeTask, .changeEstimate, .changeScheduled, .changeDue, .undo, .redo, .yank,
 		     .openLink, .openInClaudeCode:
 			return true
@@ -511,6 +536,8 @@ final class AppModel {
 			toggleMiniTracker()
 		case .toggleScreenShare:
 			toggleScreenShare()
+		case .toggleSettings:
+			toggleSettings()
 		case .openLink where focus.focusedPane == .inbox:
 			if let signal = selectedSignal { inbox.replyInMailApp(signalId: signal.id) }
 		case .openLink:
@@ -1202,7 +1229,7 @@ final class AppModel {
 		}
 	}
 
-	/// What Home reads from the Settings window; a change reloads the day.
+	/// What Home reads from Settings; a change reloads the day.
 	var homeSettingsSignature: String {
 		guard let rhythm else { return "" }
 		let hours = rhythm.workingHours

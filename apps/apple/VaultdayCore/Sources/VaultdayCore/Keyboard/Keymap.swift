@@ -160,6 +160,8 @@ public enum KeyAction: Hashable, Sendable {
 	case toggleMiniTracker
 	/// ⌘⇧S: screen-share mode on or off, from anywhere in the app.
 	case toggleScreenShare
+	/// ⌘,: Settings over the main window, or closed again.
+	case toggleSettings
 	/// The menu-bar extra's keys, inside its popover only: the previous and
 	/// next row, start on the row or the typed entry, a new typed entry, and
 	/// leaving the typed entry.
@@ -282,6 +284,7 @@ public enum KeyAction: Hashable, Sendable {
 		"item.claude-code": .openInClaudeCode,
 		"tracker.toggle": .toggleMiniTracker,
 		"screen-share.toggle": .toggleScreenShare,
+		"settings.toggle": .toggleSettings,
 		"menu-bar.previous": .menuBarPrevious,
 		"menu-bar.next": .menuBarNext,
 		"menu-bar.start": .menuBarStart,

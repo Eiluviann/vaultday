@@ -2,8 +2,9 @@ import SwiftUI
 import VaultdayCore
 
 /// The sync check of the two-Mac test: this device, the document heads'
-/// digest, the probes every device wrote. Opened from Window › Sync Check.
-struct SyncCheckWindow: View {
+/// digest, the probes every device wrote. A sheet over the main window,
+/// opened from Window › Sync Check; Esc or Done closes it.
+struct SyncCheckSheet: View {
 	let app: AppModel
 	@State private var isConfirmingRemoval = false
 
@@ -35,6 +36,12 @@ struct SyncCheckWindow: View {
 				}
 			} else {
 				Text("Open a workspace first").foregroundStyle(Tokens.Colors.inkMuted)
+			}
+			Spacer(minLength: 0)
+			HStack {
+				Spacer()
+				Button("Done") { app.mainWindow.closePanel() }
+					.keyboardShortcut(.cancelAction)
 			}
 		}
 		.font(Tokens.Typography.body.font)

@@ -14,7 +14,7 @@ public enum StepMark: Equatable, Sendable {
 	case upcoming
 }
 
-/// The setup window: which of the twelve steps is shown, how far the user has
+/// The setup flow: which of the twelve steps is shown, how far the user has
 /// been, and Back, Continue and Restore. The step is kept in the app-level
 /// document, so a relaunch returns to it.
 @MainActor

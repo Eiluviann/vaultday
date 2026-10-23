@@ -75,7 +75,7 @@ final class SetupSnapshotTests: XCTestCase {
 				case .ready: ReadyStep(workspaces: workspaces, ready: ready)
 				}
 			}
-			.frame(width: SetupLayout.windowDefaultSize.width, height: SetupLayout.windowDefaultSize.height - SetupLayout.titleBarHeight)
+			.frame(width: SetupLayout.boardSize.width, height: SetupLayout.boardSize.height - SetupLayout.titleBarHeight)
 			try write(frame, to: output.appending(path: "step-\(step.rawValue)-\(step.title.lowercased().replacingOccurrences(of: " ", with: "-")).png"))
 		}
 		let sheet = ConfigureSheet(model: WorkspaceConfigureModel(root: Self.mockVault.path), onDone: {})

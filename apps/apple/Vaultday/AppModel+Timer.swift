@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import VaultdayCore
 
-/// The timer surfaces outside the Home window: the menu-bar extra, the mini
+/// The timer surfaces outside the main window: the menu-bar extra, the mini
 /// tracker, the localhost API and the long-timer check. Every one acts on
 /// the same `SessionModel`, so they show one running session.
 extension AppModel {
@@ -166,11 +166,14 @@ extension AppModel {
 		MiniTrackerLayout.isVisible(hasOpenSession: runningSession != nil, isEnabled: isMiniTrackerEnabled, isMainWindowFrontmost: isMainWindowFrontmost)
 	}
 
-	/// Brings the Home window forward, from the menu bar or the tracker.
+	/// Brings the one main window forward, from the menu bar, the tracker or
+	/// the app menu, and opens its scene again when it was closed.
 	func openMainWindow(taskId: String? = nil) {
 		NSApp.activate()
-		if let window = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("home") == true }) {
+		if let window = NSApp.windows.first(where: { MainWindowModel.isMainWindow(lineage: [$0.identifier?.rawValue]) }) {
 			window.makeKeyAndOrderFront(nil)
+		} else {
+			showMainWindowScene?()
 		}
 		if let taskId { openPreview(taskId: taskId) }
 	}
@@ -221,8 +224,16 @@ extension AppModel {
 		updateMainWindowFrontmost()
 	}
 
+	/// Settings and the sync check are sheets of the main window, and
+	/// popovers are its child windows: while one of them is key, the main
+	/// window still counts as frontmost.
 	private func updateMainWindowFrontmost() {
-		let isHomeKey = NSApp.keyWindow?.identifier?.rawValue.hasPrefix("home") == true
-		isMainWindowFrontmost = NSApp.isActive && isHomeKey
+		var lineage: [String?] = []
+		var window = NSApp.keyWindow
+		while let current = window {
+			lineage.append(current.identifier?.rawValue)
+			window = current.sheetParent ?? current.parent
+		}
+		isMainWindowFrontmost = NSApp.isActive && MainWindowModel.isMainWindow(lineage: lineage)
 	}
 }

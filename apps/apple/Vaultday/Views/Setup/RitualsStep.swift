@@ -3,7 +3,7 @@ import VaultdayCore
 
 /// Step 8: rituals and routines. Times and choices are stored in the app-level
 /// document through ``RhythmModel``; rituals run in a later release, so the
-/// times say Planned. The Settings window shows the same fields.
+/// times say Planned. Settings shows the same fields.
 struct RitualsStep: View {
 	let rhythm: RhythmModel
 
@@ -20,7 +20,7 @@ struct RitualsStep: View {
 
 /// The day's settings in the order the board draws them: the choices for the
 /// whole day, then Work's hours and rituals, then Life's. Shared by the step
-/// and the Settings window.
+/// and Settings.
 struct RhythmSections: View {
 	let rhythm: RhythmModel
 	var includesLife: Bool

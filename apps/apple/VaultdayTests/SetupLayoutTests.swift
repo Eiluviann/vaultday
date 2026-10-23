@@ -3,7 +3,7 @@ import SwiftUI
 import VaultdayCore
 import XCTest
 
-/// The setup window's proportions from the Onboarding boards: the 240 px
+/// The setup flow's proportions from the Onboarding boards: the 240 px
 /// step rail at every window width and the 860 × 680 Configure sheet.
 @MainActor
 final class SetupLayoutTests: XCTestCase {
@@ -27,7 +27,7 @@ final class SetupLayoutTests: XCTestCase {
 		XCTAssertEqual(SetupLayout.gutter, 32)
 		XCTAssertEqual(SetupLayout.measure, 640)
 		XCTAssertEqual(SetupLayout.configureSheetSize, CGSize(width: 860, height: 680))
-		XCTAssertEqual(SetupLayout.windowDefaultSize, CGSize(width: 1100, height: 800))
+		XCTAssertEqual(SetupLayout.boardSize, CGSize(width: 1100, height: 800))
 	}
 
 	func testTheStepRailStaysAt240PointsHoweverMuchRoomItIsOffered() throws {

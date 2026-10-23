@@ -1,7 +1,7 @@
 import SwiftUI
 import VaultdayCore
 
-/// The setup window below its title bar: the 240 px step rail, and beside it
+/// The setup flow below its title bar: the 240 px step rail, and beside it
 /// the content pane holding the shown step above the sticky footer.
 struct SetupFrame<Content: View>: View {
 	let onboarding: OnboardingModel

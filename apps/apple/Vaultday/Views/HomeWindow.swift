@@ -214,3 +214,30 @@ extension KeyStroke {
 		self.init(key: key, modifiers: modifiers)
 	}
 }
+
+extension KeyboardShortcut {
+	/// A menu item's key equivalent for a Keymap.yaml stroke, such as ⌘, for Settings.
+	init?(_ stroke: KeyStroke) {
+		let key: KeyEquivalent? = switch stroke.key {
+		case "return": .return
+		case "escape": .escape
+		case "tab": .tab
+		case "space": .space
+		case "up": .upArrow
+		case "down": .downArrow
+		case "left": .leftArrow
+		case "right": .rightArrow
+		case "pageup": .pageUp
+		case "pagedown": .pageDown
+		case "delete": .delete
+		default: stroke.key.count == 1 ? stroke.key.first.map { KeyEquivalent($0) } : nil
+		}
+		guard let key else { return nil }
+		var modifiers: EventModifiers = []
+		if stroke.modifiers.contains(.shift) { modifiers.insert(.shift) }
+		if stroke.modifiers.contains(.control) { modifiers.insert(.control) }
+		if stroke.modifiers.contains(.option) { modifiers.insert(.option) }
+		if stroke.modifiers.contains(.command) { modifiers.insert(.command) }
+		self.init(key, modifiers: modifiers)
+	}
+}

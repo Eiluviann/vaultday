@@ -285,6 +285,11 @@ bindings:
     group: "Navigation"
     vim: "escape"
     standard: "escape"
+  - action: settings.toggle
+    label: "Open or close Settings"
+    group: "Navigation"
+    vim: "cmd+,"
+    standard: "cmd+,"
   # Panes and tabs
   - action: pane.sidebar
     label: "Sidebar"

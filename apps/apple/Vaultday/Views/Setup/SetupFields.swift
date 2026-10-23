@@ -1,7 +1,7 @@
 import SwiftUI
 import VaultdayCore
 
-// Small controls the later steps and the Settings window share: a menu, a
+// Small controls the later steps and Settings share: a menu, a
 // time of day with an optional weekday, and a switch.
 
 /// A pop-up menu in the design's select: 26 px, bordered, chevron right.

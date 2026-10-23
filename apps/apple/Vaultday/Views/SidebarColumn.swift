@@ -419,13 +419,15 @@ private struct HealthFooter: View {
 				HealthList(health: health, status: app.workspace?.appStateStatus ?? "")
 			}
 			Spacer()
-			SettingsLink {
+			Button {
+				app.toggleSettings()
+			} label: {
 				Image(systemName: "gearshape")
 					.font(.system(size: 12))
 					.frame(width: 22, height: 22)
 			}
 			.buttonStyle(.plain)
-			.help("Settings (⌘,)")
+			.help("Settings" + (app.keyLabel(.toggleSettings).map { " (\($0))" } ?? ""))
 			.accessibilityLabel("Settings")
 		}
 		.font(Tokens.Typography.caption.font)

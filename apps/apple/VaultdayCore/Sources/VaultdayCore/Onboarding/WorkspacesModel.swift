@@ -30,7 +30,7 @@ public struct FolderEntry: Identifiable, Hashable, Sendable {
 	}
 }
 
-/// A workspace in the setup window's lists.
+/// A workspace in the setup flow's lists.
 public struct WorkspaceEntry: Identifiable, Hashable, Sendable {
 	/// The workspace id the data key is stored under (`ws-…`).
 	public let id: String

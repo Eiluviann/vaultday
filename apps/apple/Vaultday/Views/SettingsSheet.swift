@@ -1,13 +1,31 @@
 import SwiftUI
 import VaultdayCore
 
-/// The Settings window (⌘,): the app-level choices the setup steps made, in
-/// the same controls, and each workspace's Configure sheet. Every control
-/// writes through the core at once; there is no Save.
-struct SettingsWindow: View {
+/// Settings (⌘,), a sheet over the main window: the app-level choices the
+/// setup steps made, in the same controls, and each workspace's Configure
+/// sheet. Every control writes through the core at once; there is no Save.
+/// Done, Esc and ⌘, close it.
+struct SettingsSheet: View {
 	let app: AppModel
 
 	var body: some View {
+		VStack(spacing: 0) {
+			tabs
+			// A sheet needs a way out by pointer and VoiceOver too; Done also answers Esc.
+			HStack {
+				Spacer()
+				Button("Done") { app.mainWindow.closePanel() }
+					.keyboardShortcut(.cancelAction)
+			}
+			.padding(.horizontal, Tokens.Spacing.space16)
+			.padding(.vertical, Tokens.Spacing.space12)
+			.overlay(alignment: .top) { Rectangle().fill(Tokens.Colors.line).frame(height: 1) }
+		}
+		.frame(width: 760, height: 620)
+		.background(Tokens.Colors.surface)
+	}
+
+	private var tabs: some View {
 		Group {
 			if let settings = app.settings, let rhythm = app.rhythm, let workspaces = app.workspaces {
 				TabView {
@@ -30,8 +48,7 @@ struct SettingsWindow: View {
 				ContentUnavailableView("Settings are not available yet", systemImage: "gearshape", description: Text(app.setupError ?? "The app document is not open"))
 			}
 		}
-		.frame(width: 760, height: 620)
-		.background(Tokens.Colors.surface)
+		.frame(maxWidth: .infinity, maxHeight: .infinity)
 	}
 }
 
@@ -162,7 +179,7 @@ private struct WorkspaceSettings: View {
 					}
 				}
 			}
-			Text("Add, remove and restore workspaces in the setup window, from the Vaultday menu")
+			Text("Add, remove and restore workspaces in setup, from the Vaultday menu")
 				.font(Tokens.Typography.caption.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}

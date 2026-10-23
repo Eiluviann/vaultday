@@ -1,6 +1,6 @@
 import Foundation
 
-/// The twelve steps of the setup window, in order.
+/// The twelve steps of the setup flow, in order.
 public enum SetupStep: Int, CaseIterable, Identifiable, Sendable {
 	case welcome = 1
 	case workspaces

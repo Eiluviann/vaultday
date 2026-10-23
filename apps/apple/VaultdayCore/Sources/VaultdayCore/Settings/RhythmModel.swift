@@ -48,7 +48,7 @@ public enum Ritual: String, CaseIterable, Identifiable, Hashable, Sendable {
 
 /// How the day runs: ritual times, working hours, the workload threshold, the
 /// break pattern, roll-over and where a new task lands. The Rituals and
-/// routines step and the Settings window share it, so a choice made in one is
+/// routines step and Settings share it, so a choice made in one is
 /// what the other shows. Every change is checked, then written through the
 /// core to the app-level document. Rituals do not run in the base version:
 /// their times are stored for when they do.
