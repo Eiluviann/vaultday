@@ -155,6 +155,7 @@ final class AiStepModelsTests: XCTestCase {
 		let providers = AiProvidersStepModel(session: harness.session)
 		var draft = ProviderKeyDraft(provider: .openRouter)
 		draft.name = "Personal account"
+		// Synthetic value, not a real credential.
 		draft.key = "sk-or-v1-FAKEFAKEFAKEFAKEFAKEFAKE"
 		guard case let .added(id) = providers.add(draft) else { return XCTFail("refused") }
 		providers.remove(id: id)

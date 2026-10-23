@@ -32,6 +32,7 @@ export type FakeApi = {
 	readonly requests: ReceivedRequest[];
 };
 
+// Synthetic value, not a real credential.
 export const FAKE_TOKEN = 'TESTTOKENTESTTOKENTESTTOKENTESTTO';
 
 const openServers: Server[] = [];
