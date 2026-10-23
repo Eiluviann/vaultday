@@ -423,17 +423,22 @@ pub(crate) fn find_linked_folders(
     candidates.sort();
     let mut linked: Vec<LinkedFolder> = Vec::new();
     for (name, link) in candidates {
-        let Some(target) = file_access.real_path(&link)? else {
+        // A target this process may not read (a sandbox without its grant,
+        // a locked folder) is skipped like a dangling link, so one link never
+        // takes the whole workspace down.
+        let Ok(Some(target)) = file_access.real_path(&link) else {
             continue;
         };
-        let is_folder = file_access
-            .stat(&target)?
-            .is_some_and(|entry| entry.kind == EntryKind::Directory);
+        let Ok(target_entry) = file_access.stat(&target) else {
+            continue;
+        };
+        let is_folder = target_entry.is_some_and(|entry| entry.kind == EntryKind::Directory);
         let is_cycle = real_root.starts_with(&target);
         let is_reached = linked.iter().any(|earlier| {
             target.starts_with(&earlier.target) || earlier.target.starts_with(&target)
         });
-        if !is_folder || is_cycle || is_reached || is_inside_any_workspace(&target, file_access)? {
+        let is_claimed = is_inside_any_workspace(&target, file_access).unwrap_or(true);
+        if !is_folder || is_cycle || is_reached || is_claimed {
             continue;
         }
         linked.push(LinkedFolder { name, link, target });

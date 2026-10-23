@@ -339,6 +339,50 @@ final class WorkspacesModelTests: XCTestCase {
 		XCTAssertNil(SetupDragItem(text: "plain text from elsewhere"))
 	}
 
+	func testUnlinkingNeverDeletesARealFolderThatReplacedTheLink() throws {
+		let (_, workspaces, entry, root) = try personalWorkspace()
+		let recipes = try TestFixtures.emptyFolder(self, named: "Recipes")
+		XCTAssertTrue(workspaces.linkFolder(try ready(workspaces.offerFolder(recipes, to: entry.id))))
+		let linked = try XCTUnwrap(workspaces.entry(id: entry.id)?.folders.last)
+		// Between the last reload and the click, the link became a real folder.
+		let link = root.appending(path: "Recipes")
+		try FileManager.default.removeItem(at: link)
+		try FileManager.default.createDirectory(at: link, withIntermediateDirectories: false)
+		try Data("# Keep\n".utf8).write(to: link.appending(path: "keep.md"))
+
+		workspaces.unlinkFolder(linked.id, from: entry.id)
+		XCTAssertTrue(FileManager.default.fileExists(atPath: link.appending(path: "keep.md").path))
+		XCTAssertNotNil(workspaces.message)
+	}
+
+	func testAHandMadeLinkCountsForThePlacementRule() throws {
+		let (_, workspaces, _, root) = try personalWorkspace()
+		let studio = try XCTUnwrap(workspaces.addWorkspace(folder: try TestFixtures.emptyFolder(self, named: "Studio"), sphere: .work, name: "Studio"))
+		let shared = try TestFixtures.emptyFolder(self, named: "Shared")
+		try FileManager.default.createSymbolicLink(at: root.appending(path: "Shared"), withDestinationURL: shared)
+		workspaces.reload()
+
+		guard case let .refused(problem) = workspaces.offerFolder(shared, to: studio.id) else {
+			return XCTFail("a folder another workspace links by hand is taken")
+		}
+		XCTAssertEqual(problem.workspaceName, "Personal")
+	}
+
+	func testAFailedDoneKeepsAVaultdayFolderThatWasAlreadyThere() throws {
+		let folder = try TestFixtures.emptyFolder(self, named: "Arriving")
+		// Another device's change files arrived before its manifest and workspace id.
+		let changes = folder.appending(path: ".vaultday/sync/device-b")
+		try FileManager.default.createDirectory(at: changes, withIntermediateDirectories: true)
+		try Data("change".utf8).write(to: changes.appending(path: "0001.bin"))
+		let workspaces = WorkspacesModel(session: try OnboardingHarness(self).session)
+
+		let draft = try draft(workspaces.beginWorkspace(folder: folder, sphere: .work, choice: .create))
+		XCTAssertFalse(draft.configure.save())
+		XCTAssertTrue(FileManager.default.fileExists(atPath: changes.appending(path: "0001.bin").path), "another device's files stay")
+		XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appending(path: ".vaultday/settings.json").path), "the manifest Done wrote goes")
+		XCTAssertEqual(workspaces.entries, [])
+	}
+
 	// MARK: Converting further folders
 
 	func testFurtherFoldersOfAnEarlierBuildAreAskedAboutOnceAndLinked() throws {

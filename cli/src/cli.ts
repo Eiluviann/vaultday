@@ -63,7 +63,7 @@ export async function runCli(
 		command.name === 'today' && command.startDirectory !== undefined
 			? command.startDirectory
 			: context.workingDirectory;
-	const workspace = resolveWorkspaceFrom(startDirectory);
+	const workspace = resolveWorkspaceFrom(startDirectory, context.environment);
 	if (!workspace.ok) return fail(context, workspace.error.message);
 	const outcome = execute(command, workspace.value, context);
 	if (!outcome.result.ok) return fail(context, outcome.result.error.message);

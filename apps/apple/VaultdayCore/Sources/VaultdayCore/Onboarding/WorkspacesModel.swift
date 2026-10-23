@@ -63,6 +63,8 @@ public struct WorkspaceEntry: Identifiable, Hashable, Sendable {
 	public let folders: [FolderEntry]
 	/// The folders directly in the root that are not links, by name.
 	public let subfolders: [String]
+	/// The real folders of every link the core follows in the root, made here or by hand.
+	public let linkedTargets: [String]
 
 	public init(
 		id: String,
@@ -74,6 +76,7 @@ public struct WorkspaceEntry: Identifiable, Hashable, Sendable {
 		isActive: Bool = true,
 		folders: [FolderEntry],
 		subfolders: [String] = [],
+		linkedTargets: [String] = [],
 	) {
 		self.id = id
 		self.name = name
@@ -84,6 +87,7 @@ public struct WorkspaceEntry: Identifiable, Hashable, Sendable {
 		self.isActive = isActive
 		self.folders = folders
 		self.subfolders = subfolders
+		self.linkedTargets = linkedTargets
 	}
 }
 
@@ -418,12 +422,13 @@ public final class WorkspacesModel {
 		var link: URL?
 		do {
 			let bookmark = try session.environment.grants.makeBookmark(for: pending.picked)
-			if let leaving = pending.leaving {
-				try release(leaving.origin, of: leaving.workspaceId)
-			}
 			let made = try makeLink(in: root, to: pending.folder)
 			link = made
 			try record(folder: pending.folder, bookmark: bookmark, workspaceId: workspace.id)
+			// The old link goes only once the new one stands.
+			if let leaving = pending.leaving {
+				try release(leaving.origin, of: leaving.workspaceId)
+			}
 		} catch {
 			if let link { try? FileManager.default.removeItem(at: link) }
 			if pending.leaving == nil { releaseAccess(picked: pending.picked, folder: pending.folder) }
@@ -496,14 +501,16 @@ public final class WorkspacesModel {
 		guard let folder = entry(id: workspaceId)?.folders.first(where: { $0.id == folderId }), !folder.isWorkspaceRoot else { return }
 		do {
 			if case let .linked(link) = folder.role {
-				try FileManager.default.removeItem(atPath: link)
+				try Self.removeLink(atPath: link)
 			}
 			try session.edit { try $0.removeConnection(id: folderId) }
 		} catch {
-			message = coreErrorMessage(error)
+			message = Self.unlinkMessage(error, folderName: folder.name)
 			return
 		}
-		releaseAccess(picked: URL(filePath: folder.path), folder: URL(filePath: folder.path))
+		// The folder left the workspace: its access closes even though the list still names it.
+		session.environment.grants.stopAccessing(URL(filePath: folder.path))
+		session.environment.files.disallow(URL(filePath: folder.path))
 		changed()
 	}
 
@@ -719,6 +726,8 @@ public final class WorkspacesModel {
 	/// The Done of a draft: the manifest, the workspace id and the app document's records.
 	private func commitDraft(folder: URL, picked: URL, isImport: Bool, form: WorkspaceFormView) throws {
 		let root = folder.path
+		let vaultdayFolder = folder.appending(path: ".vaultday", directoryHint: .isDirectory)
+		let hadVaultdayFolder = FileManager.default.fileExists(atPath: vaultdayFolder.path)
 		if isImport {
 			if try readWorkspaceForm(root: root) != form {
 				_ = try updateWorkspaceForm(root: root, form: form)
@@ -730,8 +739,9 @@ public final class WorkspacesModel {
 			_ = try register(root: folder, bookmark: session.environment.grants.makeBookmark(for: picked))
 		} catch {
 			if !isImport {
-				// The folder was empty: leave it so, as Cancel would.
-				try? FileManager.default.removeItem(at: folder.appending(path: ".vaultday"))
+				// Leave the folder as Cancel would: the manifest goes, and the
+				// .vaultday folder too unless something else was in it before.
+				try? FileManager.default.removeItem(at: hadVaultdayFolder ? vaultdayFolder.appending(path: "settings.json") : vaultdayFolder)
 			}
 			throw error
 		}
@@ -774,7 +784,8 @@ public final class WorkspacesModel {
 			_ = try makeLink(in: root, to: url)
 		case .move:
 			try moveIntoRoot(url, root: root)
-			try session.edit { try $0.removeConnection(id: folder.id) }
+			// Moved is done: a grant that fails to go is only stale.
+			try? session.edit { try $0.removeConnection(id: folder.id) }
 		}
 	}
 
@@ -795,9 +806,30 @@ public final class WorkspacesModel {
 		      let folder = entry(id: workspaceId)?.folders.first(where: { $0.id == folderId })
 		else { return }
 		if case let .linked(link) = folder.role {
-			try FileManager.default.removeItem(atPath: link)
+			try Self.removeLink(atPath: link)
 		}
 		try session.edit { try $0.removeConnection(id: folderId) }
+	}
+
+	/// Removes the symlink at `path`, and nothing else: a real folder that
+	/// took the link's place since the last reload is refused, never deleted.
+	private static func removeLink(atPath path: String) throws {
+		let type = try? FileManager.default.attributesOfItem(atPath: path)[.type] as? FileAttributeType
+		guard type == .typeSymbolicLink else {
+			// Gone already is fine; anything else is not a link.
+			if FileManager.default.fileExists(atPath: path) || type != nil { throw NotALink() }
+			return
+		}
+		try FileManager.default.removeItem(atPath: path)
+	}
+
+	private struct NotALink: Error {}
+
+	private static func unlinkMessage(_ error: Error, folderName: String) -> String {
+		if error is NotALink {
+			return "\(folderName) in the workspace's folder is no longer a link, so Vaultday left it alone"
+		}
+		return coreErrorMessage(error)
 	}
 
 	private func makeLink(in root: URL, to folder: URL) throws -> URL {
@@ -837,7 +869,7 @@ public final class WorkspacesModel {
 				name: entry.name,
 				kind: entry.sphere.core,
 				root: entry.rootPath,
-				linkedTargets: entry.folders.filter { !$0.isWorkspaceRoot }.map(\.path),
+				linkedTargets: Array(Set(entry.folders.filter { !$0.isWorkspaceRoot }.map(\.path) + entry.linkedTargets)).sorted(),
 			)
 		}
 	}
@@ -863,7 +895,13 @@ public final class WorkspacesModel {
 		onChange?()
 	}
 
+	/// Closes the access a refused or dropped pick opened, unless a workspace
+	/// still reads that folder: its root or a linked folder keeps its access.
 	private func releaseAccess(picked: URL, folder: URL) {
+		let isHeld = entries.contains { entry in
+			entry.folders.contains { $0.path == folder.path } || entry.linkedTargets.contains(folder.path)
+		}
+		guard !isHeld else { return }
 		session.environment.grants.stopAccessing(picked)
 		session.environment.files.disallow(folder)
 	}
@@ -900,6 +938,7 @@ public final class WorkspacesModel {
 			isActive: (try? workspaceIsActive(root: root.url.path)) ?? true,
 			folders: [Self.folderEntry(id: root.connection, url: root.url, role: .root)] + others,
 			subfolders: Self.subfolderNames(of: root.url),
+			linkedTargets: Array(linkNamesByTarget.keys).sorted(),
 		)
 	}
 

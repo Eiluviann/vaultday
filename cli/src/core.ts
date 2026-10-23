@@ -1,4 +1,5 @@
-import { realpathSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import path from 'node:path';
 import { resolveWorkspace, type WorkspaceHandle } from '@vaultday/core-node';
 import { type Failure, failureFromThrown } from './failure.ts';
 import { err, ok, type Result } from './result.ts';
@@ -37,16 +38,49 @@ export function logicalWorkingDirectory(
 }
 
 /**
- * Finds the workspace holding `directory`: the nearest `.vaultday/` at or above
- * it wins. Outside a workspace the failure says what to do about it.
+ * Finds the workspace holding `directory`: the nearest `.vaultday/` at or
+ * above it wins. A directory in no workspace may still be a folder linked
+ * into one: when the shell's logical `PWD` names it through a link that sits
+ * directly in a workspace root, that root's workspace is taken. Outside a
+ * workspace the failure says what to do about it.
  */
 export function resolveWorkspaceFrom(
 	directory: string,
+	environment: Readonly<Record<string, string | undefined>> = {},
 ): Result<WorkspaceHandle, Failure> {
 	const result = callCore(() => resolveWorkspace(directory));
 	if (result.ok || result.error.kind !== 'not-a-workspace') return result;
+	const shellDirectory = logicalWorkingDirectory(directory, environment);
+	if (shellDirectory !== directory && isThroughRootLink(shellDirectory)) {
+		const linked = callCore(() => resolveWorkspace(shellDirectory));
+		if (linked.ok || linked.error.kind !== 'not-a-workspace') return linked;
+	}
 	return err({
 		kind: 'not-a-workspace',
 		message: `${result.error.message}. Run vaultday inside a Vaultday workspace (a folder with .vaultday/settings.json).`,
 	});
+}
+
+/** Whether the nearest symlink on `directory`'s path sits directly in a workspace root. */
+function isThroughRootLink(directory: string): boolean {
+	for (
+		let current = directory;
+		path.dirname(current) !== current;
+		current = path.dirname(current)
+	) {
+		if (isSymbolicLink(current)) {
+			return existsSync(
+				path.join(path.dirname(current), '.vaultday', 'settings.json'),
+			);
+		}
+	}
+	return false;
+}
+
+function isSymbolicLink(entry: string): boolean {
+	try {
+		return lstatSync(entry).isSymbolicLink();
+	} catch {
+		return false;
+	}
 }

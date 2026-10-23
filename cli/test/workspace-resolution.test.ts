@@ -44,13 +44,41 @@ describe('the working directory', () => {
 describe('workspace resolution', () => {
 	it('takes a linked folder as part of the root’s workspace', async () => {
 		const vault = copyMockVault();
-		const { link } = linkedFolder(vault);
+		const { link, target } = linkedFolder(vault);
 		const run = await runVaultday(
 			['today', '--json', '--date', '2026-10-22'],
-			link,
+			target,
+			shellIn(link),
 		);
 		expect(run.code).toBe(0);
 		expect(JSON.parse(run.out).workspaceName).toBe('Mock Studio');
+	});
+
+	it('keeps a folder’s own workspace when a link elsewhere leads to it', async () => {
+		const client = copyMockVault();
+		const home = path.join(realpathSync(emptyDirectory()), 'Home');
+		mkdirSync(path.join(home, '.vaultday'), { recursive: true });
+		writeFileSync(
+			path.join(home, '.vaultday', 'settings.json'),
+			'{"schema_version": 1, "name": "Home", "kind": "life"}',
+		);
+		const projects = path.join(realpathSync(client), 'Projects');
+		symlinkSync(projects, path.join(home, 'Client projects'));
+		const run = await runVaultday(
+			['today', '--json', '--date', '2026-10-22'],
+			projects,
+			shellIn(path.join(home, 'Client projects')),
+		);
+		expect(run.code).toBe(0);
+		expect(JSON.parse(run.out).workspaceName).toBe('Mock Studio');
+	});
+
+	it('does not take a link outside every root as part of a workspace', async () => {
+		const { target } = linkedFolder(copyMockVault());
+		const elsewhere = path.join(realpathSync(emptyDirectory()), 'Shortcut');
+		symlinkSync(target, elsewhere);
+		const run = await runVaultday(['today'], target, shellIn(elsewhere));
+		expect(run.code).not.toBe(0);
 	});
 
 	it('refuses an inactive workspace and says how to bring it back', async () => {

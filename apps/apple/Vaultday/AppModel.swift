@@ -108,7 +108,8 @@ final class AppModel {
 	let backlog = BrowseModel()
 	/// The open workspace's folder, watched for changes made outside the app.
 	@ObservationIgnored let vaultChanges = VaultChangeMonitor()
-	@ObservationIgnored private var watchedWorkspaceRoot: String?
+	/// The open workspace's root and linked folders as last watched.
+	@ObservationIgnored private var watchedVaultKey: String?
 	/// Where peekable views sit, for the force click; not observed.
 	@ObservationIgnored let peekTargets = PeekTargetRegistry()
 	/// Browse takes the place of Today, Inbox and the side panel while shown (`gb`).
@@ -784,13 +785,15 @@ final class AppModel {
 		return nil
 	}
 
-	/// Starts watching `workspace`'s folder once per workspace: a note
-	/// changed outside the app (Obsidian, a sync client) refreshes the Browse
-	/// snapshot, debounced, while Browse or the Backlog tab is shown;
-	/// otherwise opening either reads the vault anyway.
+	/// Starts watching `workspace`'s folder once per workspace and set of
+	/// linked folders, so a folder linked in setup or Settings is watched at
+	/// once: a note changed outside the app (Obsidian, a sync client)
+	/// refreshes the Browse snapshot, debounced, while Browse or the Backlog
+	/// tab is shown; otherwise opening either reads the vault anyway.
 	private func watchVault(of workspace: WorkspaceModel) {
-		guard watchedWorkspaceRoot != workspace.rootPath else { return }
-		watchedWorkspaceRoot = vaultChanges.start(workspace) ? workspace.rootPath : nil
+		let key = ([workspace.rootPath] + (currentEntry?.linkedTargets ?? [])).joined(separator: "\n")
+		guard watchedVaultKey != key else { return }
+		watchedVaultKey = vaultChanges.start(workspace) ? key : nil
 		vaultChanges.onChange = { [weak self] _ in self?.vaultChangedOutside() }
 	}
 

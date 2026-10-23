@@ -12,6 +12,8 @@ struct FoldersStep: View {
 	@State private var joining: PendingFolder?
 	@State private var refusal: RefusedFolder?
 	@State private var targetedWorkspace: String?
+	/// Pending folders a dialog button already linked, moved or dropped.
+	@State private var handledPendingIds: Set<UUID> = []
 
 	var body: some View {
 		StepPane(title: "Your folders", lede: "Notes are the heart of Vaultday: markdown pages with the tasks, links and dates inside them. Each workspace keeps its notes in its own folder") {
@@ -47,7 +49,7 @@ struct FoldersStep: View {
 		}
 		.confirmationDialog(
 			joining.map { "Add \($0.name) to \($0.workspaceName)" } ?? "",
-			isPresented: Binding(get: { joining != nil }, set: { if !$0 { dropUnjoinedFolder() } }),
+			isPresented: Binding(get: { joining != nil }, set: { if !$0 { dismissJoinDialog() } }),
 			titleVisibility: .visible,
 			presenting: joining,
 		) { pending in
@@ -268,6 +270,7 @@ struct FoldersStep: View {
 
 	private func join(_ pending: PendingFolder, by join: FolderJoin) {
 		joining = nil
+		handledPendingIds.insert(pending.id)
 		let isJoined = join == .link ? workspaces.linkFolder(pending) : workspaces.moveFolder(pending)
 		if !isJoined, let message = workspaces.message {
 			refusal = RefusedFolder(problem: FolderProblem(title: "\(pending.name) was not added", message: message, workspaceName: pending.workspaceName), workspaceId: pending.workspaceId)
@@ -276,8 +279,21 @@ struct FoldersStep: View {
 
 	private func dropUnjoinedFolder() {
 		guard let pending = joining else { return }
+		handledPendingIds.insert(pending.id)
 		workspaces.cancel(pending)
 		joining = nil
+	}
+
+	/// The dialog closing, by a button or Esc. SwiftUI may close it before a
+	/// button's action runs, so the folder's access is released a turn later,
+	/// and only when neither Link, Move nor Cancel took care of it.
+	private func dismissJoinDialog() {
+		guard let pending = joining else { return }
+		joining = nil
+		Task { @MainActor in
+			guard !handledPendingIds.contains(pending.id) else { return }
+			workspaces.cancel(pending)
+		}
 	}
 
 	private func createFolder(in entry: WorkspaceEntry) {

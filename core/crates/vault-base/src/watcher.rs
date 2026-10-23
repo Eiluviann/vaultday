@@ -62,16 +62,22 @@ impl VaultWatcher {
                 .map(|linked| linked.link),
         );
         let mut handles = Vec::with_capacity(watched.len());
-        for path in &watched {
+        for (position, path) in watched.iter().enumerate() {
             let sender = std::sync::Arc::clone(&raw_sender);
-            handles.push(file_access.watch(
+            let watch = file_access.watch(
                 path,
                 Box::new(move |path| {
                     if let Ok(sender) = sender.lock() {
                         let _ = sender.send(path.to_path_buf());
                     }
                 }),
-            )?);
+            );
+            match watch {
+                Ok(handle) => handles.push(handle),
+                Err(error) if position == 0 => return Err(error),
+                // A linked folder that cannot be watched only loses live updates.
+                Err(_) => {}
+            }
         }
         thread::spawn(move || {
             debounce_events(&watched_root, &raw_receiver, &batch_sender, debounce)

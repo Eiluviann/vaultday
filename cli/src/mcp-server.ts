@@ -241,7 +241,10 @@ function answer(
 	context: ToolContext,
 	run: (workspace: Parameters<typeof runToday>[0]) => CommandResult,
 ) {
-	const workspace = resolveWorkspaceFrom(context.workingDirectory);
+	const workspace = resolveWorkspaceFrom(
+		context.workingDirectory,
+		context.environment,
+	);
 	return answerResult(workspace.ok ? run(workspace.value) : workspace);
 }
 

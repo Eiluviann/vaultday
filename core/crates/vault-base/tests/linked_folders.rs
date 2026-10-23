@@ -373,3 +373,34 @@ fn an_inactive_workspace_is_refused_by_the_cli_resolution_and_keeps_its_files() 
             .active
     );
 }
+
+#[test]
+fn a_linked_folder_that_cannot_be_read_is_skipped_not_fatal() {
+    use std::os::unix::fs::PermissionsExt;
+    let layout = layout();
+    let locked = layout.base.join("Locked");
+    write(&locked, "Secret.md", "# Secret\n");
+    symlink(&locked, layout.home.join("Locked")).unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let opened = Workspace::open(&layout.home, &PlainFileAccess);
+    let files = {
+        let mut index = FileIndex::new(&layout.home, IndexScope::default()).unwrap();
+        index.refresh(&PlainFileAccess, SystemTime::now()).map(|_| {
+            index
+                .files()
+                .map(|(path, _)| path.to_path_buf())
+                .collect::<Vec<_>>()
+        })
+    };
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(opened.is_ok(), "{opened:?}");
+    assert_eq!(
+        files.expect("the rest of the workspace still indexes"),
+        vec![
+            PathBuf::from("Notes/Groceries.md"),
+            PathBuf::from("Shared/Recipe.md")
+        ]
+    );
+}

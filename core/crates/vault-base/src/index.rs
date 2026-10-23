@@ -303,6 +303,8 @@ impl FileIndex {
             let entries = match file_access.read_dir(&folder) {
                 Ok(entries) => entries,
                 Err(FileAccessError::NotFound(_)) => continue,
+                // A linked folder this process may not read is left out, not fatal.
+                Err(_) if links.iter().any(|link| folder.starts_with(link)) => continue,
                 Err(error) => return Err(error),
             };
             for entry in entries {
