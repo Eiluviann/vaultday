@@ -11,3 +11,4 @@ apps/apple/VaultdayCore/.build/
 apps/apple/*.xcodeproj
 apps/apple/build/
 apps/apple/Vaultday/Info.plist
+dist-node/

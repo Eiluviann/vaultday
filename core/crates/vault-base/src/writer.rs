@@ -33,6 +33,8 @@ pub const DEFAULT_STORY_TEMPLATE: &str = "---\ntype: story\nnumber:\nstatus: dra
 
 const MAX_WRITE_ATTEMPTS: usize = 3;
 const COMPLETION_KEY: &str = "completion";
+/// The line that closes a model-text block.
+const MODEL_BLOCK_END: &str = "%% ai:end %%";
 
 /// What one write changed: the file, the 1-based line number, and the line
 /// before and after. `old_line` is `None` for a line that was inserted.
@@ -419,18 +421,7 @@ impl<'a> VaultWriter<'a> {
         self.rewrite(&relative, &absolute, |buffer| {
             let document = buffer.document();
             ensure_id_unused(&document, &task.id, &relative)?;
-            let placeholder = document.section(section.heading()).and_then(|found| {
-                document
-                    .tasks_in(&found)
-                    .into_iter()
-                    .find(|candidate| {
-                        candidate.depth == 0
-                            && candidate.text.is_empty()
-                            && candidate.fields.is_empty()
-                    })
-                    .map(|candidate| candidate.line)
-            });
-            match placeholder {
+            match empty_placeholder_line(&document, section) {
                 Some(line_index) => buffer.replace(line_index, line.clone()),
                 None => insert_into_section(buffer, section.heading(), line.clone(), &relative)?,
             }
@@ -438,6 +429,60 @@ impl<'a> VaultWriter<'a> {
             Ok(())
         })?;
         single_receipt(receipts, &relative)
+    }
+
+    /// Adds a task line like [`VaultWriter::add_task`], wrapped in a model-text
+    /// block: `begin_marker`, the line, `%% ai:end %%`. The caller computes the
+    /// marker's fingerprint over the line from [`task_line`], so the provenance
+    /// tooling reads the block as intact. An empty template placeholder is
+    /// replaced by the block.
+    ///
+    /// # Errors
+    /// As [`VaultWriter::add_task`]; [`WriteError::InvalidInput`] when
+    /// `begin_marker` is not a single `%% ai:begin … %%` line.
+    pub fn add_model_task(
+        &self,
+        path: &Path,
+        section: TaskSection,
+        task: &NewTask,
+        begin_marker: &str,
+    ) -> Result<WriteReceipt, WriteError> {
+        if !is_begin_marker(begin_marker) {
+            return Err(WriteError::InvalidInput(
+                "the model-text marker must be one `%% ai:begin … %%` line".to_owned(),
+            ));
+        }
+        let (relative, absolute) = self.resolve(path)?;
+        let line = task_line(task)?;
+        let mut receipts = Vec::new();
+        self.rewrite(&relative, &absolute, |buffer| {
+            let document = buffer.document();
+            ensure_id_unused(&document, &task.id, &relative)?;
+            let placeholder = empty_placeholder_line(&document, section);
+            let start = match placeholder {
+                Some(line_index) => {
+                    buffer.replace(line_index, begin_marker.to_owned());
+                    line_index + 1
+                }
+                None => {
+                    insert_into_section(
+                        buffer,
+                        section.heading(),
+                        begin_marker.to_owned(),
+                        &relative,
+                    )?;
+                    buffer.changes().last().map_or(0, |change| change.index + 1)
+                }
+            };
+            buffer.insert(start, line.clone());
+            buffer.insert(start + 1, MODEL_BLOCK_END.to_owned());
+            receipts = receipts_from(buffer, &relative);
+            Ok(())
+        })?;
+        receipts
+            .into_iter()
+            .find(|receipt| receipt.new_line == line)
+            .ok_or(WriteError::BatchFailed(relative))
     }
 
     /// Adds a subtask under the task named by `parent`, after the parent's
@@ -1075,6 +1120,31 @@ fn remove_span(line: &str, start: usize, end: usize) -> String {
         return format!("{}{}", &line[..start], &line[end + whitespace..]);
     }
     format!("{}{}", line[..start].trim_end(), after)
+}
+
+/// The empty `- [ ] ` line the story template leaves under a heading.
+fn empty_placeholder_line(document: &Document, section: TaskSection) -> Option<usize> {
+    let found = document.section(section.heading())?;
+    document
+        .tasks_in(&found)
+        .into_iter()
+        .find(|candidate| {
+            candidate.depth == 0 && candidate.text.is_empty() && candidate.fields.is_empty()
+        })
+        .map(|candidate| candidate.line)
+}
+
+/// The line [`VaultWriter::add_task`] writes for `task`, without indentation.
+/// Callers fingerprint it for [`VaultWriter::add_model_task`].
+///
+/// # Errors
+/// [`WriteError::InvalidInput`] for an unusable text, id or assignee.
+pub fn task_line(task: &NewTask) -> Result<String, WriteError> {
+    new_task_line("", task)
+}
+
+fn is_begin_marker(marker: &str) -> bool {
+    marker.starts_with("%% ai:begin ") && marker.ends_with(" %%") && !marker.contains(['\n', '\r'])
 }
 
 fn new_task_line(indent: &str, task: &NewTask) -> Result<String, WriteError> {

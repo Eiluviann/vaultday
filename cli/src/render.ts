@@ -1,32 +1,4 @@
-import { openWorkspace, type TodayView, today } from '@vaultday/core-node';
-import { err, ok, type Result } from './result.ts';
-
-export type TodayOptions = {
-	readonly workspacePath: string;
-	readonly date?: string | undefined;
-};
-
-export type TodayCall = {
-	readonly view: TodayView;
-	/** Wall time of the `today()` call through the binding, in milliseconds. */
-	readonly callMilliseconds: number;
-};
-
-/**
- * Opens the workspace and builds its Today view through the native binding.
- * A folder without a manifest, a refused manifest, an unreadable vault and a
- * malformed date all come back as a failed `Result` with the core's message.
- */
-export function loadToday(options: TodayOptions): Result<TodayCall> {
-	try {
-		const workspace = openWorkspace(options.workspacePath);
-		const start = performance.now();
-		const view = today(workspace, options.date);
-		return ok({ view, callMilliseconds: performance.now() - start });
-	} catch (error) {
-		return err(error instanceof Error ? error : new Error(String(error)));
-	}
-}
+import type { TodayView } from '@vaultday/core-node';
 
 /** Renders the view as the lines `vaultday today` prints. */
 export function renderToday(view: TodayView): string {
@@ -53,9 +25,19 @@ export function renderToday(view: TodayView): string {
 					(line) =>
 						`- ${line.time} ${line.text}${line.kind ? ` [${line.kind}]` : ''}`,
 				);
-	return [...header, ...storyBlocks, `## Log ${view.date}`, ...logLines].join(
-		'\n',
+	const waitingLines = view.waitingOn.map(
+		(item) =>
+			`- ${item.assignedTo}: ${item.text}${item.storyNumber ? ` (${item.storyNumber})` : ''}${item.ageDays === undefined || item.ageDays === null ? '' : `, ${item.ageDays} days`}`,
 	);
+	const waitingBlock =
+		waitingLines.length === 0 ? [] : ['', '## Waiting on', ...waitingLines];
+	return [
+		...header,
+		...storyBlocks,
+		`## Log ${view.date}`,
+		...logLines,
+		...waitingBlock,
+	].join('\n');
 }
 
 type TaskLike = TodayView['stories'][number]['nextSteps'][number];

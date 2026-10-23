@@ -8,6 +8,8 @@
 //! - [`FileIndex`] caches modification times; [`Vault`] loads notes and
 //!   answers the queries the CLI and the app need; [`TodayView`] is the
 //!   one the Today surfaces copy out.
+//! - [`ops`] holds the operations the CLI, the MCP server and the apps share,
+//!   as plain records the bindings copy.
 //! - [`FileAccess`] is the port to the file system; [`PlainFileAccess`] is the
 //!   plain-path implementation for tests and desktop.
 //! - [`VaultWriter`] is the one write path: line-scoped, atomic, re-read
@@ -29,6 +31,7 @@ pub mod index_store;
 mod line;
 pub mod log;
 pub mod note;
+pub mod ops;
 pub mod scan;
 pub mod settings;
 pub mod today;
@@ -51,6 +54,7 @@ pub use index_store::{INDEX_STORE_SCHEMA_VERSION, IndexStore, IndexStoreError};
 pub use line::LineEnding;
 pub use log::{LogAppend, LogFormatError, day_log_path, format_log_line, new_day_log_header};
 pub use note::{DayLog, LogKind, LogLine, NoteType, ProjectHub, Story, StoryStatus};
+pub use ops::{OpError, resolve_workspace};
 pub use scan::{
     Document, Heading, InlineField, Line, LineKind, ListItem, Marker, MarkerKind, ProvenanceUnit,
     Section, Task, TaskStatus,
@@ -67,5 +71,5 @@ pub use workspace::{
 };
 pub use writer::{
     DEFAULT_DEBOUNCE, DEFAULT_STORY_TEMPLATE, NewStory, NewTask, QueueOutcome, TaskEdit,
-    TaskSection, TaskTarget, VaultWriter, WriteError, WriteQueue, WriteReceipt,
+    TaskSection, TaskTarget, VaultWriter, WriteError, WriteQueue, WriteReceipt, task_line,
 };

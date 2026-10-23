@@ -73,6 +73,15 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # The tarballs install together and answer from outside the repo.
+      - name: Pack the Node packages and smoke-test the install
+        run: |
+          scripts/build-node.sh
+          prefix="$(mktemp -d)"
+          # `./` keeps npm from reading `dist-node/x.tgz` as a GitHub `owner/repo` spec.
+          npm install --prefix "$prefix" --no-audit --no-fund ./dist-node/*.tgz
+          cd core/fixtures/mock-vault
+          "$prefix/node_modules/.bin/vaultday" today --date 2026-10-22 | grep -q 'WEB-142'
 
   changes:
     name: Changed areas

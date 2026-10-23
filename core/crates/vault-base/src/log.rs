@@ -2,10 +2,10 @@
 //! lines is [`crate::Vault::log_lines_on`]; appending one is
 //! [`crate::VaultWriter::append_log`], which uses the functions here.
 //!
-//! A line reads `- HH:MM <verb> · <text> [story:: …] [kind:: …] [id:: …] [task:: …]`
+//! A line reads `- HH:MM <verb> · <text> [story:: …] [kind:: …] [id:: …] [task:: …] [agent:: …]`
 //! with only the fields that were given. Lines the app writes are facts and
-//! carry no provenance marker; text a model wrote gets its marker from the
-//! provenance tooling, not from here.
+//! carry no provenance marker; a line a model wrote names its author in
+//! `[agent:: …]`, which is how the provenance tooling attributes day-log lines.
 
 use std::path::{Path, PathBuf};
 
@@ -36,6 +36,9 @@ pub struct LogAppend {
     pub id: Option<String>,
     /// `[task:: …]`: the task id the line is about.
     pub task: Option<String>,
+    /// `[agent:: …]`: the model that wrote the line. The provenance tooling
+    /// attributes a day-log line by this field instead of by markers.
+    pub agent: Option<String>,
 }
 
 /// Why a log line could not be formatted.
@@ -73,6 +76,7 @@ impl LogAppend {
             story: None,
             id: None,
             task: None,
+            agent: None,
         }
     }
 
@@ -110,6 +114,13 @@ impl LogAppend {
         self.task = Some(task.into());
         self
     }
+
+    /// Marks the line as written by the model `agent`.
+    #[must_use]
+    pub fn with_agent(mut self, agent: impl Into<String>) -> LogAppend {
+        self.agent = Some(agent.into());
+        self
+    }
 }
 
 /// Formats the line, without a terminator.
@@ -140,6 +151,7 @@ pub fn format_log_line(entry: &LogAppend) -> Result<String, LogFormatError> {
         ("kind", kind_token),
         ("id", entry.id.as_deref()),
         ("task", entry.task.as_deref()),
+        ("agent", entry.agent.as_deref()),
     ];
     for (key, value) in fields {
         let Some(value) = value else {
@@ -201,6 +213,23 @@ mod tests {
         assert_eq!(
             format_log_line(&entry).unwrap(),
             "- 09:05 decision · Use a single-page checkout [story:: WEB-142] [kind:: decision] [id:: log-7] [task:: task-5]"
+        );
+    }
+
+    #[test]
+    fn a_model_line_names_its_agent_last() {
+        let entry = LogAppend::new(at(9, 5), "Use a single-page checkout")
+            .with_kind(LogKind::Decision)
+            .with_task("task-5")
+            .with_agent("claude-fable-5-1");
+        assert_eq!(
+            format_log_line(&entry).unwrap(),
+            "- 09:05 decision · Use a single-page checkout [kind:: decision] [task:: task-5] [agent:: claude-fable-5-1]"
+        );
+        let broken = entry.with_agent("claude]");
+        assert_eq!(
+            format_log_line(&broken),
+            Err(LogFormatError::InvalidField("agent"))
         );
     }
 

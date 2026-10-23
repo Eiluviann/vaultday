@@ -117,7 +117,8 @@ private func mapTasks(_ tasks: [TaskView], in path: String, section: String) -> 
 private func describe(_ error: CoreError) -> String {
 	switch error {
 	case let .NotAWorkspace(message), let .InvalidSettings(message), let .FileAccess(message),
-		let .InvalidDate(message):
+		let .InvalidDate(message), let .InvalidInput(message), let .NotFound(message),
+		let .Conflict(message):
 		message
 	}
 }

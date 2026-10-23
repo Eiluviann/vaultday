@@ -8,11 +8,9 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use vault_base::{
-    Date, IndexScope, PlainFileAccess, Task, TaskStatus, TodayStory, Vault, VaultError, Workspace,
-    WorkspaceError,
+    Date, PlainFileAccess, Task, TaskStatus, Time, TodayStory, Workspace, ops, ops::OpError,
 };
 
 uniffi::setup_scaffolding!();
@@ -21,18 +19,27 @@ uniffi::setup_scaffolding!();
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 #[uniffi(flat_error)]
 pub enum CoreError {
-    /// The path holds no `.vaultday/settings.json`.
-    #[error("{0} is not a workspace: no .vaultday/settings.json found")]
+    /// The path is not inside a workspace: no `.vaultday/settings.json` found.
+    #[error("{0}")]
     NotAWorkspace(String),
     /// The manifest was refused by the settings schema.
-    #[error("the workspace settings are invalid: {0}")]
+    #[error("{0}")]
     InvalidSettings(String),
     /// The file system failed.
-    #[error("file access failed: {0}")]
+    #[error("{0}")]
     FileAccess(String),
-    /// The date argument is not `YYYY-MM-DD`.
-    #[error("{0} is not a calendar date; expected YYYY-MM-DD")]
+    /// A date or time argument is malformed.
+    #[error("{0}")]
     InvalidDate(String),
+    /// An argument is not acceptable.
+    #[error("{0}")]
+    InvalidInput(String),
+    /// A story, task or report subject does not exist.
+    #[error("{0}")]
+    NotFound(String),
+    /// The vault changed under the call or the request clashes with it.
+    #[error("{0}")]
+    Conflict(String),
 }
 
 /// An opened workspace: its root and its manifest, ready for queries.
@@ -52,6 +59,8 @@ pub struct TodayView {
     pub stories: Vec<StoryView>,
     /// The day log's lines for `date`.
     pub log: Vec<LogLineView>,
+    /// Open tasks that wait on someone else, oldest first.
+    pub waiting_on: Vec<WaitingOnView>,
 }
 
 /// One story's open work.
@@ -127,35 +136,180 @@ impl WorkspaceHandle {
     }
 }
 
-/// Opens the workspace rooted at `path`.
+vault_base::binding_records!(derive(Debug, Clone, PartialEq, Eq, uniffi::Record));
+
+/// Opens the workspace rooted exactly at `path`.
 ///
 /// # Errors
 /// [`CoreError::NotAWorkspace`] without a manifest, [`CoreError::InvalidSettings`]
 /// when the manifest is refused, [`CoreError::FileAccess`] otherwise.
 #[uniffi::export]
 pub fn open_workspace(path: String) -> Result<Arc<WorkspaceHandle>, CoreError> {
-    let workspace = Workspace::open(path.as_ref(), &PlainFileAccess)?;
+    let workspace = Workspace::open(path.as_ref(), &PlainFileAccess).map_err(OpError::from)?;
     Ok(Arc::new(WorkspaceHandle { workspace }))
 }
 
-/// Builds the Today view: every story with open work and the day's log lines.
-/// `date` is `YYYY-MM-DD`; `None` means the host's local day.
+/// Opens the workspace holding `path` (a file or folder): the deepest
+/// `.vaultday/` at or above it wins.
+///
+/// # Errors
+/// [`CoreError::NotAWorkspace`] outside any workspace, otherwise as [`open_workspace`].
+#[uniffi::export]
+pub fn resolve_workspace(path: String) -> Result<Arc<WorkspaceHandle>, CoreError> {
+    let workspace = ops::resolve_workspace(path.as_ref(), &PlainFileAccess)?;
+    Ok(Arc::new(WorkspaceHandle { workspace }))
+}
+
+/// Builds the Today view: every story with open work, the day's log lines and
+/// the waiting-on items. `date` is `YYYY-MM-DD`; `None` means the host's local
+/// day.
 ///
 /// # Errors
 /// [`CoreError::InvalidDate`] for a malformed date, [`CoreError::FileAccess`]
 /// when the vault cannot be read.
 #[uniffi::export(default(date = None))]
 pub fn today(workspace: &WorkspaceHandle, date: Option<String>) -> Result<TodayView, CoreError> {
-    let date = resolve_date(date)?;
-    let vault = Vault::open(
+    let date = day_or_today(date.as_deref())?;
+    Ok(build_today(&workspace.workspace, date)?)
+}
+
+/// The task carrying `[id:: id]`, in any state.
+///
+/// # Errors
+/// [`CoreError::NotFound`] without such a task.
+#[uniffi::export]
+pub fn task_by_id(workspace: &WorkspaceHandle, id: String) -> Result<TaskDetailView, CoreError> {
+    let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
+    Ok(ops::task_by_id(&vault, &id)?.into())
+}
+
+/// Ticks the task `id` done as of `date` (default: the host's local day),
+/// changing only that line.
+///
+/// # Errors
+/// [`CoreError::NotFound`] without such a task, [`CoreError::Conflict`] when
+/// the line changed while it was written.
+#[uniffi::export(default(date = None))]
+pub fn tick_task_done(
+    workspace: &WorkspaceHandle,
+    id: String,
+    date: Option<String>,
+) -> Result<ChangeView, CoreError> {
+    let date = day_or_today(date.as_deref())?;
+    let change = ops::tick_task_done(&workspace.workspace, &PlainFileAccess, &id, date)?;
+    Ok(change.into())
+}
+
+/// The next free `task-N` id.
+///
+/// # Errors
+/// [`CoreError::FileAccess`] for an unreadable vault.
+#[uniffi::export]
+pub fn next_task_id(workspace: &WorkspaceHandle) -> Result<String, CoreError> {
+    let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
+    Ok(ops::next_task_id(&vault))
+}
+
+/// The line `add_task` writes for these arguments, so a caller can fingerprint
+/// it before asking for the write. `created` defaults to the host's local day.
+///
+/// # Errors
+/// [`CoreError::InvalidInput`] for an unusable text, id, assignee or date.
+#[uniffi::export(default(created = None, assigned_to = None))]
+pub fn format_task_line(
+    text: String,
+    id: String,
+    created: Option<String>,
+    assigned_to: Option<String>,
+) -> Result<String, CoreError> {
+    let created = day_or_today(created.as_deref())?;
+    Ok(ops::format_task_line(
+        &text,
+        &id,
+        created,
+        assigned_to.as_deref(),
+    )?)
+}
+
+/// Adds a task under `## Next Steps` or `## Pending Input` of a story.
+///
+/// # Errors
+/// [`CoreError::NotFound`] for an unknown story, [`CoreError::InvalidInput`]
+/// for an unknown section or an unusable value, [`CoreError::Conflict`] when
+/// the id is taken.
+#[uniffi::export]
+pub fn add_task(
+    workspace: &WorkspaceHandle,
+    input: AddTaskInput,
+) -> Result<AddedTaskView, CoreError> {
+    let request = input.into_request(local_today()?)?;
+    let added = ops::add_story_task(&workspace.workspace, &PlainFileAccess, &request)?;
+    Ok(added.into())
+}
+
+/// Appends one line to a day log.
+///
+/// # Errors
+/// [`CoreError::InvalidInput`] when the text, kind, date or time is unusable,
+/// [`CoreError::NotFound`] for an unknown story or task.
+#[uniffi::export]
+pub fn append_log(workspace: &WorkspaceHandle, input: LogInput) -> Result<ChangeView, CoreError> {
+    let request = input.into_request(local_today()?, local_time()?)?;
+    let change = ops::append_day_log(&workspace.workspace, &PlainFileAccess, &request)?;
+    Ok(change.into())
+}
+
+/// The report for a story number or a client over `from..=to` (`YYYY-MM-DD`).
+///
+/// # Errors
+/// [`CoreError::InvalidInput`] for a malformed or reversed range,
+/// [`CoreError::NotFound`] when the subject matches no story and no client.
+#[uniffi::export]
+pub fn report(
+    workspace: &WorkspaceHandle,
+    subject: String,
+    from: String,
+    to: String,
+) -> Result<ReportView, CoreError> {
+    let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
+    let report = ops::build_report(
         &workspace.workspace,
-        IndexScope::default(),
-        &PlainFileAccess,
-        SystemTime::now(),
+        &vault,
+        &subject,
+        ops::parse_date(&from)?,
+        ops::parse_date(&to)?,
     )?;
+    Ok(report.into())
+}
+
+fn day_or_today(text: Option<&str>) -> Result<Date, OpError> {
+    match text {
+        Some(text) => ops::parse_date(text),
+        None => local_today(),
+    }
+}
+
+fn local_today() -> Result<Date, OpError> {
+    let today = jiff::Zoned::now().date();
+    Date::new(
+        i32::from(today.year()),
+        today.month().unsigned_abs(),
+        today.day().unsigned_abs(),
+    )
+    .ok_or_else(|| OpError::InvalidInput("the host clock is out of range".to_owned()))
+}
+
+fn local_time() -> Result<Time, OpError> {
+    let now = jiff::Zoned::now();
+    Time::new(now.hour().unsigned_abs(), now.minute().unsigned_abs())
+        .ok_or_else(|| OpError::InvalidInput("the host clock is out of range".to_owned()))
+}
+
+fn build_today(workspace: &Workspace, date: Date) -> Result<TodayView, OpError> {
+    let vault = ops::open_vault(workspace, &PlainFileAccess)?;
     let view = vault.today(date);
     Ok(TodayView {
-        workspace_name: workspace.workspace.settings.name.clone(),
+        workspace_name: workspace.settings.name.clone(),
         date: date.to_string(),
         stories: view.stories.iter().map(story_view).collect(),
         log: view
@@ -169,25 +323,11 @@ pub fn today(workspace: &WorkspaceHandle, date: Option<String>) -> Result<TodayV
                 task: line.task().map(str::to_owned),
             })
             .collect(),
+        waiting_on: ops::waiting_items(&vault, date)
+            .into_iter()
+            .map(Into::into)
+            .collect(),
     })
-}
-
-fn resolve_date(date: Option<String>) -> Result<Date, CoreError> {
-    match date {
-        Some(text) => Date::parse(&text).ok_or(CoreError::InvalidDate(text)),
-        None => Ok(local_today()),
-    }
-}
-
-fn local_today() -> Date {
-    let today = jiff::Zoned::now().date();
-    // The civil date of a real clock always fits; a `None` here would be a jiff bug.
-    Date::new(
-        i32::from(today.year()),
-        today.month().unsigned_abs(),
-        today.day().unsigned_abs(),
-    )
-    .unwrap_or_else(|| Date::from_system_time_utc(SystemTime::now()))
 }
 
 fn story_view(story: &TodayStory) -> StoryView {
@@ -216,21 +356,18 @@ fn task_view(task: &Task) -> TaskView {
     }
 }
 
-impl From<WorkspaceError> for CoreError {
-    fn from(error: WorkspaceError) -> Self {
+impl From<OpError> for CoreError {
+    fn from(error: OpError) -> Self {
+        let message = error.to_string();
         match error {
-            WorkspaceError::NotAWorkspace(path) => {
-                CoreError::NotAWorkspace(path.to_string_lossy().into_owned())
-            }
-            WorkspaceError::Settings { .. } => CoreError::InvalidSettings(error.to_string()),
-            other => CoreError::FileAccess(other.to_string()),
+            OpError::NotAWorkspace(_) => CoreError::NotAWorkspace(message),
+            OpError::InvalidSettings(_) => CoreError::InvalidSettings(message),
+            OpError::InvalidDate(_) => CoreError::InvalidDate(message),
+            OpError::InvalidInput(_) => CoreError::InvalidInput(message),
+            OpError::NotFound(_) => CoreError::NotFound(message),
+            OpError::Conflict(_) => CoreError::Conflict(message),
+            OpError::FileAccess(_) => CoreError::FileAccess(message),
         }
-    }
-}
-
-impl From<VaultError> for CoreError {
-    fn from(error: VaultError) -> Self {
-        CoreError::FileAccess(error.to_string())
     }
 }
 
@@ -286,6 +423,58 @@ mod tests {
     fn the_local_day_is_the_default() {
         let workspace = open_workspace(mock_vault()).unwrap();
         let view = today(&workspace, None).unwrap();
-        assert_eq!(view.date, local_today().to_string());
+        assert_eq!(view.date, local_today().unwrap().to_string());
+    }
+
+    #[test]
+    fn today_lists_the_waiting_on_items() {
+        let workspace = open_workspace(mock_vault()).unwrap();
+        let view = today(&workspace, Some("2026-10-22".to_owned())).unwrap();
+        let who: Vec<&str> = view
+            .waiting_on
+            .iter()
+            .map(|item| item.assigned_to.as_str())
+            .collect();
+        assert!(who.contains(&"Dana") && who.contains(&"Morgan"));
+    }
+
+    #[test]
+    fn a_story_folder_resolves_to_its_workspace() {
+        let folder = format!(
+            "{}/Projects/Website/WEB-142 Checkout redesign",
+            mock_vault()
+        );
+        let workspace = resolve_workspace(folder).unwrap();
+        assert_eq!(workspace.name(), "Mock Studio");
+        let error = resolve_workspace(env!("CARGO_MANIFEST_DIR").to_owned()).unwrap_err();
+        assert!(matches!(error, CoreError::NotAWorkspace(_)));
+    }
+
+    #[test]
+    fn a_task_and_a_client_report_come_back_as_records() {
+        let workspace = open_workspace(mock_vault()).unwrap();
+        let task = task_by_id(&workspace, "task-6".to_owned()).unwrap();
+        assert_eq!(task.section.as_deref(), Some("pending-input"));
+        let missing = task_by_id(&workspace, "task-999".to_owned()).unwrap_err();
+        assert!(matches!(missing, CoreError::NotFound(_)));
+
+        let report = report(
+            &workspace,
+            "Website".to_owned(),
+            "2026-10-21".to_owned(),
+            "2026-10-22".to_owned(),
+        )
+        .unwrap();
+        assert_eq!(report.subject_kind, "client");
+        assert_eq!(report.stories.len(), 2);
+        assert_eq!(report.log.len(), 8);
+        let reversed = super::report(
+            &workspace,
+            "Website".to_owned(),
+            "2026-10-22".to_owned(),
+            "2026-10-21".to_owned(),
+        )
+        .unwrap_err();
+        assert!(matches!(reversed, CoreError::InvalidInput(_)));
     }
 }

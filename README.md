@@ -8,7 +8,7 @@ One app for the working day: tasks, time boxes, timer, rituals and the day log o
 - `tools/` `vault-migrate` (note system v1 migration), `provenance-core` (vendored AI-provenance engine), `names`, `figma`. Planned: `tokens`.
 - `design/` icon sources.
 - `apps/apple/` the Mac app as an XcodeGen project (`project.yml`) plus the `VaultdayCore` Swift package, which wraps the XCFramework built by `scripts/build-xcframework.sh`.
-- `cli/` the `vaultday` CLI (TypeScript on the napi binding); the stdio MCP server follows in PR 6.
+- `cli/` the `vaultday` CLI and the stdio MCP server (TypeScript on the napi binding); see [cli/README.md](cli/README.md).
 
 ## Commands
 
