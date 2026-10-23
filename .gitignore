@@ -16,3 +16,6 @@ dist-node/
 
 # Local signing team for the Mac app (see apps/apple/Signing.xcconfig).
 apps/apple/Signing.local.xcconfig
+# Xcode's Signing & Capabilities editor writes this beside the app; the build signs
+# with Signing/*.entitlements (see Signing.xcconfig).
+apps/apple/Vaultday/Vaultday.entitlements
