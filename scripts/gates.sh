@@ -10,6 +10,7 @@
 #   --base <ref>   what --changed compares against (default: origin/main;
 #                  the merge base with HEAD is used)
 #   --verbose      stream every gate's output instead of logging it
+#   --dry-run      list the gates the mode would run, without running them
 #
 # What --changed runs, from the files changed since the base (committed,
 # staged, unstaged and untracked):
@@ -46,6 +47,7 @@ failure_tail_lines=40
 mode=""
 base_ref="origin/main"
 verbose=false
+dry_run=false
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--full) mode=full ;;
@@ -55,6 +57,7 @@ while [[ $# -gt 0 ]]; do
 			shift
 			;;
 		--verbose) verbose=true ;;
+		--dry-run) dry_run=true ;;
 		*)
 			mode=""
 			break
@@ -63,7 +66,7 @@ while [[ $# -gt 0 ]]; do
 	shift
 done
 if [[ -z "$mode" ]]; then
-	echo "usage: scripts/gates.sh --full | --changed [--base <ref>] [--verbose]" >&2
+	echo "usage: scripts/gates.sh --full | --changed [--base <ref>] [--verbose] [--dry-run]" >&2
 	exit 64
 fi
 
@@ -83,6 +86,12 @@ function run_gate() {
 	local started=$SECONDS
 	local result=passed
 	echo "==> $name"
+	if [[ "$dry_run" == true ]]; then
+		gate_names+=("$name")
+		gate_seconds+=("-")
+		gate_results+=("would run")
+		return 0
+	fi
 	if [[ "$verbose" == true ]]; then
 		"$@" 2>&1 | tee "$log_file" || result=failed
 	else
