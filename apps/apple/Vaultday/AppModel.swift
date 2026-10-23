@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 import VaultdayCore
 
 /// The models behind the setup window's steps, built once the app document is open.
@@ -32,8 +33,23 @@ final class AppModel {
 	private(set) var setup: SetupModels?
 	let dayPlan = DayPlanModel()
 	let sessions = SessionModel()
+	let quickAdd = QuickAddModel()
+	/// The All view's model; `nil` until the app document is open.
+	private(set) var allWorkspaces: AllWorkspacesModel?
 	let focus: PaneFocusModel
 	let dispatcher: KeyDispatcher
+	/// Bumped to move keyboard focus into the header's search field (⌘K until the palette).
+	private(set) var searchFocusRequest = 0
+	/// Bumped to move keyboard focus into the quick-add field.
+	private(set) var quickAddFocusRequest = 0
+	/// The Home text fields that hold keyboard focus now, by name; while any
+	/// does, bare keys go to the field.
+	private var focusedTextFields: Set<String> = []
+
+	/// A Home text field gained or lost keyboard focus.
+	func setTextField(_ name: String, isFocused: Bool) {
+		if isFocused { focusedTextFields.insert(name) } else { focusedTextFields.remove(name) }
+	}
 	/// The calendar line in the side panel: access, the private calendar, or why not.
 	private(set) var calendarStatus = ""
 	private(set) var pickableCalendars: [CalendarInfo] = []
@@ -94,6 +110,7 @@ final class AppModel {
 				ready: ReadyStepModel(session: session, rhythm: rhythm),
 			)
 			self.setup = setup
+			allWorkspaces = AllWorkspacesModel(session: session)
 			workspaces.onChange = { [weak self] in self?.workspacesChanged() }
 			dispatcher.setScheme(KeyScheme(settings.keyboardScheme))
 			let store = WindowStateStore(layout: environment.layout)
@@ -103,6 +120,9 @@ final class AppModel {
 			if windowState.isSidebarCollapsed != focus.isSidebarCollapsed {
 				focus.apply(.toggleSidebar)
 			}
+			#if DEBUG
+				addDebugWorkspace(workspaces)
+			#endif
 			workspace.restoreAtLaunch()
 			reloadWorkspaceContent()
 			refreshSetupSteps()
@@ -110,6 +130,18 @@ final class AppModel {
 			setupError = error.localizedDescription
 		}
 	}
+
+	#if DEBUG
+		/// Manual runs of an unsigned build start on an empty container each
+		/// time: `VAULTDAY_DEBUG_WORKSPACE=<folder>` adds that folder as a work
+		/// workspace without the open panel. Use a copy of the mock vault only.
+		private func addDebugWorkspace(_ workspaces: WorkspacesModel) {
+			guard let path = ProcessInfo.processInfo.environment["VAULTDAY_DEBUG_WORKSPACE"], !path.isEmpty,
+			      workspaces.entries.isEmpty
+			else { return }
+			workspaces.addWorkspace(folder: URL(fileURLWithPath: path, isDirectory: true), sphere: .work)
+		}
+	#endif
 
 	/// Whether the setup window opens at launch: the flow is not finished and no workspace exists yet.
 	var needsSetup: Bool {
@@ -167,18 +199,242 @@ final class AppModel {
 	/// The workspaces list, shared by the setup and the Settings window.
 	var workspaces: WorkspacesModel? { setup?.workspaces }
 
-	/// Feeds one key press to the dispatcher; `true` when it was a binding or a pending prefix.
-	func handle(_ stroke: KeyStroke) -> Bool {
+	/// Feeds one key press to the dispatcher; `true` when it was a binding or a
+	/// pending prefix. While any text field is being typed in (`isTyping`)
+	/// only ⌘ and ⌃ strokes are bindings, so typing never runs a list command.
+	func handle(_ stroke: KeyStroke, isTyping: Bool = false) -> Bool {
+		if isTyping || !focusedTextFields.isEmpty, stroke.modifiers.isDisjoint(with: [.command, .control]) {
+			return false
+		}
 		switch dispatcher.handle(stroke) {
 		case let .action(action):
-			focus.apply(action)
-			saveWindowState()
+			perform(action)
 			return true
 		case .pending:
 			return true
 		case .unbound:
 			return false
 		}
+	}
+
+	/// Runs one action, from a key or from a control that names it.
+	func perform(_ action: KeyAction) {
+		focus.apply(action)
+		switch action {
+		case .showAllWorkspaces:
+			showAllWorkspaces()
+		case let .showWorkspace(place):
+			showWorkspace(at: place - 1)
+		case .focusSearch:
+			searchFocusRequest += 1
+		case .addTask:
+			quickAddFocusRequest += 1
+		case .completeTask:
+			if let item = selectedItem, !item.isDone { completeTask(item.taskId) }
+		case .moveTaskUp:
+			moveSelectedTask(by: -1)
+		case .moveTaskDown:
+			moveSelectedTask(by: 1)
+		case .replan:
+			schedule(.replan)
+		case .autoSchedule:
+			schedule(.autoSchedule)
+		case .toggleTimer:
+			toggleTimer()
+		case .previousDay:
+			showDay(offset: -1)
+		case .nextDay:
+			showDay(offset: 1)
+		case .showToday:
+			showToday()
+		case .dismiss:
+			if quickAdd.entry != nil { quickAdd.cancel() } else { dayPlan.dismissToast() }
+		case .focusPane, .moveDown, .moveUp, .moveLeft, .moveRight, .moveFirst, .moveLast, .open, .toggleSidebar:
+			break
+		}
+		saveWindowState()
+	}
+
+	/// The keys that run `action` under the current scheme, for the caps beside controls.
+	func keyLabel(_ action: KeyAction) -> String? {
+		dispatcher.label(for: action)
+	}
+
+	// MARK: Home
+
+	/// Whether the Today column shows every workspace together.
+	var isShowingAll: Bool { workspace?.scope == .all }
+
+	/// The workspaces in the sidebar's order: work first, then by name.
+	var workspaceEntries: [WorkspaceEntry] { setup?.workspaces.entries ?? [] }
+
+	/// The open workspace's sidebar entry.
+	var currentEntry: WorkspaceEntry? {
+		workspaceEntries.first { $0.id == workspace?.workspaceId }
+	}
+
+	/// The open workspace's identity color.
+	var accentColor: Color { currentEntry?.color ?? Tokens.Colors.wsBlue }
+
+	/// The selected card of the Today list, when the list holds one.
+	var selectedItem: PlanItem? {
+		guard !isShowingAll, let index = focus.selection(in: .today) else { return nil }
+		return dayPlan.items.indices.contains(index) ? dayPlan.items[index] : nil
+	}
+
+	func select(_ item: PlanItem) {
+		guard let index = dayPlan.items.firstIndex(of: item) else { return }
+		focus.select(index, in: .today)
+	}
+
+	/// The pointer entered a card: it selects it when Settings say hover selects.
+	func hover(_ item: PlanItem) {
+		guard settings?.hoverSelects == true else { return }
+		select(item)
+	}
+
+	func completeTask(_ taskId: String) {
+		dayPlan.tick(taskId: taskId)
+		afterPlanChange()
+	}
+
+	func moveTask(_ taskId: String, to destination: Int) {
+		dayPlan.move(taskId: taskId, to: destination)
+		afterPlanChange()
+		if let index = dayPlan.items.firstIndex(where: { $0.taskId == taskId }) {
+			focus.select(index, in: .today)
+		}
+	}
+
+	private func moveSelectedTask(by step: Int) {
+		guard let item = selectedItem, !item.isDone else { return }
+		dayPlan.step(taskId: item.taskId, by: step)
+		afterPlanChange()
+		if let index = dayPlan.items.firstIndex(where: { $0.taskId == item.taskId }) {
+			focus.select(index, in: .today)
+		}
+	}
+
+	func schedule(_ mode: ScheduleMode) {
+		guard !isShowingAll else { return }
+		dayPlan.schedule(mode)
+	}
+
+	func showDay(offset: Int) {
+		if isShowingAll {
+			allWorkspaces?.showDay(offset: offset)
+		} else {
+			dayPlan.showDay(offset: offset)
+			afterPlanChange()
+		}
+	}
+
+	func showToday() {
+		if isShowingAll {
+			allWorkspaces?.showToday()
+		} else {
+			dayPlan.showToday()
+			afterPlanChange()
+		}
+	}
+
+	/// Space: starts the timer on the selected task, or pauses and resumes the running one.
+	func toggleTimer() {
+		if sessions.openSession != nil {
+			sessions.togglePause()
+		} else if let item = selectedItem, !item.isDone {
+			startTimer(taskId: item.taskId)
+		}
+	}
+
+	/// A task dropped on the Now card, or Space on a selected one.
+	func startTimer(taskId: String) {
+		// A drop carries any text; only a task of the list starts the timer.
+		guard taskText(taskId) != nil else { return }
+		let story = dayPlan.items.first { $0.taskId == taskId }?.storyNumber
+		sessions.start(taskId: taskId, story: story)
+		dayPlan.reload()
+	}
+
+	/// The task a session runs on, by its text, for the Now card.
+	func taskText(_ taskId: String?) -> String? {
+		guard let taskId else { return nil }
+		for item in dayPlan.items {
+			if item.taskId == taskId { return item.text }
+			if let subtask = item.subtasks.first(where: { $0.taskId == taskId }) { return subtask.text }
+		}
+		return nil
+	}
+
+	/// Saves the quick-add confirmation and shows the new task.
+	func saveQuickAdd() {
+		guard quickAdd.save() else { return }
+		dayPlan.reload()
+		afterPlanChange()
+	}
+
+	/// ⌘0: every workspace together. The last single workspace stays the one the app opens on.
+	func showAllWorkspaces() {
+		guard let workspace else { return }
+		workspace.showAll()
+		reloadAllWorkspaces()
+	}
+
+	/// ⌘1 to ⌘9: the workspace at `index` in the sidebar's order.
+	func showWorkspace(at index: Int) {
+		guard workspaceEntries.indices.contains(index) else { return }
+		showWorkspace(workspaceEntries[index])
+	}
+
+	func showWorkspace(_ entry: WorkspaceEntry) {
+		guard let workspace else { return }
+		workspace.switchTo(entry)
+		// Closing the previous workspace ends its folder access; every granted folder opens again.
+		setup?.workspaces.reload()
+		reloadWorkspaceContent()
+	}
+
+	/// The rituals of the open workspace's sphere with when each is next due.
+	func ritualRows(now: Date) -> [RitualRow] {
+		guard let rhythm else { return [] }
+		let sphere = workspaceEntries.first { $0.id == workspace?.workspaceId }?.sphere ?? .work
+		return RitualSchedule.rows(
+			RitualSchedule.rituals(for: sphere),
+			time: { rhythm.time(of: $0) },
+			day: { rhythm.day(of: $0) },
+			now: now,
+		)
+	}
+
+	/// Whether no mail account is connected; the Inbox column's empty state says so.
+	var hasMailAccount: Bool {
+		settings?.connections.contains { $0.kind == .mailAccount } ?? false
+	}
+
+	private func afterPlanChange() {
+		focus.setItemCount(dayPlan.items.count, in: .today)
+		if let workspace {
+			sessions.load(from: workspace)
+			workspace.refreshHealth()
+		}
+	}
+
+	/// What Home reads from the Settings window; a change reloads the day.
+	var homeSettingsSignature: String {
+		guard let rhythm else { return "" }
+		let hours = rhythm.workingHours
+		return [rhythm.newTaskPosition.rawValue, rhythm.overrunWarning.rawValue, hours.start.text, hours.end.text, "\(rhythm.workloadThresholdMinutes)"]
+			.joined(separator: "|")
+	}
+
+	private func reloadAllWorkspaces() {
+		guard let allWorkspaces else { return }
+		allWorkspaces.newTaskPosition = rhythm?.newTaskPosition ?? .bottom
+		allWorkspaces.load(entries: workspaceEntries, openWorkspace: workspace)
+	}
+
+	private func busySpans(on day: String) -> [BusySpan] {
+		calendarSource?.busySpans(on: day) ?? []
 	}
 
 	/// Removes the open workspace from Vaultday on every device; the folder stays.
@@ -232,9 +488,20 @@ final class AppModel {
 
 	func reloadWorkspaceContent() {
 		guard let workspace else { return }
+		if let rhythm {
+			dayPlan.newTaskPosition = rhythm.newTaskPosition
+			dayPlan.overrunWarning = rhythm.overrunWarning
+			dayPlan.workingHours = rhythm.workingHours
+		}
+		dayPlan.busyProvider = { [weak self] day in self?.busySpans(on: day) ?? [] }
 		dayPlan.load(from: workspace)
 		sessions.load(from: workspace)
-		focus.setItemCount(dayPlan.stories.reduce(0) { $0 + $1.nextSteps.count + $1.pendingInput.count }, in: .today)
+		quickAdd.attach(to: workspace, workspaces: workspaceEntries)
+		workspace.refreshHealth()
+		focus.setItemCount(dayPlan.items.count, in: .today)
+		if isShowingAll {
+			reloadAllWorkspaces()
+		}
 	}
 
 	private func saveWindowState() {

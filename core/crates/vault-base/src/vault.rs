@@ -231,12 +231,17 @@ impl Vault {
         stories
     }
 
-    /// The story whose number equals `number`.
+    /// The story whose number equals `number`. A sync service's conflict
+    /// copy of a note the vault also holds yields to that note, so a write
+    /// lands where the app shows the story.
     #[must_use]
     pub fn story_by_number(&self, number: &str) -> Option<StoryEntry<'_>> {
-        self.stories()
+        let (originals, copies): (Vec<StoryEntry<'_>>, Vec<StoryEntry<'_>>) = self
+            .stories()
             .into_iter()
-            .find(|entry| entry.story.number.as_deref() == Some(number))
+            .filter(|entry| entry.story.number.as_deref() == Some(number))
+            .partition(|entry| !self.is_shadowed_copy(entry.path));
+        originals.into_iter().chain(copies).next()
     }
 
     /// Every project hub with its path.
@@ -265,9 +270,21 @@ impl Vault {
     /// The task carrying `[id:: id]`. Ids are meant to be unique across the
     /// vault; when two lines carry the same id the first in path order, then
     /// line order, wins and the other is still listed by [`Vault::tasks`].
+    /// A line in a conflict copy of a note the vault also holds comes last,
+    /// so a tick changes the note, not the copy that sorts before it.
     #[must_use]
     pub fn task_by_id(&self, id: &str) -> Option<TaskRef<'_>> {
-        self.tasks().find(|task_ref| task_ref.task.id() == Some(id))
+        let carries_id = |task_ref: &TaskRef<'_>| task_ref.task.id() == Some(id);
+        self.tasks()
+            .find(|task_ref| carries_id(task_ref) && !self.is_shadowed_copy(task_ref.path))
+            .or_else(|| self.tasks().find(carries_id))
+    }
+
+    /// Whether `path` is a conflict copy (`Plan 2.md`) of a note the vault
+    /// also holds.
+    fn is_shadowed_copy(&self, path: &Path) -> bool {
+        crate::conflict::conflict_copy_original(path)
+            .is_some_and(|(original, _)| self.notes.contains_key(&original))
     }
 
     /// The log lines of `date`, in time order; empty without a log for that day.

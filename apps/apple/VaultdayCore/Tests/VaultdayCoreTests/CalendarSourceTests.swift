@@ -134,6 +134,19 @@ final class CalendarSourceTests: XCTestCase {
 		XCTAssertThrowsError(try source.events(from: "2026-10-23", to: "2026-10-22"))
 	}
 
+	func testBusySpansAreTheDaysMinutesWithEventsCutAtMidnight() {
+		let store = FakeEventStore(sources: [exchange])
+		store.calendarList = [CalendarInfo(id: "work", title: "Work", source: exchange, allowsModifications: true)]
+		store.events = [
+			"e1": StoredEvent(id: "e1", calendarId: "work", title: "Standup", start: date("2026-10-22T09:00:00Z"), end: date("2026-10-22T09:15:00Z"), isAllDay: false, url: nil),
+			"e2": StoredEvent(id: "e2", calendarId: "work", title: "Release", start: date("2026-10-22T23:00:00Z"), end: date("2026-10-23T01:00:00Z"), isAllDay: false, url: nil),
+		]
+		let source = EventKitCalendarSource(store: store, pickedCalendarIds: ["work"], timeZone: utc)
+		XCTAssertEqual(source.busySpans(on: "2026-10-22"), [BusySpan(startMinute: 9 * 60, endMinute: 9 * 60 + 15), BusySpan(startMinute: 23 * 60, endMinute: 24 * 60)])
+		store.access = .denied
+		XCTAssertEqual(source.busySpans(on: "2026-10-22"), [], "no access, no busy time")
+	}
+
 	func testThePrivateCalendarIsNotOfferedAsAPick() throws {
 		let store = FakeEventStore(sources: [iCloud])
 		let source = EventKitCalendarSource(store: store, pickedCalendarIds: [], timeZone: utc)

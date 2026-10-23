@@ -146,6 +146,20 @@ public final class EventKitCalendarSource: CalendarPort, @unchecked Sendable {
 			}
 	}
 
+	/// The picked calendars' timed events on `day` (`YYYY-MM-DD`) as busy
+	/// minutes of that day, by start; an event that crosses midnight is cut
+	/// at the day's edges. Empty without calendar access.
+	public func busySpans(on day: String) -> [BusySpan] {
+		guard let events = try? events(from: day, to: day) else { return [] }
+		return events.compactMap { event in
+			let start = event.start.hasPrefix(day) ? minuteOfDay(event.start) : 0
+			let end = event.end.hasPrefix(day) ? minuteOfDay(event.end) : 24 * 60
+			guard let start, let end, end > start else { return nil }
+			return BusySpan(startMinute: start, endMinute: end)
+		}
+		.sorted { ($0.startMinute, $0.endMinute) < ($1.startMinute, $1.endMinute) }
+	}
+
 	public func writeTimeBox(calendar name: String, title: String, timeBox: CalendarTimeBox) throws {
 		guard name == Self.privateCalendarTitle else { throw CalendarFailure.UnknownCalendar(name: name) }
 		let target: CalendarInfo
@@ -222,6 +236,13 @@ public final class EventKitCalendarSource: CalendarPort, @unchecked Sendable {
 		var calendar = Calendar(identifier: .gregorian)
 		calendar.timeZone = timeZone
 		return calendar
+	}
+
+	/// Minutes since midnight of a `YYYY-MM-DDTHH:MM:SS` civil time.
+	private func minuteOfDay(_ civil: String) -> Int? {
+		let clock = civil.split(separator: "T").last?.split(separator: ":") ?? []
+		guard clock.count >= 2, let hour = Int(clock[0]), let minute = Int(clock[1]) else { return nil }
+		return hour * 60 + minute
 	}
 
 	private func formatter(_ format: String) -> DateFormatter {

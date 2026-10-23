@@ -13,7 +13,7 @@ use app_state::{
     WorkspaceSync, claim_workspace_id, create_workspace_key, delete_workspace, holds_app_state,
     read_workspace_id, sync_folder, workspace_key,
 };
-use domain::session::SessionRecord;
+use domain::session::{Session, SessionRecord, SessionState};
 use domain::task::TaskId;
 use domain::workspace::WorkspaceId;
 use jiff::civil::Date;
@@ -133,6 +133,10 @@ pub struct SessionView {
     pub started_at: String,
     /// RFC 3339 stop; `None` while running or paused.
     pub stopped_at: Option<String>,
+    /// Started, not stopped, and not counting.
+    pub is_paused: bool,
+    /// Time counted so far, pauses cut out, in whole seconds.
+    pub elapsed_seconds: u64,
 }
 
 /// This device's app-level document over its snapshot folder.
@@ -146,7 +150,7 @@ pub struct AppStateHandle {
 /// One workspace's synced app state on this device.
 #[derive(uniffi::Object)]
 pub struct WorkspaceStateHandle {
-    sync: Mutex<WorkspaceSync>,
+    pub(crate) sync: Mutex<WorkspaceSync>,
     last_pull: Mutex<PullOutcome>,
 }
 
@@ -601,11 +605,11 @@ impl AppStateHandle {
     }
 }
 
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-fn parse_date(text: &str) -> Result<Date, CoreError> {
+pub(crate) fn parse_date(text: &str) -> Result<Date, CoreError> {
     text.parse()
         .map_err(|_| CoreError::InvalidDate(format!("{text} is not a date; expected YYYY-MM-DD")))
 }
@@ -682,7 +686,14 @@ fn not_arrived_label(reason: NotArrived) -> &'static str {
     }
 }
 
-fn session_view(record: SessionRecord) -> SessionView {
+pub(crate) fn session_view(record: SessionRecord) -> SessionView {
+    let (is_paused, elapsed_seconds) = match Session::from_record(record.clone()) {
+        Ok(session) => (
+            session.state() == SessionState::Paused,
+            session.elapsed(jiff::Timestamp::now()).as_secs(),
+        ),
+        Err(_) => (false, 0),
+    };
     SessionView {
         id: record.id.as_str().to_owned(),
         task: record.target.task.map(|task| task.as_str().to_owned()),
@@ -693,11 +704,13 @@ fn session_view(record: SessionRecord) -> SessionView {
         },
         started_at: record.started_at.to_string(),
         stopped_at: record.stopped_at.map(|at| at.to_string()),
+        is_paused,
+        elapsed_seconds,
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
@@ -707,7 +720,7 @@ mod tests {
     /// Two devices: one shared partition for synchronisable items, one
     /// private partition each, as iCloud Keychain gives two Macs.
     #[derive(Clone, Default)]
-    struct Keychain {
+    pub(crate) struct Keychain {
         synchronised: Arc<Mutex<BTreeMap<(SecretKind, String), SecretItem>>>,
         device_only: Arc<Mutex<BTreeMap<(SecretKind, String), SecretItem>>>,
     }

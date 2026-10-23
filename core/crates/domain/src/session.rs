@@ -10,7 +10,7 @@ use std::time::Duration;
 use jiff::Timestamp;
 
 use crate::error::{DomainError, Result};
-use crate::estimate::SpentTime;
+use crate::estimate::{LoggedTime, SpentTime};
 use crate::ports::Notifier;
 use crate::task::{StoryNumber, TaskId};
 
@@ -429,6 +429,15 @@ impl Session {
     }
 }
 
+/// One day's timer time, the two kinds kept apart.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DayTime {
+    /// Real time the timer counted inside the day, running sessions included.
+    pub spent: SpentTime,
+    /// The part of it already allocated to a story: stopped sessions with a story.
+    pub logged: LoggedTime,
+}
+
 /// Every session of the app, with the rule that only one runs at a time.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SessionBook {
@@ -608,6 +617,31 @@ impl SessionBook {
             .sum()
     }
 
+    /// The timer time inside `from..to` (one day), counted up to `now`. A
+    /// session that crosses the day's edge counts only its part inside it.
+    pub fn day_time(&self, from: Timestamp, to: Timestamp, now: Timestamp) -> DayTime {
+        let until = to.min(now);
+        let inside = |session: &Session| -> Duration {
+            if until <= from {
+                return Duration::ZERO;
+            }
+            let before = session.elapsed(from).as_duration();
+            session.elapsed(until).as_duration().saturating_sub(before)
+        };
+        self.sessions
+            .iter()
+            .fold(DayTime::default(), |mut day, session| {
+                let counted = inside(session);
+                day.spent += SpentTime::new(counted);
+                let is_logged =
+                    session.state() == SessionState::Stopped && session.target().story.is_some();
+                if is_logged {
+                    day.logged += LoggedTime::new(counted);
+                }
+                day
+            })
+    }
+
     /// Tells the notifier, once per session, when the active session has run
     /// for `limit` or longer. Returns whether it fired this time.
     pub fn notify_long_timer(
@@ -705,6 +739,25 @@ mod tests {
 
     fn target() -> SessionTarget {
         SessionTarget::task_in_story("task-7", "WEB-142")
+    }
+
+    #[test]
+    fn a_day_counts_its_part_of_each_session_and_logs_only_stopped_story_time() {
+        let mut overnight = Session::start("ses-1", target(), at(-30));
+        overnight.stop(at(30)).unwrap();
+        let mut no_story = Session::start("ses-2", SessionTarget::task("task-8"), at(60));
+        no_story.stop(at(70)).unwrap();
+        let mut running = Session::start("ses-3", target(), at(100));
+        running.pause(at(110)).unwrap();
+        running.resume(at(115)).unwrap();
+        let book = SessionBook::from_sessions(vec![overnight, no_story, running]).unwrap();
+
+        let day = book.day_time(at(0), at(24 * 60), at(125));
+        assert_eq!(day.spent, minutes(30 + 10 + 20));
+        assert_eq!(day.logged, LoggedTime::from_minutes(30));
+
+        let before_the_day = book.day_time(at(24 * 60), at(48 * 60), at(125));
+        assert_eq!(before_the_day, DayTime::default());
     }
 
     #[test]

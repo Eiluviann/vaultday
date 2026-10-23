@@ -130,6 +130,10 @@ pub struct NewTask {
     pub created: Date,
     /// Who the task waits on, for Pending Input.
     pub assigned_to: Option<String>,
+    /// The day the task is planned for, written as `[scheduled:: ]`.
+    pub scheduled: Option<Date>,
+    /// The estimate as written, such as `45m`, written as `[estimate:: ]`.
+    pub estimate: Option<String>,
 }
 
 /// A story note to create from the workspace template.
@@ -1169,6 +1173,13 @@ fn new_task_line(indent: &str, task: &NewTask) -> Result<String, WriteError> {
         "{indent}- [ ] {text} [id:: {id}] [created:: {}]",
         task.created
     );
+    if let Some(scheduled) = task.scheduled {
+        line.push_str(&format!(" [scheduled:: {scheduled}]"));
+    }
+    if let Some(estimate) = &task.estimate {
+        let estimate = validated_value("estimate", estimate)?;
+        line.push_str(&format!(" [estimate:: {estimate}]"));
+    }
     if let Some(assigned_to) = &task.assigned_to {
         let assigned_to = validated_value("assigned_to", assigned_to)?;
         line.push_str(&format!(" [assigned_to:: {assigned_to}]"));

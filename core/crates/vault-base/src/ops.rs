@@ -183,6 +183,10 @@ pub struct AddTaskRequest {
     pub id: Option<String>,
     /// The creation date.
     pub created: Date,
+    /// The day the task is planned for.
+    pub scheduled: Option<Date>,
+    /// The estimate as written, such as `45m`.
+    pub estimate: Option<String>,
     /// The `%% ai:begin … %%` line that wraps a model-written task.
     pub begin_marker: Option<String>,
 }
@@ -379,6 +383,8 @@ pub fn format_task_line(
         id: id.to_owned(),
         created,
         assigned_to: assigned_to.map(str::to_owned),
+        scheduled: None,
+        estimate: None,
     };
     Ok(task_line(&task)?)
 }
@@ -405,6 +411,8 @@ pub fn add_story_task(
         id: id.clone(),
         created: request.created,
         assigned_to: request.assigned_to.clone(),
+        scheduled: request.scheduled,
+        estimate: request.estimate.clone(),
     };
     let writer = VaultWriter::new(file_access, workspace);
     let receipt = match &request.begin_marker {
@@ -1027,6 +1035,8 @@ macro_rules! binding_records {
                         Some(text) => $crate::ops::parse_date(text)?,
                         None => today,
                     },
+                    scheduled: None,
+                    estimate: None,
                     begin_marker: self.begin_marker,
                 })
             }

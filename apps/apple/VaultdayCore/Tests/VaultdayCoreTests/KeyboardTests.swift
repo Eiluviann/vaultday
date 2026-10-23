@@ -43,8 +43,35 @@ final class KeyboardTests: XCTestCase {
 		_ = dispatcher.handle(stroke("g"))
 		XCTAssertEqual(dispatcher.handle(stroke("j")), .action(.moveDown))
 		_ = dispatcher.handle(stroke("g"))
-		XCTAssertEqual(dispatcher.handle(stroke("x")), .unbound)
+		XCTAssertEqual(dispatcher.handle(stroke("q")), .unbound)
 		XCTAssertEqual(dispatcher.pending, [])
+	}
+
+	func testHomesBindingsComeFromTheKeymapUnderBothSchemes() throws {
+		let keymap = try repoKeymap()
+		let vim = KeyDispatcher(keymap: keymap, scheme: .vim)
+		XCTAssertEqual(vim.handle(stroke("x")), .action(.completeTask))
+		XCTAssertEqual(vim.handle(stroke("i")), .action(.addTask))
+		XCTAssertEqual(vim.handle(stroke("r")), .action(.replan))
+		XCTAssertEqual(vim.handle(stroke("=")), .action(.autoSchedule))
+		XCTAssertEqual(vim.handle(stroke("alt+k")), .action(.moveTaskUp))
+		XCTAssertEqual(vim.handle(stroke("space")), .action(.toggleTimer))
+		let standard = KeyDispatcher(keymap: keymap, scheme: .standard)
+		XCTAssertEqual(standard.handle(stroke("cmd+0")), .action(.showAllWorkspaces))
+		XCTAssertEqual(standard.handle(stroke("cmd+3")), .action(.showWorkspace(3)))
+		XCTAssertEqual(standard.handle(stroke("cmd+k")), .action(.focusSearch))
+		XCTAssertEqual(standard.handle(stroke("cmd+n")), .action(.addTask))
+		XCTAssertEqual(standard.handle(stroke("x")), .unbound, "the standard scheme has no bare letters")
+		XCTAssertEqual(standard.handle(stroke("escape")), .action(.dismiss))
+		XCTAssertEqual(vim.label(for: .completeTask), "x")
+		XCTAssertEqual(vim.label(for: .moveTaskUp), "⌥K")
+		XCTAssertEqual(vim.label(for: .focusPane(.today)), "g 1")
+		XCTAssertEqual(standard.label(for: .focusSearch), "⌘K")
+		XCTAssertEqual(standard.label(for: .toggleTimer), "Space")
+		XCTAssertEqual(standard.label(for: .autoSchedule), "⇧⌘R")
+		XCTAssertNil(standard.label(for: .focusPane(.today)), "unbound under Standard")
+		XCTAssertNil(KeyAction(name: "workspace.10"))
+		XCTAssertNil(KeyAction(name: "workspace.0"))
 	}
 
 	func testTheStandardSchemeUsesArrowsAndHasNoVimKeys() throws {

@@ -19,7 +19,8 @@
 //! plugged in: the base version has no feature set, so it only defines the
 //! manifest, the slots and the enablement rules later feature sets use.
 //! [`ticket`] is the generic ticket provider every workspace gets from its
-//! settings.
+//! settings. [`today_list`] decides which tasks a day's list holds and in
+//! what order.
 
 // The workspace lints forbid `unwrap`/`expect` in shipped code; tests may use them.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
@@ -73,6 +74,7 @@ pub mod scheduler;
 pub mod session;
 pub mod task;
 pub mod ticket;
+pub mod today_list;
 pub mod workspace;
 
 pub use error::{DomainError, Result};

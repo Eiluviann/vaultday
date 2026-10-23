@@ -1,8 +1,8 @@
 import SwiftUI
 import VaultdayCore
 
-/// Proportions of the Mac Home board (mockup "Mac · Home, base without AI",
-/// 1440 × 900): a 38 px header over four columns.
+/// Proportions of the Mac Home board (mockup "Mac · Home, base, sample
+/// data", 1440 × 900): a 38 px header over four columns.
 enum HomeLayout {
 	static let headerHeight: CGFloat = 38
 	static let sidebarWidth: CGFloat = 220
@@ -15,8 +15,8 @@ enum HomeLayout {
 	static let trafficLightsWidth: CGFloat = 70
 }
 
-/// The Home window: header, sidebar (or its rail), Today, Inbox and the side
-/// panel. Content stays the spike's Today list; Home itself is PR 8.
+/// The Home window: header, sidebar (or its rail), Today (or every
+/// workspace together), Inbox and the side panel.
 struct HomeWindow: View {
 	@Bindable var app: AppModel
 	@FocusState private var hasKeyFocus: Bool
@@ -30,28 +30,50 @@ struct HomeWindow: View {
 				} else {
 					SidebarColumn(app: app)
 				}
-				TodayColumn(app: app)
-					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+				Group {
+					if app.isShowingAll, let all = app.allWorkspaces {
+						AllWorkspacesColumn(app: app, all: all)
+					} else {
+						TodayColumn(app: app)
+					}
+				}
+				.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
 				InboxColumn(app: app)
 					.frame(width: HomeLayout.inboxWidth)
 				SidePanelColumn(app: app)
 					.frame(width: HomeLayout.sidePanelWidth)
 			}
 			.frame(maxHeight: .infinity)
+			// The row paints the sidebar's column to the window's foot, as the board's gradient does.
+			.background(alignment: .leading) {
+				Tokens.Colors.surfaceSidebar
+					.frame(width: app.focus.isSidebarCollapsed ? HomeLayout.railWidth : HomeLayout.sidebarWidth)
+			}
 		}
 		.background(Tokens.Colors.surfaceWindow)
+		.environment(\.workspaceAccent, app.accentColor)
 		.ignoresSafeArea(.container, edges: .top)
 		.focusable()
 		.focusEffectDisabled()
 		.focused($hasKeyFocus)
+		// The list takes the keys at launch, not the first text field.
+		.defaultFocus($hasKeyFocus, true)
 		.onKeyPress(phases: .down) { press in
-			app.handle(KeyStroke(press)) ? .handled : .ignored
+			app.handle(KeyStroke(press), isTyping: isTypingInTextField) ? .handled : .ignored
 		}
 		.overlay(alignment: .bottomTrailing) {
 			ShowCommand(text: app.dispatcher.pendingText)
 		}
 		.onAppear { hasKeyFocus = true }
+		.onChange(of: app.homeSettingsSignature) { app.reloadWorkspaceContent() }
 	}
+}
+
+/// Whether a text field is being typed in: AppKit's field editor holds a
+/// window's first responder then, whichever field it is, Adjust's included.
+@MainActor
+private var isTypingInTextField: Bool {
+	NSApp.windows.contains { $0.isVisible && $0.firstResponder is NSText }
 }
 
 /// The pending strokes, bottom right, as vim's showcmd.
@@ -71,24 +93,34 @@ private struct ShowCommand: View {
 	}
 }
 
-/// A pane's focus wash: the focused pane carries the focus ring color along its inner edge.
-struct PaneFocusEdge: ViewModifier {
+extension EnvironmentValues {
+	/// The open workspace's identity color: the Add button, the selected switcher row, the focused pane's wash.
+	@Entry var workspaceAccent: Color = Tokens.Colors.wsBlue
+}
+
+/// A pane's ground: its own color, washed with the workspace color while the pane has keyboard focus.
+struct PaneGround: ViewModifier {
+	let ground: Color
 	let isFocused: Bool
+	@Environment(\.workspaceAccent) private var accent
 
 	func body(content: Content) -> some View {
-		content.overlay {
-			if isFocused {
-				Rectangle()
-					.strokeBorder(Tokens.Colors.focus.opacity(0.55), lineWidth: 2)
-					.allowsHitTesting(false)
+		content.background {
+			ZStack {
+				ground
+				if isFocused {
+					accent.opacity(0.09)
+				}
 			}
+			.animation(.easeOut(duration: 0.15), value: isFocused)
 		}
 	}
 }
 
 extension View {
-	func paneFocus(_ isFocused: Bool) -> some View {
-		modifier(PaneFocusEdge(isFocused: isFocused))
+	/// The pane's ground and its focus wash.
+	func paneGround(_ ground: Color, isFocused: Bool) -> some View {
+		modifier(PaneGround(ground: ground, isFocused: isFocused))
 	}
 }
 

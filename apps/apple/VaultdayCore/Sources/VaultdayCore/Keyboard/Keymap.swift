@@ -29,9 +29,36 @@ public enum KeyAction: Hashable, Sendable {
 	case moveLast
 	case open
 	case toggleSidebar
+	/// ⌘0: every workspace together.
+	case showAllWorkspaces
+	/// ⌘1 to ⌘9: the workspace at that place in the sidebar, counted from 1.
+	case showWorkspace(Int)
+	/// ⌘K: the search field, until the palette arrives.
+	case focusSearch
+	/// The quick-add field.
+	case addTask
+	/// Ticks the selected task done.
+	case completeTask
+	case moveTaskUp
+	case moveTaskDown
+	/// `r`: re-plan from now.
+	case replan
+	/// `=`: auto-schedule the day.
+	case autoSchedule
+	/// Starts the timer on the selected task, or pauses and resumes it.
+	case toggleTimer
+	case previousDay
+	case nextDay
+	case showToday
+	/// Esc: closes the toast or the confirmation.
+	case dismiss
 
 	/// The action named `name` in Keymap.yaml.
 	init?(name: String) {
+		if name.hasPrefix("workspace."), let place = Int(name.dropFirst("workspace.".count)), (1 ... 9).contains(place) {
+			self = .showWorkspace(place)
+			return
+		}
 		switch name {
 		case "pane.sidebar": self = .focusPane(.sidebar)
 		case "pane.today": self = .focusPane(.today)
@@ -45,6 +72,19 @@ public enum KeyAction: Hashable, Sendable {
 		case "move.last": self = .moveLast
 		case "open": self = .open
 		case "sidebar.toggle": self = .toggleSidebar
+		case "workspace.all": self = .showAllWorkspaces
+		case "search.focus": self = .focusSearch
+		case "task.add": self = .addTask
+		case "task.done": self = .completeTask
+		case "task.move-up": self = .moveTaskUp
+		case "task.move-down": self = .moveTaskDown
+		case "plan.replan": self = .replan
+		case "plan.auto-schedule": self = .autoSchedule
+		case "timer.toggle": self = .toggleTimer
+		case "day.previous": self = .previousDay
+		case "day.next": self = .nextDay
+		case "day.today": self = .showToday
+		case "dismiss": self = .dismiss
 		default: return nil
 		}
 	}
@@ -90,6 +130,27 @@ public struct KeyStroke: Hashable, Sendable, CustomStringConvertible {
 	}
 
 	static let namedKeys: Set<String> = ["return", "escape", "tab", "space", "up", "down", "left", "right"]
+
+	/// The stroke as a key cap shows it: `⌘K`, `⌥↑`, `Space`, `x`.
+	public var capText: String {
+		var parts: [String] = []
+		if modifiers.contains(.control) { parts.append("⌃") }
+		if modifiers.contains(.option) { parts.append("⌥") }
+		if modifiers.contains(.shift) { parts.append("⇧") }
+		if modifiers.contains(.command) { parts.append("⌘") }
+		let name: String = switch key {
+		case "return": "⏎"
+		case "escape": "Esc"
+		case "tab": "⇥"
+		case "space": "Space"
+		case "up": "↑"
+		case "down": "↓"
+		case "left": "←"
+		case "right": "→"
+		default: modifiers.isEmpty ? key : key.uppercased()
+		}
+		return parts.joined() + name
+	}
 
 	public var description: String {
 		var parts: [String] = []

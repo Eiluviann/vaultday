@@ -29,6 +29,8 @@ fn new_task(text: &str, id: &str, assigned_to: Option<&str>) -> NewTask {
         id: id.to_owned(),
         created: date("2026-10-23"),
         assigned_to: assigned_to.map(str::to_owned),
+        scheduled: None,
+        estimate: None,
     }
 }
 

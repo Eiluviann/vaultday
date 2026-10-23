@@ -65,6 +65,14 @@ public final class KeyDispatcher {
 		pending = []
 	}
 
+	/// The keys that run `action` under the current scheme, as a cap shows
+	/// them (`⌘K`, `x`, `Space`, `g b`); `nil` when the scheme leaves it unbound.
+	public func label(for action: KeyAction) -> String? {
+		keymap.sequences(for: scheme)
+			.first { $0.1 == action }
+			.map { sequence, _ in sequence.map(\.capText).joined(separator: " ") }
+	}
+
 	private func rebuild() {
 		table = [:]
 		prefixes = []

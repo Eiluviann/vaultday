@@ -54,6 +54,8 @@ public final class WorkspaceModel {
 	public private(set) var syncSummary: SyncSummary?
 	/// The calendars this workspace reads, by EventKit calendar identifier.
 	public private(set) var pickedCalendarIds: Set<String> = []
+	/// The footer dot's view of the open workspace; `nil` while none is open.
+	public private(set) var health: VaultHealth?
 
 	private let session: CoreSession
 	private(set) var vault: WorkspaceHandle?
@@ -101,6 +103,38 @@ public final class WorkspaceModel {
 	/// Shows the open workspace alone again.
 	public func showSingle() {
 		scope = .single
+	}
+
+	/// Shows `entry` alone (⌘1 to ⌘9): the open workspace closes and the
+	/// entry's own folder opens; it becomes the one the app opens on.
+	public func switchTo(_ entry: WorkspaceEntry) {
+		if phase == .open, entry.id == workspaceId {
+			scope = .single
+			return
+		}
+		guard let rootFolder = entry.folders.first(where: \.isWorkspaceRoot) else {
+			phase = .failed("\(entry.name) has no folder holding its settings")
+			return
+		}
+		close()
+		open(root: URL(fileURLWithPath: entry.rootPath, isDirectory: true), connection: rootFolder.id)
+	}
+
+	/// Reads the vault's health and the app state's sync again, for the footer dot.
+	public func refreshHealth() {
+		guard let vault else {
+			health = nil
+			return
+		}
+		do {
+			health = VaultHealth(
+				try vaultHealth(workspace: vault),
+				pendingSyncFiles: state?.lastPull().pending.count ?? 0,
+				grantProblems: grantProblems.count,
+			)
+		} catch {
+			health = VaultHealth(files: 0, conflictCopies: [], tasksWithoutId: 0, unreadable: [coreErrorMessage(error)], pendingSyncFiles: 0, grantProblems: grantProblems.count)
+		}
 	}
 
 	/// The workspace the app opens on at launch on this Mac, if one was shown.
@@ -294,6 +328,8 @@ public final class WorkspaceModel {
 
 	/// Closes the open workspace without touching the app document or the folder.
 	public func close() {
+		// What the open workspace's document holds unwritten goes out before it closes.
+		_ = try? state?.flush()
 		if let root {
 			session.environment.files.disallow(root)
 		}
@@ -311,6 +347,7 @@ public final class WorkspaceModel {
 		appStateStatus = ""
 		syncSummary = nil
 		pickedCalendarIds = []
+		health = nil
 		scope = .single
 		phase = .noFolder
 	}

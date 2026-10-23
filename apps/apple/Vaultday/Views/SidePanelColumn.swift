@@ -44,9 +44,8 @@ struct SidePanelColumn: View {
 			.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 			TabRail(selection: $tab)
 		}
-		.background(Tokens.Colors.surfaceSunken)
+		.paneGround(Tokens.Colors.surfaceSunken, isFocused: app.focus.focusedPane == .sidePanel)
 		.overlay(alignment: .leading) { Rectangle().fill(Tokens.Colors.line).frame(width: 1) }
-		.paneFocus(app.focus.focusedPane == .sidePanel)
 		.contentShape(Rectangle())
 		.onTapGesture { app.focus.focus(.sidePanel) }
 	}

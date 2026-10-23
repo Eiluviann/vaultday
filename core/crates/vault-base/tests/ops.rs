@@ -143,6 +143,8 @@ fn add_request(section: &str, text: &str) -> AddTaskRequest {
         assigned_to: None,
         id: None,
         created: date("2026-10-23"),
+        scheduled: None,
+        estimate: None,
         begin_marker: None,
     }
 }
@@ -173,6 +175,32 @@ fn a_task_is_added_under_the_named_section_with_an_allocated_id() {
     waiting.assigned_to = Some("Dana".to_owned());
     let added = add_story_task(&workspace, &PlainFileAccess, &waiting).unwrap();
     assert!(added.change.new_line.ends_with("[assigned_to:: Dana]"));
+}
+
+#[test]
+fn a_planned_task_carries_its_day_and_estimate_and_changes_one_line() {
+    let sandbox = sandbox();
+    let workspace = workspace(&sandbox.root);
+    let before = snapshot(&sandbox.root);
+    let mut request = add_request("pending-input", "Chase the gateway keys");
+    request.id = Some("task-40".to_owned());
+    request.scheduled = Some(date("2026-10-24"));
+    request.estimate = Some("15m".to_owned());
+    request.assigned_to = Some("Lee".to_owned());
+    let added = add_story_task(&workspace, &PlainFileAccess, &request).unwrap();
+    assert_eq!(
+        added.change.new_line,
+        "- [ ] Chase the gateway keys [id:: task-40] [created:: 2026-10-23] [scheduled:: 2026-10-24] [estimate:: 15m] [assigned_to:: Lee]"
+    );
+    let changes = diff(&before, &snapshot(&sandbox.root));
+    assert_eq!(changes.len(), 1, "{changes:?}");
+
+    let mut bracketed = add_request("next-steps", "Other");
+    bracketed.estimate = Some("[1h]".to_owned());
+    assert!(matches!(
+        add_story_task(&workspace, &PlainFileAccess, &bracketed).unwrap_err(),
+        OpError::InvalidInput(_)
+    ));
 }
 
 #[test]

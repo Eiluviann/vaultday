@@ -70,6 +70,11 @@ public final class PaneFocusModel {
 			opened = selection(in: focusedPane).map { OpenedItem(pane: focusedPane, index: $0) }
 		case .toggleSidebar:
 			isSidebarCollapsed.toggle()
+		case .addTask, .completeTask, .moveTaskUp, .moveTaskDown, .toggleTimer:
+			focusedPane = .today
+		case .showAllWorkspaces, .showWorkspace, .focusSearch, .replan, .autoSchedule,
+		     .previousDay, .nextDay, .showToday, .dismiss:
+			break
 		}
 	}
 

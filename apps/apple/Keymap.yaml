@@ -49,3 +49,70 @@ bindings:
   - action: sidebar.toggle
     vim: "ctrl+cmd+s"
     standard: "ctrl+cmd+s"
+  - action: workspace.all
+    vim: "cmd+0"
+    standard: "cmd+0"
+  - action: workspace.1
+    vim: "cmd+1"
+    standard: "cmd+1"
+  - action: workspace.2
+    vim: "cmd+2"
+    standard: "cmd+2"
+  - action: workspace.3
+    vim: "cmd+3"
+    standard: "cmd+3"
+  - action: workspace.4
+    vim: "cmd+4"
+    standard: "cmd+4"
+  - action: workspace.5
+    vim: "cmd+5"
+    standard: "cmd+5"
+  - action: workspace.6
+    vim: "cmd+6"
+    standard: "cmd+6"
+  - action: workspace.7
+    vim: "cmd+7"
+    standard: "cmd+7"
+  - action: workspace.8
+    vim: "cmd+8"
+    standard: "cmd+8"
+  - action: workspace.9
+    vim: "cmd+9"
+    standard: "cmd+9"
+  # The palette is PR 10; until then ⌘K focuses the search field.
+  - action: search.focus
+    vim: "cmd+k"
+    standard: "cmd+k"
+  - action: task.add
+    vim: "i"
+    standard: "cmd+n"
+  - action: task.done
+    vim: "x"
+    standard: "cmd+d"
+  - action: task.move-up
+    vim: "alt+k"
+    standard: "alt+cmd+up"
+  - action: task.move-down
+    vim: "alt+j"
+    standard: "alt+cmd+down"
+  - action: plan.replan
+    vim: "r"
+    standard: "cmd+r"
+  - action: plan.auto-schedule
+    vim: "="
+    standard: "shift+cmd+r"
+  - action: timer.toggle
+    vim: "space"
+    standard: "space"
+  - action: day.previous
+    vim: "["
+    standard: "cmd+["
+  - action: day.next
+    vim: "]"
+    standard: "cmd+]"
+  - action: day.today
+    vim: "t"
+    standard: "cmd+t"
+  - action: dismiss
+    vim: "escape"
+    standard: "escape"

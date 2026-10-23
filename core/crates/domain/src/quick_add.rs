@@ -497,8 +497,9 @@ fn take_estimates(tokens: &mut [Token<'_>], out: &mut Collected) {
     }
 }
 
-/// `30m`, `45min`, `2h`, `1h30`, `1h30m`, `1.5h`.
-fn parse_estimate(text: &str) -> Option<Estimate> {
+/// Reads an estimate as typed or as written on a task line: `30m`, `45min`,
+/// `2h`, `1h30`, `1h30m`, `1.5h`. `None` for anything else.
+pub fn parse_estimate(text: &str) -> Option<Estimate> {
     let text = text.to_ascii_lowercase();
     if let Some(captures) = MINUTES_ESTIMATE.captures(&text) {
         let minutes: u64 = captures.get(1)?.as_str().parse().ok()?;
