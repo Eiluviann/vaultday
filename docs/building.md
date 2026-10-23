@@ -23,7 +23,7 @@ scripts/gates.sh --full        # once, before opening or updating the PR
 | Area | Gates |
 | --- | --- |
 | Rust | `cargo fmt --check`, `cargo clippy --all-targets --all-features -D warnings`, `cargo test --all-features` (`cargo nextest run` plus the doc tests when nextest is installed) |
-| Apple | `scripts/build-xcframework.sh`, `xcodegen generate`, one `xcodebuild test` of the `Vaultday` scheme, which holds the app tests and the `VaultdayCore` package tests |
+| Apple | `scripts/build-xcframework.sh`, `xcodegen generate`, one `xcodebuild test` of the `Vaultday` scheme, which holds the app tests and the `VaultdayCore` package tests, then `scripts/check-test-bundles.sh` (both bundles ran) |
 | Node | `pnpm install`, the napi binding (debug), `pnpm -r typecheck`, `pnpm -r test`, biome, the tokens and keymap checks |
 
 `--changed` runs a gate only when a file it reads changed since the base (both sides of a rename count; `--dry-run` lists the selection without running it):

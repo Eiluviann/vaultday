@@ -153,3 +153,6 @@ jobs:
         shell: bash -o pipefail {0}
         timeout-minutes: 20
         working-directory: apps/apple
+      # A scheme that lost the package test target still passes the step above
+      # with the app tests alone.
+      - run: scripts/check-test-bundles.sh apps/apple/build

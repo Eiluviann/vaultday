@@ -156,13 +156,15 @@ function run_apple_gates() {
 	# One Swift compile: the scheme's test action holds the app tests and the
 	# VaultdayCore package tests. Debug only, for the machine's own
 	# architecture, without the index store Xcode's editor uses, into a
-	# DerivedData folder that is kept between runs.
+	# DerivedData folder that is kept between runs. Then both test bundles
+	# must have run (scripts/check-test-bundles.sh).
 	run_gate xcodebuild-test bash -c "cd '$apple_dir' && xcodebuild test \
 		-project Vaultday.xcodeproj -scheme Vaultday -configuration Debug \
 		-destination 'platform=macOS,arch=$(uname -m)' -derivedDataPath build \
 		-skipPackagePluginValidation -skipMacroValidation -parallelizeTargets -quiet \
 		CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES \
-		COMPILER_INDEX_STORE_ENABLE=NO DEBUG_INFORMATION_FORMAT=dwarf"
+		COMPILER_INDEX_STORE_ENABLE=NO DEBUG_INFORMATION_FORMAT=dwarf \
+		&& '$repo_root/scripts/check-test-bundles.sh' build"
 }
 
 # --- Node ---------------------------------------------------------------------
