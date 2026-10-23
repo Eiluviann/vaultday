@@ -54,7 +54,7 @@ public final class PreviewModel {
 		VaultdayLink.url(host: "claude-code", path: "/task/" + taskId)
 	}
 
-	/// The link behind Full story; the story page arrives with a later version.
+	/// The link behind Full story: `vaultday://story/<number>`, the story screen.
 	public func fullStoryLink(storyNumber: String) -> URL? {
 		VaultdayLink.url(host: "story", path: "/" + storyNumber)
 	}

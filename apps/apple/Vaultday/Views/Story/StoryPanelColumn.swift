@@ -1,0 +1,198 @@
+import SwiftUI
+import VaultdayCore
+
+/// The story screen's right panel: the Story block pinned at the top, always
+/// visible, then below a split line the tabs, laid out as the Home side
+/// panel's with the rail starting at the split. `]` `[` and the digits switch
+/// the tabs while the panel holds focus (Keymap.yaml, `pane: story-panel`).
+struct StoryPanelColumn: View {
+	let app: AppModel
+	let story: StoryModel
+	let content: StoryContent
+
+	var body: some View {
+		VStack(spacing: 0) {
+			StoryFactsBlock(content: content)
+				.padding(EdgeInsets(top: 18, leading: 16, bottom: 14, trailing: 16))
+			Rectangle().fill(Tokens.Colors.line).frame(height: 1)
+			HStack(spacing: 0) {
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
+					Text(story.panelTab.rawValue)
+						.font(Tokens.Typography.heading.font)
+						.foregroundStyle(Tokens.Colors.ink)
+					tabBody
+					Spacer(minLength: 0)
+				}
+				.padding(EdgeInsets(top: 16, leading: 16, bottom: 18, trailing: 12))
+				.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+				StoryPanelRail(app: app, story: story)
+			}
+		}
+		.paneGround(Tokens.Colors.surfaceSunken, isFocused: app.focus.focusedPane == .storyPanel)
+		.overlay(alignment: .leading) { Rectangle().fill(Tokens.Colors.line).frame(width: 1) }
+		.contentShape(Rectangle())
+		.onTapGesture { app.focusStoryPanel() }
+		.accessibilityElement(children: .contain)
+		.accessibilityLabel("Story panel")
+	}
+
+	@ViewBuilder
+	private var tabBody: some View {
+		switch story.panelTab {
+		case .hours:
+			StoryHoursTab(hours: story.hours)
+		case .reports:
+			PlannedTab(title: "Reports", blurb: "Reports on this story, what they will include and their authorship will live here")
+		case .claudeCode:
+			PlannedTab(title: "Claude Code", blurb: "Claude Code sessions in this story's folder will show up here")
+		}
+	}
+}
+
+/// The Story block: label-and-value rows from the frontmatter and the
+/// provenance summary.
+private struct StoryFactsBlock: View {
+	let content: StoryContent
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
+			Text("Story")
+				.font(Tokens.Typography.heading.font)
+				.foregroundStyle(Tokens.Colors.ink)
+			Grid(alignment: .leading, horizontalSpacing: Tokens.Spacing.space12, verticalSpacing: Tokens.Spacing.space6) {
+				ForEach(content.facts) { fact in
+					GridRow {
+						Text(fact.label)
+							.foregroundStyle(Tokens.Colors.inkMuted)
+						HStack(spacing: Tokens.Spacing.space4) {
+							if fact.isModelText {
+								Image(systemName: "sparkle")
+									.font(.system(size: 10))
+									.foregroundStyle(Tokens.Colors.ai)
+									.accessibilityLabel("Model text in the note")
+							}
+							Text(fact.value)
+								.fontWeight(fact.value == "Not set" ? .regular : .semibold)
+								.foregroundStyle(fact.value == "Not set" ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
+						}
+						.help(fact.isModelText ? "Note authorship from the provenance markers" : "")
+					}
+				}
+			}
+			.font(Tokens.Typography.callout.font)
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.accessibilityElement(children: .contain)
+		.accessibilityLabel("Story details")
+	}
+}
+
+/// The story's Hours: tracked (private, the hand), logged against the
+/// estimate, and what remains, kept apart; then the Toggl week's slot.
+private struct StoryHoursTab: View {
+	let hours: StoryHours?
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
+			if let hours {
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
+					row("Logged", hours.loggedText)
+					row("Estimate", hours.estimateText)
+					row("Remaining", hours.remainingText, isCaution: hours.isOver)
+					if let share = hours.loggedShare {
+						ProgressView(value: share)
+							.tint(hours.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
+							.accessibilityLabel("Logged against the estimate")
+					}
+					Rectangle().fill(Tokens.Colors.lineFaint).frame(height: 1)
+					HStack {
+						PrivateTracked(text: "Tracked")
+							.foregroundStyle(Tokens.Colors.inkMuted)
+						Spacer()
+						Text(hours.trackedText)
+							.fontWeight(.semibold)
+							.foregroundStyle(Tokens.Colors.ink)
+					}
+				}
+				.font(Tokens.Typography.callout.font)
+				.padding(Tokens.Spacing.space12)
+				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
+				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line))
+			} else {
+				Text("Hours need the workspace's app state")
+					.font(Tokens.Typography.callout.font)
+					.foregroundStyle(Tokens.Colors.inkMuted)
+			}
+			TogglWeekSlot()
+		}
+	}
+
+	private func row(_ label: String, _ value: String, isCaution: Bool = false) -> some View {
+		HStack {
+			Text(label).foregroundStyle(Tokens.Colors.inkMuted)
+			Spacer()
+			Text(value)
+				.fontWeight(.semibold)
+				.foregroundStyle(isCaution ? Tokens.Colors.caution : Tokens.Colors.ink)
+		}
+	}
+}
+
+/// The seam for the Toggl week (PR 16 of Phase 2): a labelled, empty slot
+/// in the base version. The Toggl feature set fills it with the week's days
+/// and their pushed or queued state.
+private struct TogglWeekSlot: View {
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
+			HomeEyebrow(text: "Toggl · this week")
+			Text("The week's days and what was pushed to Toggl show here once Toggl is connected")
+				.font(Tokens.Typography.caption.font)
+				.foregroundStyle(Tokens.Colors.inkMuted)
+				.fixedSize(horizontal: false, vertical: true)
+		}
+		.padding(Tokens.Spacing.space12)
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+		.accessibilityElement(children: .combine)
+		.accessibilityLabel("Toggl this week, not connected")
+	}
+}
+
+/// The tab rail, starting at the split line.
+private struct StoryPanelRail: View {
+	let app: AppModel
+	let story: StoryModel
+
+	var body: some View {
+		VStack(spacing: Tokens.Spacing.space4) {
+			ForEach(StoryPanelTab.allCases) { tab in
+				Button {
+					story.showTab(tab)
+					app.focusStoryPanel()
+				} label: {
+					Image(systemName: tab.symbol)
+						.frame(width: 32, height: 28)
+						.background(story.panelTab == tab ? Tokens.Colors.surfaceRaised : .clear, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
+				}
+				.buttonStyle(.plain)
+				.foregroundStyle(story.panelTab == tab ? Tokens.Colors.ink : Tokens.Colors.inkMuted)
+				.help(help(tab))
+				.accessibilityLabel(tab.rawValue)
+				.accessibilityAddTraits(story.panelTab == tab ? .isSelected : [])
+			}
+			Spacer()
+		}
+		.padding(.vertical, Tokens.Spacing.space12)
+		.frame(width: StoryLayout.railWidth)
+		.frame(maxHeight: .infinity)
+		.overlay(alignment: .leading) { Rectangle().fill(Tokens.Colors.line).frame(width: 1) }
+	}
+
+	/// "Hours · ] and [ step the tabs, 1 to 3 pick one while the panel is focused".
+	private func help(_ tab: StoryPanelTab) -> String {
+		let next = app.keyLabel(.nextStoryPanelTab)
+		let previous = app.keyLabel(.previousStoryPanelTab)
+		let keys = [next, previous].compactMap(\.self).joined(separator: " and ")
+		return keys.isEmpty ? tab.rawValue : "\(tab.rawValue) · \(keys) step the tabs while the panel is focused"
+	}
+}

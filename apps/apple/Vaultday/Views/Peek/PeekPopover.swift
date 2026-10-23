@@ -135,6 +135,12 @@ struct PeekPopover: View {
 					NSPasteboard.general.setString(taskId, forType: .string)
 				}
 			}
+			if let number = content.storyNumber {
+				PeekButton(title: "Full story", cap: nil) {
+					app.peek.dismiss()
+					app.handleLink(app.preview.fullStoryLink(storyNumber: number))
+				}
+			}
 			Spacer()
 			if let link = content.obsidianLink {
 				Button {

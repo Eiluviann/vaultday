@@ -549,7 +549,7 @@ fn minutes_of(estimate: Estimate) -> u32 {
     whole_minutes(estimate.as_duration())
 }
 
-fn row_state(status: TaskStatus) -> BrowseRowState {
+pub(crate) fn row_state(status: TaskStatus) -> BrowseRowState {
     match status {
         TaskStatus::InProgress => BrowseRowState::InProgress,
         TaskStatus::Done => BrowseRowState::Done,
@@ -593,7 +593,7 @@ fn block_view(block: NoteBlock) -> NoteBlockView {
     }
 }
 
-fn waiting_view(entry: WaitingEntry) -> WaitingEntryView {
+pub(crate) fn waiting_view(entry: WaitingEntry) -> WaitingEntryView {
     WaitingEntryView {
         task_id: entry.task_id,
         text: entry.text,
@@ -602,7 +602,7 @@ fn waiting_view(entry: WaitingEntry) -> WaitingEntryView {
     }
 }
 
-fn activity_view(entry: ActivityEntry) -> ActivityEntryView {
+pub(crate) fn activity_view(entry: ActivityEntry) -> ActivityEntryView {
     ActivityEntryView {
         date: entry.date.to_string(),
         time: entry.time.to_string(),

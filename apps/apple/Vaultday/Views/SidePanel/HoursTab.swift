@@ -35,7 +35,7 @@ struct HoursTab: View {
 }
 
 /// Tracked time is the user's alone: the hand says it never goes into a report.
-private struct PrivateTracked: View {
+struct PrivateTracked: View {
 	let text: String
 
 	var body: some View {

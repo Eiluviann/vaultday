@@ -152,6 +152,17 @@ impl Workspace {
             percent_encode(file)
         )
     }
+
+    /// The `obsidian://open` link that opens the note at `relative_path` at
+    /// its heading `heading`: the file parameter carries `#heading`.
+    #[must_use]
+    pub fn obsidian_link_at(&self, relative_path: &Path, heading: &str) -> String {
+        format!(
+            "{}{}",
+            self.obsidian_link(relative_path),
+            percent_encode(&format!("#{heading}"))
+        )
+    }
 }
 
 fn percent_encode(text: &str) -> String {

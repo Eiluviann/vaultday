@@ -139,7 +139,9 @@ final class KeyboardTests: XCTestCase {
 		store.save(WindowState(isSidebarCollapsed: true, focusedPane: .inbox))
 		XCTAssertEqual(store.load(), WindowState(isSidebarCollapsed: true, focusedPane: .inbox))
 
-		XCTAssertEqual(VaultdayLink(URL(string: "vaultday://story/WEB-142")!), .notHandledYet(host: "story", path: "/WEB-142"))
+		XCTAssertEqual(VaultdayLink(URL(string: "vaultday://story/WEB-142")!), .story(number: "WEB-142"))
+		XCTAssertEqual(VaultdayLink(URL(string: "vaultday://story/")!), .notHandledYet(host: "story", path: "/"))
+		XCTAssertEqual(VaultdayLink(URL(string: "vaultday://claude-code/task/task-2")!), .notHandledYet(host: "claude-code", path: "/task/task-2"))
 		XCTAssertNil(VaultdayLink(URL(string: "https://example.test")!))
 	}
 }

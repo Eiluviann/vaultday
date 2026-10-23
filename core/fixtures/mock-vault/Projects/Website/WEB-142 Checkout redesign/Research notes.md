@@ -5,3 +5,17 @@ Three competitors use a single-page checkout; two show the order summary in a st
 
 - Sticky summary: yes
 - Guest checkout: yes
+
+| Competitor | Steps | Summary |
+| --- | :---: | --- |
+| Shop A | 1 | sticky |
+| Shop B | 1 | inline |
+
+![[Checkout flow.excalidraw]]
+
+> [!tip]- Follow-up
+> Compare with [[WEB-142 Checkout redesign]].
+
+```dataview
+LIST FROM "Projects/Website"
+```

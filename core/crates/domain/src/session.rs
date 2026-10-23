@@ -622,6 +622,20 @@ impl SessionBook {
             .sum()
     }
 
+    /// Time logged to a story up to `at`: its stopped sessions that name the
+    /// story, as [`SessionBook::day_time`] counts logged time. A running or
+    /// paused session is tracked, not logged.
+    pub fn logged_on_story(&self, story: &StoryNumber, at: Timestamp) -> LoggedTime {
+        self.sessions
+            .iter()
+            .filter(|session| {
+                session.state() == SessionState::Stopped
+                    && session.target().story.as_ref() == Some(story)
+            })
+            .map(|session| LoggedTime::new(session.elapsed(at).as_duration()))
+            .sum()
+    }
+
     /// The timer time inside `from..to` (one day), counted up to `now`. A
     /// session that crosses the day's edge counts only its part inside it.
     pub fn day_time(&self, from: Timestamp, to: Timestamp, now: Timestamp) -> DayTime {
@@ -955,6 +969,31 @@ mod tests {
 
         let before_the_day = book.day_time(at(24 * 60), at(48 * 60), at(125));
         assert_eq!(before_the_day, DayTime::default());
+    }
+
+    #[test]
+    fn a_story_logs_only_its_stopped_sessions() {
+        let mut stopped = Session::start("ses-1", target(), at(0));
+        stopped.stop(at(45)).unwrap();
+        let running = Session::start("ses-2", target(), at(60));
+        let mut other = Session::start(
+            "ses-3",
+            SessionTarget::task_in_story("task-9", "WEB-157"),
+            at(0),
+        );
+        other.stop(at(10)).unwrap();
+        let book = SessionBook::from_sessions(vec![stopped, running, other]).unwrap();
+
+        let story = StoryNumber::new("WEB-142");
+        assert_eq!(
+            book.logged_on_story(&story, at(90)),
+            LoggedTime::from_minutes(45)
+        );
+        assert_eq!(
+            book.spent_on_story(&story, at(90)),
+            minutes(45 + 30),
+            "tracked counts the running one"
+        );
     }
 
     #[test]

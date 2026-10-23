@@ -86,7 +86,7 @@ struct TaskPreviewPanel: View {
 				}
 				.buttonStyle(.plain)
 				.font(Tokens.Typography.body.font)
-				.help("The story page arrives in a later version")
+				.help("Open the story screen: the note, its steps, the Story block and Hours")
 			}
 		}
 	}

@@ -16,6 +16,13 @@ public enum Pane: Int, CaseIterable, Sendable, Codable {
 	case today
 	case inbox
 	case sidePanel
+	/// The story screen's panel: the Story block and its tabs (PR 15).
+	case storyPanel
+
+	/// The panes of the Home window, in the order `h` and `l` step through.
+	public static let homeOrder: [Pane] = [.sidebar, .today, .inbox, .sidePanel]
+	/// The story screen's panes: the note (held by the main area's pane) and its panel.
+	public static let storyOrder: [Pane] = [.today, .storyPanel]
 
 	/// The pane named `name` in Keymap.yaml's `pane:` field.
 	init?(keymapName name: String) {
@@ -24,6 +31,7 @@ public enum Pane: Int, CaseIterable, Sendable, Codable {
 		case "today": self = .today
 		case "inbox": self = .inbox
 		case "side-panel": self = .sidePanel
+		case "story-panel": self = .storyPanel
 		default: return nil
 		}
 	}
@@ -123,6 +131,11 @@ public enum KeyAction: Hashable, Sendable {
 	case openInClaudeCode
 	/// A side panel tab by its place on the rail, counted from 1.
 	case showSidePanelTab(Int)
+	/// `]` and `[` while the story screen's panel holds focus.
+	case nextStoryPanelTab
+	case previousStoryPanelTab
+	/// A story panel tab by its place on the rail, counted from 1.
+	case showStoryPanelTab(Int)
 	/// ⌥⌘T: shows the mini tracker, or toggles its expanded form.
 	case toggleMiniTracker
 
@@ -134,6 +147,10 @@ public enum KeyAction: Hashable, Sendable {
 		}
 		if let place = Self.place(in: name, after: "side-panel.tab.") {
 			self = .showSidePanelTab(place)
+			return
+		}
+		if let place = Self.place(in: name, after: "story-panel.tab.") {
+			self = .showStoryPanelTab(place)
 			return
 		}
 		guard let action = Self.named[name] else { return nil }
@@ -200,6 +217,8 @@ public enum KeyAction: Hashable, Sendable {
 		"daylog.append": .appendDayLog,
 		"side-panel.next": .nextSidePanelTab,
 		"side-panel.previous": .previousSidePanelTab,
+		"story-panel.next": .nextStoryPanelTab,
+		"story-panel.previous": .previousStoryPanelTab,
 		"browse.open": .showBrowse,
 		"daylog.open": .showDayLog,
 		"browse.query": .focusBrowseQuery,
@@ -514,14 +533,14 @@ public struct Keymap: Sendable {
 		}
 		for scheme in KeyScheme.allCases {
 			// Each sequence with the line and pane of every binding of it; two
-			// bindings clash when they can act at once (one needs no pane, or both the same).
+			// bindings of one sequence clash when they can act at once.
 			var seen: [[KeyStroke]: [(line: Int, pane: Pane?)]] = [:]
 			for (line, binding) in bindings {
 				guard let sequence = binding.sequences[scheme], let first = sequence.first else { continue }
 				if first.isBare, let kept = directionalKeys[first.key], sequence.count > 1 || binding.action != kept {
 					return .failure(KeymapError(line: line, reason: "bare `\(first.key)` is directional movement only, under \(scheme.rawValue)"))
 				}
-				if let earlier = seen[sequence]?.first(where: { overlaps($0.pane, binding.pane) }) {
+				if let earlier = seen[sequence]?.first(where: { clashes($0.pane, binding.pane) }) {
 					return .failure(KeymapError(line: line, reason: "`\(spelled(sequence))` is bound twice under \(scheme.rawValue) (line \(earlier.line) too)"))
 				}
 				seen[sequence, default: []].append((line, binding.pane))
@@ -538,6 +557,16 @@ public struct Keymap: Sendable {
 			}
 		}
 		return .success(bindings.map(\.binding))
+	}
+
+	/// Whether two bindings of one sequence clash: both need no pane, both
+	/// the same pane, or one needs none and the other a pane of the Home
+	/// window. A binding scoped to a pane outside Home (the story panel)
+	/// shadows an unscoped one there, so the two never act at once.
+	private static func clashes(_ left: Pane?, _ right: Pane?) -> Bool {
+		if left == right { return true }
+		guard left == nil || right == nil, let scoped = left ?? right else { return false }
+		return Pane.homeOrder.contains(scoped)
 	}
 
 	/// Whether bindings needing these panes can both act at one time.

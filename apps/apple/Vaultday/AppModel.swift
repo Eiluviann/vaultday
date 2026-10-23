@@ -21,10 +21,12 @@ struct SetupModels {
 }
 
 /// What the main area of the Home window shows: the day (Today, Inbox and
-/// the side panel) or the Browse table across all three.
+/// the side panel), the Browse table across all three, or one story's
+/// screen in place of the whole window below the header (PR 15).
 enum MainScreen {
 	case home
 	case browse
+	case story
 }
 
 /// The app's composition: the platform environment, the core session and
@@ -70,6 +72,10 @@ final class AppModel {
 	let browse = BrowseModel()
 	let preview = PreviewModel()
 	let peek = PeekModel()
+	/// The story screen: the note rendered, its steps, the Story block and its tabs.
+	let story = StoryModel()
+	/// The day's selection when the story screen opened: its task and place.
+	@ObservationIgnored private var daySelectionBeforeStory: (taskId: String?, index: Int?)?
 	let dayLog = DayLogModel()
 	/// The Backlog tab's list: the Backlog preset of Browse.
 	let backlog = BrowseModel()
@@ -189,7 +195,8 @@ final class AppModel {
 			let store = WindowStateStore(layout: environment.layout)
 			windowStateStore = store
 			let windowState = store.load()
-			focus.focus(windowState.focusedPane)
+			// The story screen does not come back at launch; neither does focus on its panel.
+			focus.focus(Pane.homeOrder.contains(windowState.focusedPane) ? windowState.focusedPane : .today)
 			if windowState.isSidebarCollapsed != focus.isSidebarCollapsed {
 				focus.apply(.toggleSidebar)
 			}
@@ -283,6 +290,7 @@ final class AppModel {
 		}
 		switch keyboard.handle(stroke) {
 		case .action, .pending:
+			syncStorySelection()
 			saveWindowState()
 			return true
 		case .unbound:
@@ -314,17 +322,47 @@ final class AppModel {
 	/// Runs one action, from a key or from a control that names it.
 	func perform(_ action: KeyAction) {
 		keyboard.run(action)
+		syncStorySelection()
 		saveWindowState()
 	}
 
-	/// The match walk and the group jumps belong to the Browse table.
+	/// The match walk and the group jumps belong to the Browse table; the
+	/// story screen takes only its own keys; the story panel's keys act only there.
 	private func isEnabled(_ action: KeyAction) -> Bool {
-		![.nextMatch, .previousMatch, .nextGroup, .previousGroup, .toggleFold].contains(action) || screen == .browse
+		if screen == .story { return Self.isEnabledOnStory(action) }
+		switch action {
+		case .nextStoryPanelTab, .previousStoryPanelTab, .showStoryPanelTab:
+			return false
+		case .nextMatch, .previousMatch, .nextGroup, .previousGroup, .toggleFold:
+			return screen == .browse
+		default:
+			return true
+		}
 	}
 
-	/// The task the selection is on: a card of the day or a row of Browse.
+	/// The keys the story screen acts on: movement between its two panes and
+	/// along the steps, its panel's tabs, and the line changes the core
+	/// writer makes (done, estimate, scheduled, due). Never `cc`: the text of
+	/// a line is prose, edited in Obsidian.
+	private static func isEnabledOnStory(_ action: KeyAction) -> Bool {
+		switch action {
+		case .moveUp, .moveDown, .moveLeft, .moveRight, .moveFirst, .moveLast, .moveHalfPageUp, .moveHalfPageDown,
+		     .nextStoryPanelTab, .previousStoryPanelTab, .showStoryPanelTab,
+		     .open, .dismiss, .openPalette, .showToday, .toggleTimer, .toggleMiniTracker,
+		     .completeTask, .changeEstimate, .changeScheduled, .changeDue, .undo, .redo, .yank,
+		     .openLink, .openInClaudeCode:
+			return true
+		case let .focusPane(pane):
+			return Pane.storyOrder.contains(pane)
+		default:
+			return false
+		}
+	}
+
+	/// The task the selection is on: a card of the day, a row of Browse or a story step.
 	var selectedTaskId: String? {
-		selectedBrowseRowId ?? selectedItem?.taskId
+		if screen == .story { return selectedStoryStep?.taskId }
+		return selectedBrowseRowId ?? selectedItem?.taskId
 	}
 
 	/// The actions the keyboard session hands over: everything but the
@@ -367,6 +405,7 @@ final class AppModel {
 		case .nextDay:
 			showDay(offset: 1)
 		case .showToday:
+			leaveStory()
 			leaveBrowse()
 			showToday()
 		case .dismiss:
@@ -376,6 +415,8 @@ final class AppModel {
 				peek.dismiss()
 			} else if preview.isOpen {
 				preview.close()
+			} else if screen == .story {
+				leaveStory()
 			} else if quickAdd.entry != nil {
 				quickAdd.cancel()
 			} else {
@@ -391,6 +432,12 @@ final class AppModel {
 			showSidePanelTab(.dayLog)
 		case let .showSidePanelTab(place):
 			if SidePanelTab.allCases.indices.contains(place - 1) { showSidePanelTab(SidePanelTab.allCases[place - 1]) }
+		case .nextStoryPanelTab:
+			story.stepTab(by: 1)
+		case .previousStoryPanelTab:
+			story.stepTab(by: -1)
+		case let .showStoryPanelTab(place):
+			story.showTab(place: place)
 		case .focusBrowseQuery:
 			if screen == .browse { browseQueryFocusRequest += 1 }
 		case .toggleFold:
@@ -438,7 +485,12 @@ final class AppModel {
 
 	/// The Today pane's item count follows what the main area shows.
 	func syncTodayItemCount() {
-		focus.setItemCount(screen == .browse ? browse.items.count : dayPlan.items.count, in: .today)
+		let count = switch screen {
+		case .home: dayPlan.items.count
+		case .browse: browse.items.count
+		case .story: story.accordion.steps.count
+		}
+		focus.setItemCount(count, in: .today)
 	}
 
 	/// The side panel pane's item count follows its open tab.
@@ -468,6 +520,7 @@ final class AppModel {
 
 	/// What `K` looks up: the selected task, story or log line of the focused pane.
 	var peekSubject: PeekSubject? {
+		guard screen != .story else { return nil }
 		switch focus.focusedPane {
 		case .today:
 			switch selectedBrowseItem {
@@ -477,7 +530,7 @@ final class AppModel {
 			}
 		case .sidePanel:
 			return selectedLogLine.map(PeekSubject.logLine)
-		case .sidebar, .inbox:
+		case .sidebar, .inbox, .storyPanel:
 			return nil
 		}
 	}
@@ -485,6 +538,10 @@ final class AppModel {
 	/// ⏎ on the selection: a task opens its preview, a Browse group header folds.
 	private func openSelection() {
 		guard focus.focusedPane == .today else { return }
+		if screen == .story {
+			if let taskId = selectedStoryStep?.taskId { openPreview(taskId: taskId) }
+			return
+		}
 		switch selectedBrowseItem {
 		case let .row(row):
 			preview.open(taskId: row.id)
@@ -499,12 +556,17 @@ final class AppModel {
 	/// Opens the preview of a task, from a peek's Open or a row's click.
 	/// `gx`: the open preview's note, else the selected item's, in Obsidian.
 	private func openLinkOfSelection() {
-		guard let link = preview.content?.obsidianLink ?? peekSubject.flatMap({ peek.link(for: $0) }) else { return }
+		let storyLink = screen == .story ? story.obsidianLink : nil
+		guard let link = preview.content?.obsidianLink ?? storyLink ?? peekSubject.flatMap({ peek.link(for: $0) }) else { return }
 		NSWorkspace.shared.open(link)
 	}
 
 	/// `⌘⇧C`: the preview's Open in Claude Code, for the open preview's task or the selected one.
 	private func openSelectionInClaudeCode() {
+		if screen == .story, preview.content == nil {
+			handleLink(story.claudeCodeLink)
+			return
+		}
 		guard let taskId = preview.content?.taskId ?? selectedTaskId else { return }
 		handleLink(preview.claudeCodeLink(taskId: taskId))
 	}
@@ -556,12 +618,97 @@ final class AppModel {
 		afterPlanChange()
 	}
 
-	/// The Open in Claude Code and Full story buttons: the links are registered
-	/// but nothing listens yet, so they are recorded and logged.
+	/// The Open in Claude Code and Full story buttons: a story link opens the
+	/// story screen; the others are registered but nothing listens yet, so
+	/// they are recorded and logged.
 	func handleLink(_ url: URL?) {
 		guard let url else { return }
-		Logger(subsystem: "com.eiluviann.vaultday", category: "link").info("link not handled yet: \(url.absoluteString, privacy: .public)")
+		if case .notHandledYet = VaultdayLink(url) {
+			Logger(subsystem: "com.eiluviann.vaultday", category: "link").info("link not handled yet: \(url.absoluteString, privacy: .public)")
+		}
 		handle(url)
+	}
+
+	// MARK: Story screen
+
+	/// Opens the story screen of `number` in place of the window below the
+	/// header, focus on the note's steps.
+	func openStory(number: String) {
+		guard workspace?.phase == .open, !isShowingAll else { return }
+		peek.dismiss()
+		preview.close()
+		story.open(number: number)
+		guard story.isOpen else { return }
+		if let title = story.content?.title { recentStories.touch(PaletteStory(number: number, title: title)) }
+		if screen == .home { daySelectionBeforeStory = (selectedItem?.taskId, focus.selection(in: .today)) }
+		screen = .story
+		focus.setPaneOrder(Pane.storyOrder)
+		syncStoryItemCounts()
+		focus.focus(.today)
+		syncStorySelection()
+	}
+
+	/// Back to the day from the story screen.
+	func leaveStory() {
+		guard screen == .story else { return }
+		screen = .home
+		story.close()
+		focus.setPaneOrder(Pane.homeOrder)
+		syncTodayItemCount()
+		syncSidePanelItemCount()
+		restoreDaySelection()
+	}
+
+	/// The story screen borrows the Today pane's selection for its steps:
+	/// back on the day, the card selected before comes back, found by its
+	/// task when the plan moved, else at its old place.
+	private func restoreDaySelection() {
+		guard let saved = daySelectionBeforeStory else { return }
+		daySelectionBeforeStory = nil
+		let items = dayPlan.items
+		if let taskId = saved.taskId, let place = items.firstIndex(where: { $0.taskId == taskId }) {
+			focus.select(place, in: .today)
+		} else if let index = saved.index, items.indices.contains(index) {
+			focus.select(index, in: .today)
+		}
+	}
+
+	/// The step under the selection of the story screen's note.
+	var selectedStoryStep: StoryStep? {
+		guard screen == .story, let index = focus.selection(in: .today) else { return nil }
+		let steps = story.accordion.steps
+		return steps.indices.contains(index) ? steps[index] : nil
+	}
+
+	/// Selects a step with the pointer.
+	func selectStoryStep(_ step: StoryStep) {
+		guard let index = story.accordion.steps.firstIndex(of: step) else { return }
+		focus.select(index, in: .today)
+		syncStorySelection()
+	}
+
+	/// Puts keyboard focus in the story panel, as a click on it does.
+	func focusStoryPanel() {
+		focus.focus(.storyPanel)
+		syncStorySelection()
+	}
+
+	/// A line change from the story screen went through: the plan and the
+	/// side panel read the vault again too.
+	func storyChanged() {
+		syncStoryItemCounts()
+		afterPlanChange()
+	}
+
+	private func syncStoryItemCounts() {
+		syncTodayItemCount()
+		focus.setItemCount(0, in: .storyPanel)
+	}
+
+	/// The accordion's selection follows the note pane's selection.
+	private func syncStorySelection() {
+		guard screen == .story else { return }
+		story.selectStep(index: focus.focusedPane == .today ? focus.selection(in: .today) : nil)
 	}
 
 	// MARK: Home
@@ -615,6 +762,10 @@ final class AppModel {
 	private func registerChanged(_ action: KeyAction) {
 		let moved = action == .moveTaskUp || action == .moveTaskDown ? selectedTaskId : nil
 		if screen == .browse { BrowseModel.refresh([browse, backlog]) }
+		if screen == .story {
+			story.reload()
+			syncStoryItemCounts()
+		}
 		syncTodayItemCount()
 		afterPlanChange()
 		if let moved, let index = dayPlan.items.firstIndex(where: { $0.taskId == moved }) {
@@ -932,7 +1083,9 @@ final class AppModel {
 	}
 
 	func handle(_ url: URL) {
-		lastLink = VaultdayLink(url)
+		let link = VaultdayLink(url)
+		lastLink = link
+		if case let .story(number) = link { openStory(number: number) }
 	}
 
 	/// Asks for full calendar access, then makes sure the private calendar exists in iCloud.
@@ -991,6 +1144,12 @@ final class AppModel {
 		}
 		preview.attach(to: workspace)
 		peek.attach(to: workspace)
+		let openStoryNumber = screen == .story ? story.number : nil
+		story.attach(to: workspace)
+		if let openStoryNumber {
+			story.open(number: openStoryNumber)
+			if story.isOpen { syncStoryItemCounts() } else { leaveStory() }
+		}
 		dayLog.load(from: workspace)
 		syncTodayItemCount()
 		syncSidePanelItemCount()

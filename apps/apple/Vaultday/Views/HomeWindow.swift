@@ -25,42 +25,11 @@ struct HomeWindow: View {
 	var body: some View {
 		VStack(spacing: 0) {
 			HeaderBar(app: app)
-			HStack(spacing: 0) {
-				Group {
-					if app.focus.isSidebarCollapsed {
-						SidebarRail(app: app)
-					} else {
-						SidebarColumn(app: app)
-					}
-				}
-				.paneNumber(.sidebar, dispatcher: app.dispatcher)
-				if app.screen == .browse, !app.isShowingAll {
-					BrowseColumn(app: app, browse: app.browse)
-						.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
-						.paneNumber(.today, dispatcher: app.dispatcher)
-				} else {
-					Group {
-						if app.isShowingAll, let all = app.allWorkspaces {
-							AllWorkspacesColumn(app: app, all: all)
-						} else {
-							TodayColumn(app: app)
-						}
-					}
-					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
-					.paneNumber(.today, dispatcher: app.dispatcher)
-					InboxColumn(app: app)
-						.frame(width: HomeLayout.inboxWidth)
-						.paneNumber(.inbox, dispatcher: app.dispatcher)
-					SidePanelColumn(app: app)
-						.frame(width: HomeLayout.sidePanelWidth)
-						.paneNumber(.sidePanel, dispatcher: app.dispatcher)
-				}
-			}
-			.frame(maxHeight: .infinity)
-			// The row paints the sidebar's column to the window's foot, as the board's gradient does.
-			.background(alignment: .leading) {
-				Tokens.Colors.surfaceSidebar
-					.frame(width: app.focus.isSidebarCollapsed ? HomeLayout.railWidth : HomeLayout.sidebarWidth)
+			if app.screen == .story {
+				StoryScreen(app: app, story: app.story)
+					.frame(maxHeight: .infinity)
+			} else {
+				homeColumns
 			}
 		}
 		.background(Tokens.Colors.surfaceWindow)
@@ -115,6 +84,48 @@ struct HomeWindow: View {
 				try? await Task.sleep(for: .seconds(60))
 				await app.minuteTick()
 			}
+		}
+	}
+
+	/// The day: sidebar (or its rail), Today (or every workspace, or Browse),
+	/// Inbox and the side panel.
+	private var homeColumns: some View {
+		HStack(spacing: 0) {
+			Group {
+				if app.focus.isSidebarCollapsed {
+					SidebarRail(app: app)
+				} else {
+					SidebarColumn(app: app)
+				}
+			}
+			.paneNumber(.sidebar, dispatcher: app.dispatcher)
+			if app.screen == .browse, !app.isShowingAll {
+				BrowseColumn(app: app, browse: app.browse)
+					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+					.paneNumber(.today, dispatcher: app.dispatcher)
+			} else {
+				Group {
+					if app.isShowingAll, let all = app.allWorkspaces {
+						AllWorkspacesColumn(app: app, all: all)
+					} else {
+						TodayColumn(app: app)
+					}
+				}
+				.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+				.paneNumber(.today, dispatcher: app.dispatcher)
+				InboxColumn(app: app)
+					.frame(width: HomeLayout.inboxWidth)
+					.paneNumber(.inbox, dispatcher: app.dispatcher)
+				SidePanelColumn(app: app)
+					.frame(width: HomeLayout.sidePanelWidth)
+					.paneNumber(.sidePanel, dispatcher: app.dispatcher)
+			}
+		}
+		.frame(maxHeight: .infinity)
+		// The row paints the sidebar's column to the window's foot, as the board's gradient does.
+		.background(alignment: .leading) {
+			Tokens.Colors.surfaceSidebar
+				.frame(width: app.focus.isSidebarCollapsed ? HomeLayout.railWidth : HomeLayout.sidebarWidth)
 		}
 	}
 }

@@ -134,6 +134,27 @@ pub struct StoryHoursView {
     pub budget: BudgetSourceView,
 }
 
+/// The story screen's Hours tab: the three numbers kept apart. Tracked is the
+/// timer's real time and private; logged is what stopped sessions allocated
+/// to the story; remaining is the estimate less the logged time.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct StoryHoursDetailView {
+    /// The ticket number.
+    pub number: String,
+    /// Real timer time on the story, private.
+    pub tracked_minutes: u32,
+    /// Time stopped sessions logged to the story.
+    pub logged_minutes: u32,
+    /// The budget, when there is one.
+    pub estimate_minutes: Option<u32>,
+    /// Estimate less logged, never below zero.
+    pub remaining_minutes: u32,
+    /// Logged time beyond the budget.
+    pub overtime_minutes: u32,
+    /// Where the budget comes from.
+    pub budget: BudgetSourceView,
+}
+
 /// The Hours tab: today's tracked time against the daily target, and every
 /// open story with an estimate or tracked time.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -369,6 +390,20 @@ impl WorkspaceStateHandle {
         self.hours_at(workspace, parse_date(&date)?, Timestamp::now())
     }
 
+    /// The story screen's Hours for the story numbered `number`.
+    ///
+    /// # Errors
+    /// [`CoreError::NotFound`] without such a story, [`CoreError::FileAccess`]
+    /// when the vault cannot be read, [`CoreError::InvalidInput`] when stored
+    /// sessions break their rules.
+    pub fn story_hours(
+        &self,
+        workspace: &WorkspaceHandle,
+        number: String,
+    ) -> Result<StoryHoursDetailView, CoreError> {
+        self.story_hours_at(workspace, &number, Timestamp::now())
+    }
+
     /// Files one Reminders item as a task line: into the Next Steps of
     /// `story`, else of the intake note. The due day becomes `scheduled` when
     /// it has a time and `due` when it is a day alone. Completed, recurring
@@ -523,6 +558,60 @@ impl WorkspaceStateHandle {
             })?;
         }
         Ok(u32::try_from(recorded.len()).unwrap_or(u32::MAX))
+    }
+
+    fn story_hours_at(
+        &self,
+        workspace: &WorkspaceHandle,
+        number: &str,
+        now: Timestamp,
+    ) -> Result<StoryHoursDetailView, CoreError> {
+        let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
+        let entry = vault
+            .story_by_number(number)
+            .ok_or_else(|| CoreError::NotFound(format!("No story {number} in this workspace")))?;
+        let story = entry.story;
+        let target = estimate::daily_target(workspace.workspace.settings.hours_per_day);
+        let working_day = target.unwrap_or(Duration::from_secs(8 * 3600));
+        let tasks: Vec<&vault_base::Task> = story
+            .next_steps
+            .iter()
+            .chain(&story.pending_input)
+            .collect();
+        let task_stories: HashMap<TaskId, StoryNumber> = tasks
+            .iter()
+            .filter_map(|task| task.id())
+            .map(|id| (TaskId::new(id), StoryNumber::new(number)))
+            .collect();
+        let (budget_estimate, budget) = estimate::story_budget(
+            story
+                .estimate
+                .as_deref()
+                .and_then(|text| estimate::parse_story_budget(text, working_day)),
+            tasks
+                .iter()
+                .filter(|task| task.parent.is_none())
+                .map(|task| task.field("estimate").and_then(quick_add::parse_estimate)),
+        );
+        let story_number = StoryNumber::new(number);
+        let mut sync = lock(&self.sync);
+        let book = settled_session_book(&mut sync)?;
+        let tracked = book
+            .spent_by_story(&task_stories, now)
+            .get(&story_number)
+            .copied()
+            .unwrap_or_default();
+        let logged =
+            estimate::logged_report(book.logged_on_story(&story_number, now), budget_estimate);
+        Ok(StoryHoursDetailView {
+            number: number.to_owned(),
+            tracked_minutes: whole_minutes(tracked.as_duration()),
+            logged_minutes: whole_minutes(logged.logged.as_duration()),
+            estimate_minutes: budget_estimate.map(|estimate| whole_minutes(estimate.as_duration())),
+            remaining_minutes: whole_minutes(logged.remaining),
+            overtime_minutes: whole_minutes(logged.overtime),
+            budget: budget_source_view(budget),
+        })
     }
 
     fn hours_at(
@@ -691,11 +780,15 @@ fn story_hours_view(title: String, hours: &estimate::StoryHours) -> StoryHoursVi
         percent_used: report
             .percent_used()
             .map(|percent| u32::try_from(percent).unwrap_or(u32::MAX)),
-        budget: match hours.budget {
-            BudgetSource::Story => BudgetSourceView::Story,
-            BudgetSource::Tasks => BudgetSourceView::Tasks,
-            BudgetSource::None => BudgetSourceView::None,
-        },
+        budget: budget_source_view(hours.budget),
+    }
+}
+
+fn budget_source_view(budget: BudgetSource) -> BudgetSourceView {
+    match budget {
+        BudgetSource::Story => BudgetSourceView::Story,
+        BudgetSource::Tasks => BudgetSourceView::Tasks,
+        BudgetSource::None => BudgetSourceView::None,
     }
 }
 
@@ -1269,6 +1362,49 @@ mod tests {
             0
         );
         assert_eq!(lock(&state.sync).state().sessions().len(), 1);
+    }
+
+    #[test]
+    fn story_hours_keep_tracked_logged_and_remaining_apart() {
+        let sandbox = sandbox();
+        let (workspace, state) = open(sandbox.path());
+        // Tracked through its task only: real time, not logged to the story.
+        store_session(
+            &state,
+            "ses-1",
+            SessionTarget::task("task-2"),
+            (9, 0),
+            (10, 0),
+        );
+        store_session(
+            &state,
+            "ses-2",
+            SessionTarget::task_in_story("task-5", "WEB-142"),
+            (10, 0),
+            (10, 30),
+        );
+
+        let hours = state
+            .story_hours_at(&workspace, "WEB-142", local(12, 0).timestamp())
+            .unwrap();
+        assert_eq!(hours.tracked_minutes, 90);
+        assert_eq!(hours.logged_minutes, 30);
+        assert_eq!(
+            hours.estimate_minutes,
+            Some(3 * 480),
+            "3d at hours_per_day 8.0"
+        );
+        assert_eq!(
+            hours.remaining_minutes,
+            3 * 480 - 30,
+            "the estimate less the logged time"
+        );
+        assert_eq!(hours.overtime_minutes, 0);
+        assert_eq!(hours.budget, BudgetSourceView::Story);
+        assert!(matches!(
+            state.story_hours_at(&workspace, "WEB-999", local(12, 0).timestamp()),
+            Err(CoreError::NotFound(_))
+        ));
     }
 
     #[test]

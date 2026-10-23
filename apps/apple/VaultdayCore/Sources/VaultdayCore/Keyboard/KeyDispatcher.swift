@@ -91,12 +91,16 @@ public final class KeyDispatcher {
 	}
 
 	/// Feeds one stroke typed while `pane` holds focus: a binding that needs
-	/// another pane (bare `1` to `7` need the side panel) stays out of reach.
+	/// another pane (bare `1` to `7` need the side panel) stays out of reach,
+	/// and one scoped to `pane` wins over an unscoped one of the same keys.
 	public func handle(_ stroke: KeyStroke, in pane: Pane? = nil) -> KeyResolution {
 		expirePending()
 		let sequence = pending + [stroke]
 		let reachable = bound.filter { $0.pane == nil || $0.pane == pane }
-		if let match = reachable.first(where: { $0.sequence == sequence }) {
+		// A binding scoped to the focused pane shadows an unscoped one of the
+		// same keys; the keymap allows that only outside the Home window.
+		let exact = reachable.filter { $0.sequence == sequence }
+		if let match = exact.first(where: { $0.pane != nil }) ?? exact.first {
 			clearPending()
 			return .action(match.action)
 		}

@@ -9,7 +9,8 @@
 //!   answers the queries the CLI and the app need; [`TodayView`] is the
 //!   one the Today surfaces copy out.
 //! - [`preview`] cuts a story note into the read-only blocks the app shows
-//!   beside a task.
+//!   beside a task; [`render`] builds the story screen's block tree with
+//!   inline spans, the way Obsidian's Reading view shows the note.
 //! - [`ops`] holds the operations the CLI, the MCP server and the apps share,
 //!   as plain records the bindings copy.
 //! - [`FileAccess`] is the port to the file system; [`PlainFileAccess`] is the
@@ -35,6 +36,7 @@ pub mod log;
 pub mod note;
 pub mod ops;
 pub mod preview;
+pub mod render;
 pub mod scan;
 pub mod settings;
 pub mod today;
@@ -64,6 +66,11 @@ pub use note::{DayLog, LogKind, LogLine, NoteType, ProjectHub, Story, StoryStatu
 pub use ops::{OpError, resolve_workspace};
 pub use preview::{
     ActivityEntry, NoteBlock, StoryPreview, SubtaskEntry, TaskPreview, WaitingEntry, note_blocks,
+};
+pub use render::{
+    AppView, Authorship, AuthorshipKind, CalloutFold, Checkbox, ColumnAlignment, EmbedKind,
+    LinkTarget, ListEntry, RenderBlock, Span, SpanLink, SpanStyle, authorship, inline_spans,
+    render_note,
 };
 pub use scan::{
     Document, Heading, InlineField, Line, LineKind, ListItem, Marker, MarkerKind, ProvenanceUnit,

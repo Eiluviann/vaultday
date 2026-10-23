@@ -24,6 +24,7 @@ pub mod onboarding;
 pub mod preferences;
 pub mod secrets;
 pub mod side_panel;
+pub mod story;
 pub mod timer;
 pub mod workspace_form;
 

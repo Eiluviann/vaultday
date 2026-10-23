@@ -25,6 +25,13 @@ Example lines that must stay untouched by any tool:
 %% ai:begin fable · 2026-10-01 · 000000000000 %%
 ```
 
+> [!note] Scope
+> Card payments only; wallets follow in a later story.
+
+See [[Research notes]] and [[Research notes#Checkout research|the competitor sweep]].
+
+![[checkout-sketch.svg]]
+
 ## Implementation
 %% ai:begin fable · 2026-10-20 · 3f9a1c2b7e4d %%
 Render the address and payment forms side by side; validate on blur.
@@ -44,3 +51,8 @@ Render the address and payment forms side by side; validate on blur.
 
 ## Notes
 - 2026-10-21 Decided to keep the coupon field above the fold.
+
+## Activity
+```dataview
+TABLE WITHOUT ID time, text FROM "Log" WHERE story = "WEB-142"
+```

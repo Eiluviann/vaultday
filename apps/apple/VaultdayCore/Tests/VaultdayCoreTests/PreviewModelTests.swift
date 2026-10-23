@@ -78,13 +78,17 @@ final class PreviewModelTests: XCTestCase {
 		XCTAssertFalse(model.isOpen)
 	}
 
-	func testLinksAreVaultdayLinksThatNothingHandlesYet() {
+	func testFullStoryOpensTheStoryScreenAndClaudeCodeIsNotHandledYet() {
 		let model = PreviewModel(now: Self.today)
 		XCTAssertEqual(model.claudeCodeLink(taskId: "task-2")?.absoluteString, "vaultday://claude-code/task/task-2")
 		XCTAssertEqual(model.fullStoryLink(storyNumber: "WEB-142")?.absoluteString, "vaultday://story/WEB-142")
 		XCTAssertEqual(
 			model.fullStoryLink(storyNumber: "WEB-142").flatMap(VaultdayLink.init),
-			.notHandledYet(host: "story", path: "/WEB-142"),
+			.story(number: "WEB-142"),
+		)
+		XCTAssertEqual(
+			model.claudeCodeLink(taskId: "task-2").flatMap(VaultdayLink.init),
+			.notHandledYet(host: "claude-code", path: "/task/task-2"),
 		)
 	}
 

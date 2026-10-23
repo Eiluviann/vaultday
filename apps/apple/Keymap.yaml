@@ -15,16 +15,20 @@
 # footer shows the key) and `menu: true` (the action is also a row of the
 # selected item's more-actions menu, which a pending stroke then opens) and
 # `pane` (the keys act only while that pane holds focus: `sidebar`, `today`,
-# `inbox` or `side-panel`; bare `1` to `7` reach the rail only from the side
-# panel, so the Inbox keeps its digit keys).
+# `inbox`, `side-panel` or `story-panel`; bare `1` to `7` reach the rail only
+# from the side panel, so the Inbox keeps its digit keys). Only a binding
+# scoped to the story panel, a pane outside the Home window, may reuse keys
+# bound everywhere: it wins while that pane holds focus.
 # An action bound twice carries its label once, on its first entry.
 #
 # Rules from the design note, enforced when the file loads: bare `h` `j` `k`
 # `l` are directional movement in every view and never bound to anything
-# else, nor start a chord; no sequence is bound twice, or hides a longer one,
-# within a scheme where both can act; every action has a label. Pane jumps are `g` plus the pane
-# number (`g0` sidebar, `g1` Today, `g2` Inbox, `g3` side panel); `]` `[` and
-# `1` to `7` reach the side panel's rail.
+# else, nor start a chord; no sequence is bound twice for the same pane (or
+# twice unscoped), or hides a longer one, within a scheme where both can
+# act; every action has a label. Pane jumps are `g` plus the pane number
+# (`g0` sidebar, `g1` Today, `g2` Inbox, `g3` side panel); `]` `[` and `1`
+# to `7` reach the side panel's rail, and on the story screen `]` `[` and `1`
+# to `3` reach the story panel's tabs while it holds focus.
 version: 1
 bindings:
   # Selected task
@@ -327,6 +331,39 @@ bindings:
     pane: "side-panel"
     vim: "7"
     standard: ""
+  # The story screen's panel (PR 15): its tabs step and switch only while
+  # the panel holds focus. These bindings are scoped to it, so they shadow
+  # the side panel's unscoped keys there and nowhere else.
+  - action: story-panel.next
+    label: "Next story panel tab"
+    group: "Panes and tabs"
+    pane: "story-panel"
+    vim: "]"
+    standard: "ctrl+tab"
+  - action: story-panel.previous
+    label: "Previous story panel tab"
+    group: "Panes and tabs"
+    pane: "story-panel"
+    vim: "["
+    standard: "ctrl+shift+tab"
+  - action: story-panel.tab.1
+    label: "Story Hours tab"
+    group: "Panes and tabs"
+    pane: "story-panel"
+    vim: "1"
+    standard: "alt+1"
+  - action: story-panel.tab.2
+    label: "Story Reports tab"
+    group: "Panes and tabs"
+    pane: "story-panel"
+    vim: "2"
+    standard: "alt+2"
+  - action: story-panel.tab.3
+    label: "Story Claude Code tab"
+    group: "Panes and tabs"
+    pane: "story-panel"
+    vim: "3"
+    standard: "alt+3"
   - action: sidebar.toggle
     label: "Show or hide the sidebar"
     group: "Panes and tabs"

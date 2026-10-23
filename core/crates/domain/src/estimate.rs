@@ -298,21 +298,59 @@ pub fn story_hours(
     task_estimates: impl IntoIterator<Item = Option<Estimate>>,
     tracked: SpentTime,
 ) -> StoryHours {
+    let (estimate, budget) = story_budget(story_estimate, task_estimates);
+    StoryHours {
+        story,
+        report: report(tracked, estimate),
+        budget,
+    }
+}
+
+/// A story's budget and where it comes from: its own estimate, else the sum
+/// of its tasks' estimates, else none.
+pub fn story_budget(
+    story_estimate: Option<Estimate>,
+    task_estimates: impl IntoIterator<Item = Option<Estimate>>,
+) -> (Option<Estimate>, BudgetSource) {
     let from_tasks = task_estimates
         .into_iter()
         .flatten()
         .fold(None, |total: Option<Estimate>, estimate| {
             Some(total.unwrap_or_default() + estimate)
         });
-    let (estimate, budget) = match (story_estimate, from_tasks) {
+    match (story_estimate, from_tasks) {
         (Some(estimate), _) => (Some(estimate), BudgetSource::Story),
         (None, Some(estimate)) => (Some(estimate), BudgetSource::Tasks),
         (None, None) => (None, BudgetSource::None),
-    };
-    StoryHours {
-        story,
-        report: report(tracked, estimate),
-        budget,
+    }
+}
+
+/// Logged time against a budget. Tracked time never enters it: what is left
+/// of the estimate is what has not been logged yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoggedReport {
+    /// Time logged so far.
+    pub logged: LoggedTime,
+    /// The budget, when one was given.
+    pub estimate: Option<Estimate>,
+    /// Estimate minus logged, never below zero. Zero without an estimate.
+    pub remaining: Duration,
+    /// Logged time beyond the budget, never below zero. Zero without an estimate.
+    pub overtime: Duration,
+}
+
+/// Logged time, estimate, remaining and overtime for one story.
+pub fn logged_report(logged: LoggedTime, estimate: Option<Estimate>) -> LoggedReport {
+    let budget = estimate.map_or(Duration::ZERO, Estimate::as_duration);
+    let done = logged.as_duration();
+    LoggedReport {
+        logged,
+        estimate,
+        remaining: budget.saturating_sub(done),
+        overtime: match estimate {
+            Some(_) => done.saturating_sub(budget),
+            None => Duration::ZERO,
+        },
     }
 }
 
@@ -513,6 +551,35 @@ mod tests {
         assert_eq!(web_7.estimate, None);
         assert_eq!(web_7.remaining, Duration::ZERO);
         assert!(reports_by_story(&[]).is_empty());
+    }
+
+    #[test]
+    fn the_logged_report_keeps_tracked_time_out() {
+        let report = logged_report(
+            LoggedTime::from_minutes(120),
+            Some(Estimate::from_minutes(360)),
+        );
+        assert_eq!(report.remaining, Duration::from_secs(240 * 60));
+        assert_eq!(report.overtime, Duration::ZERO);
+        let over = logged_report(
+            LoggedTime::from_minutes(90),
+            Some(Estimate::from_minutes(60)),
+        );
+        assert_eq!(over.remaining, Duration::ZERO);
+        assert_eq!(over.overtime, Duration::from_secs(30 * 60));
+        let unbudgeted = logged_report(LoggedTime::from_minutes(90), None);
+        assert_eq!(unbudgeted.overtime, Duration::ZERO);
+        assert_eq!(
+            story_budget(
+                None,
+                [
+                    Some(Estimate::from_minutes(30)),
+                    None,
+                    Some(Estimate::from_minutes(15))
+                ]
+            ),
+            (Some(Estimate::from_minutes(45)), BudgetSource::Tasks)
+        );
     }
 
     #[test]

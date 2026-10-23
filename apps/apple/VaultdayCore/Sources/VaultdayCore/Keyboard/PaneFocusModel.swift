@@ -26,6 +26,9 @@ public final class PaneFocusModel {
 	public private(set) var scheme: KeyScheme
 	/// Whether the pointer entering an item selects it (Settings, Keyboard).
 	public var hoverSelects = true
+	/// The panes on screen, in the order `h` and `l` step through: the Home
+	/// window's four, or the story screen's two.
+	public private(set) var paneOrder: [Pane] = Pane.homeOrder
 
 	private var selections: [Pane: Int] = [:]
 	private var itemCounts: [Pane: Int] = [:]
@@ -59,6 +62,16 @@ public final class PaneFocusModel {
 	/// Tells the model how many rows of `pane` fit on screen, for `^d` and `^u`.
 	public func setVisibleRowCount(_ count: Int, in pane: Pane) {
 		visibleRows[pane] = max(1, count)
+	}
+
+	/// The screen changed: `order` is its panes. Focus on a pane that left
+	/// the screen moves to the first pane that stays.
+	public func setPaneOrder(_ order: [Pane]) {
+		guard !order.isEmpty else { return }
+		paneOrder = order
+		if !order.contains(focusedPane) {
+			focus(order.contains(.today) ? .today : order[0])
+		}
 	}
 
 	/// Switches the scheme the focus rules follow.
@@ -131,6 +144,8 @@ public final class PaneFocusModel {
 			focus(.today)
 		case .showDayLog, .showSidePanelTab, .nextSidePanelTab, .previousSidePanelTab, .appendDayLog:
 			focus(.sidePanel)
+		case .showStoryPanelTab, .nextStoryPanelTab, .previousStoryPanelTab:
+			focus(.storyPanel)
 		default:
 			break
 		}
@@ -152,7 +167,7 @@ public final class PaneFocusModel {
 	}
 
 	private func movePane(by step: Int) {
-		let order = Pane.allCases
+		let order = paneOrder
 		guard let index = order.firstIndex(of: focusedPane) else { return }
 		let target = order[min(max(index + step, 0), order.count - 1)]
 		guard target != focusedPane else { return }

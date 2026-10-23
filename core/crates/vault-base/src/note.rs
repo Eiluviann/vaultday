@@ -10,6 +10,8 @@ use crate::scan::{Document, InlineField, Task};
 pub const NEXT_STEPS_HEADING: &str = "Next Steps";
 /// Heading of the section that holds what a story waits on from others.
 pub const PENDING_INPUT_HEADING: &str = "Pending Input";
+/// Heading of a story's activity: a query in the note, the app's own list on screen.
+pub const ACTIVITY_HEADING: &str = "Activity";
 /// Heading of the list in a day log.
 pub const LOG_HEADING: &str = "Log";
 

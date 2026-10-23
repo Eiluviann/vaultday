@@ -1,11 +1,12 @@
 //! Read-only previews: what the app shows beside a task or a story without
 //! opening the note. The story note is cut into plain blocks (headings,
 //! paragraphs, bullets, code) with the frontmatter, the title, the provenance
-//! markers and the two task sections left out, because the preview shows the
-//! tasks and the waiting items in their own places.
+//! markers, the two task sections and the Activity query left out, because
+//! the preview shows the tasks, the waiting items and the activity in their
+//! own places.
 
 use crate::date::{Date, Time};
-use crate::note::{LogKind, NEXT_STEPS_HEADING, PENDING_INPUT_HEADING};
+use crate::note::{ACTIVITY_HEADING, LogKind, NEXT_STEPS_HEADING, PENDING_INPUT_HEADING};
 use crate::scan::{Document, LineKind, Task, TaskStatus};
 use crate::vault::{ME, Vault};
 
@@ -245,7 +246,10 @@ impl Vault {
             priority: story.priority.clone(),
             due: story.due,
             estimate: story.estimate.clone(),
-            blocks: note_blocks(&note.document, &[NEXT_STEPS_HEADING, PENDING_INPUT_HEADING]),
+            blocks: note_blocks(
+                &note.document,
+                &[NEXT_STEPS_HEADING, PENDING_INPUT_HEADING, ACTIVITY_HEADING],
+            ),
             waiting,
             activity,
         })
