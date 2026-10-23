@@ -222,6 +222,23 @@ final class VimEditorTests: XCTestCase {
 		XCTAssertEqual(editor.pendingText, "g")
 	}
 
+	func testReviewFindings() {
+		check([
+			// `cw` on a word's last letter changes that letter only.
+			Case(text: "foo bar", cursor: 2, keys: "cwX<Esc>", expectedText: "foX bar", expectedCursor: 2, line: #line),
+			// `d$` on an empty line keeps its newline.
+			Case(text: "a\n\nb", cursor: 2, keys: "d$", expectedText: "a\n\nb", expectedCursor: 2, isMultiline: true, line: #line),
+			// A count before `.` replaces the change's own counts, both of them.
+			Case(text: "a b c d e f g h", cursor: 0, keys: "d2w3.", expectedText: "f g h", expectedCursor: 0, line: #line),
+		])
+		// A count too long for an Int, or for a loop, is capped rather than trapping or hanging.
+		var editor = VimEditor(text: "one two three")
+		Self.type(String(repeating: "9", count: 30) + "w", into: &editor)
+		XCTAssertEqual(editor.cursor, 12, "the motion stops at the end")
+		Self.type(String(repeating: "9", count: 30) + "x", into: &editor)
+		XCTAssertEqual(editor.text, "one two thre")
+	}
+
 	func testStartInsertingAppendsAndIsOneUndoStep() {
 		var editor = VimEditor(text: "buy milk")
 		editor.startInserting()

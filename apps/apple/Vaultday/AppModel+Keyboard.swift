@@ -41,11 +41,16 @@ extension AppModel {
 		return rows
 	}
 
+	/// The sidebar row of what is open: All workspaces, or the open workspace.
+	var openSidebarRow: SidebarRow {
+		isShowingAll ? .allWorkspaces : workspace.map { .workspace($0.workspaceId) } ?? .allWorkspaces
+	}
+
 	/// The sidebar told the focus model what it lists; the current row
 	/// follows the open workspace, so `g1` lands there.
 	func syncSidebarRows(_ rows: [SidebarRow]) {
 		focus.setItemCount(rows.count, in: .sidebar)
-		let current: SidebarRow = isShowingAll ? .allWorkspaces : workspace.map { .workspace($0.workspaceId) } ?? .allWorkspaces
+		let current = openSidebarRow
 		guard current != lastSidebarWorkspaceRow, let index = rows.firstIndex(of: current) else { return }
 		lastSidebarWorkspaceRow = current
 		focus.setCurrentRow(index, in: .sidebar)

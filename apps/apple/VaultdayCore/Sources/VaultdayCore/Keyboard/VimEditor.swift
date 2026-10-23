@@ -88,6 +88,10 @@ public struct VimEditor: Equatable, Sendable {
 	/// The unnamed register; the field shares it with the other fields.
 	public var register = VimRegister()
 
+	/// The largest count a command takes, as Vim caps one: longer counts
+	/// would overflow or run a motion for as long as the user waits.
+	static let maximumCount = 9999
+
 	/// The keys of the command being typed, for the pending-keys line.
 	private var typed: [VimKey] = []
 	private var count: Int?
@@ -287,9 +291,9 @@ public struct VimEditor: Equatable, Sendable {
 	private mutating func normalCharacter(_ character: Character) -> VimEffect {
 		if let digit = character.wholeNumberValue, character.isASCII, digit > 0 || hasCount {
 			if operatorKey != nil {
-				operatorCount = (operatorCount ?? 0) * 10 + digit
+				operatorCount = Self.appending(digit, to: operatorCount)
 			} else {
-				count = (count ?? 0) * 10 + digit
+				count = Self.appending(digit, to: count)
 			}
 			return .handled
 		}
@@ -349,7 +353,11 @@ public struct VimEditor: Equatable, Sendable {
 	}
 
 	private var totalCount: Int {
-		(count ?? 1) * (operatorCount ?? 1)
+		min(Self.maximumCount, (count ?? 1) * (operatorCount ?? 1))
+	}
+
+	private static func appending(_ digit: Int, to count: Int?) -> Int {
+		min(maximumCount, (count ?? 0) * 10 + digit)
 	}
 
 	/// A motion key alone moves the cursor.
@@ -378,11 +386,17 @@ public struct VimEditor: Equatable, Sendable {
 		}
 		if firstLine { character = "g" }
 		let operatorCount = totalCount
-		// `cw` changes to the end of the word, not up to the next one, as in Vim.
+		// `cw` changes to the end of the word, not up to the next one, as in
+		// Vim; on a word's last letter that end is the letter itself.
+		var motion: Motion?
 		if operatorKey == "c", character == "w", cursor < characters.count, classOf(cursor) != .space {
-			character = "e"
+			var target = isWordEnd(cursor) ? cursor : wordEnd(from: cursor)
+			for _ in 1 ..< max(1, operatorCount) { target = wordEnd(from: target) }
+			motion = Motion(target: target, isInclusive: true, isLinewise: false)
+		} else {
+			motion = self.motion(character, count: operatorCount, forOperator: true)
 		}
-		guard let motion = motion(character, count: operatorCount, forOperator: true) else {
+		guard let motion else {
 			resetCommand()
 			return .handled
 		}
@@ -563,8 +577,7 @@ public struct VimEditor: Equatable, Sendable {
 		guard let change = lastChange else { return .handled }
 		var keys = change.keys
 		if let newCount {
-			let withoutCount = change.keys.drop { if case let .character(character) = $0 { character.isNumber } else { false } }
-			keys = String(newCount).map { VimKey.character($0) } + withoutCount
+			keys = String(newCount).map { VimKey.character($0) } + Self.withoutCounts(change.keys)
 		}
 		isReplaying = true
 		defer { isReplaying = false }
@@ -581,6 +594,20 @@ public struct VimEditor: Equatable, Sendable {
 			clampToLine()
 		}
 		return .handled
+	}
+
+	/// The keys of a change without its counts (`d2w` → `dw`); a `0` that
+	/// follows no count digit is the motion, and stays.
+	private static func withoutCounts(_ keys: [VimKey]) -> [VimKey] {
+		var isInCount = false
+		return keys.filter { key in
+			guard case let .character(character) = key, let digit = character.wholeNumberValue, character.isASCII, digit > 0 || isInCount else {
+				isInCount = false
+				return true
+			}
+			isInCount = true
+			return false
+		}
 	}
 
 	private mutating func record(_ keys: [VimKey]) {
@@ -607,7 +634,7 @@ public struct VimEditor: Equatable, Sendable {
 			return visualMove("j")
 		case let .character(character):
 			if let digit = character.wholeNumberValue, character.isASCII, digit > 0 || count != nil {
-				count = (count ?? 0) * 10 + digit
+				count = Self.appending(digit, to: count)
 				typed.append(key)
 				return .handled
 			}
@@ -720,7 +747,9 @@ public struct VimEditor: Equatable, Sendable {
 				if step > 0, lineEnd(of: target) < characters.count { target = lineEnd(of: target) + 1 }
 				target = lineEnd(of: target)
 			}
-			return Motion(target: max(lineStart(of: target), target - 1), isInclusive: true, isLinewise: false)
+			// An empty line has no last character: `d$` there takes nothing, its newline stays.
+			let isEmptyLine = lineStart(of: target) == target
+			return Motion(target: max(lineStart(of: target), target - 1), isInclusive: !isEmptyLine, isLinewise: false)
 		case "w":
 			var target = cursor
 			for _ in 0 ..< count { target = nextWordStart(from: target) }
@@ -793,6 +822,11 @@ public struct VimEditor: Equatable, Sendable {
 		let kind = classOf(next)
 		while next > 0, classOf(next - 1) == kind { next -= 1 }
 		return next
+	}
+
+	/// Whether the character at `index` ends its word: the next one is of another kind, or there is none.
+	private func isWordEnd(_ index: Int) -> Bool {
+		index + 1 >= characters.count || classOf(index + 1) != classOf(index)
 	}
 
 	private func wordEnd(from index: Int) -> Int {

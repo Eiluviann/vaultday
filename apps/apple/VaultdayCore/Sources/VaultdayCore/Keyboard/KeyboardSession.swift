@@ -119,6 +119,12 @@ public final class KeyboardSession {
 		onAction(action)
 	}
 
+	/// A text input took the keys: a pending prefix can no longer complete, so it goes.
+	public func enterInput(_ input: FocusedInput) {
+		dispatcher.cancelPending()
+		focus.enterInput(input)
+	}
+
 	/// Saves the change editor's value through the register.
 	public func submitChange(_ value: String) {
 		guard let request = changeRequest else { return }

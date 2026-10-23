@@ -153,7 +153,7 @@ final class AppModel {
 		if isFocused { focusedTextFields.insert(name) } else { focusedTextFields.remove(name) }
 		guard let pane = Self.pane(ofTextField: name) else { return }
 		if isFocused {
-			focus.enterInput(FocusedInput(name: name, pane: pane))
+			keyboard.enterInput(FocusedInput(name: name, pane: pane))
 		} else {
 			focus.leaveInput(named: name)
 		}
@@ -711,7 +711,7 @@ final class AppModel {
 			inbox.saveDraft()
 			return
 		}
-		if focus.section == .dayHeader {
+		if focus.section == .dayHeader, screen == .home {
 			activateDayHeaderControl()
 			return
 		}

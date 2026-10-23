@@ -151,6 +151,22 @@ final class FocusTreeTests: XCTestCase {
 		XCTAssertNil(focus.section, "a header that shows no controls gives the keys back")
 	}
 
+	func testAHeaderOffScreenCannotBeEntered() throws {
+		let (session, _) = try makeSession(.vim)
+		let focus = session.focus
+		focus.setControlCount(0, in: .dayHeader)
+		type("g 2 j k", into: session)
+		XCTAssertNil(focus.section, "Browse and the story screen show no header above their rows")
+		XCTAssertEqual(focus.level, .row(.today, index: 0))
+	}
+
+	func testEnteringAnInputDropsAPendingPrefix() throws {
+		let (session, _) = try makeSession(.vim)
+		type("g", into: session)
+		session.enterInput(FocusedInput(name: "quick-add", pane: .today))
+		XCTAssertEqual(session.dispatcher.pendingText, "", "the field takes the next keys, so the prefix cannot complete")
+	}
+
 	// MARK: The sidebar's rows
 
 	func testTheSidebarLandsOnItsCurrentRow() throws {

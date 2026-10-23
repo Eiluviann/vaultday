@@ -185,7 +185,7 @@ final class VimFieldController {
 	@ObservationIgnored var editor: VimEditor
 	@ObservationIgnored weak var anchor: NSView?
 	@ObservationIgnored var onEscape: (() -> Bool)?
-	/// The AppKit view `focusField()` found, so the next request skips the search.
+	/// The field's AppKit view, found once and kept while it stays in its window.
 	@ObservationIgnored private weak var editableView: NSView?
 	/// The text view's selection as this controller last set it, to tell a click from its own write.
 	@ObservationIgnored private var lastWrittenRange: NSRange?
@@ -201,31 +201,45 @@ final class VimFieldController {
 	func focusField() {
 		guard let anchor, let window = anchor.window, let root = window.contentView else { return }
 		if editableView?.window !== window {
-			let frame = anchor.convert(anchor.bounds, to: nil).insetBy(dx: -2, dy: -2)
-			editableView = Self.editableView(in: root, inside: frame)
+			editableView = Self.editableView(in: root, matching: anchor.convert(anchor.bounds, to: nil))
 		}
 		guard let editableView else { return }
 		window.makeFirstResponder(editableView)
 	}
 
-	/// The first editable text view or field whose centre lies inside `frame`, in window coordinates.
-	private static func editableView(in view: NSView, inside frame: CGRect) -> NSView? {
-		for subview in view.subviews where !subview.isHidden {
-			let bounds = subview.convert(subview.bounds, to: nil)
-			guard bounds.intersects(frame) else { continue }
-			let isEditable = (subview as? NSTextField)?.isEditable == true || (subview as? NSTextView)?.isEditable == true
-			if isEditable, frame.contains(CGPoint(x: bounds.midX, y: bounds.midY)) { return subview }
-			if let found = editableView(in: subview, inside: frame) { return found }
+	/// The editable text field or text view that fills `frame` (window
+	/// coordinates) most closely: of those whose centre lies inside it, the
+	/// one whose size differs least from it.
+	private static func editableView(in root: NSView, matching frame: CGRect) -> NSView? {
+		let area = frame.insetBy(dx: -2, dy: -2)
+		var best: (view: NSView, difference: CGFloat)?
+		var stack = [root]
+		while let view = stack.popLast() {
+			for subview in view.subviews where !subview.isHidden {
+				let bounds = subview.convert(subview.bounds, to: nil)
+				guard bounds.intersects(area) else { continue }
+				let isEditable = (subview as? NSTextField)?.isEditable == true || (subview as? NSTextView)?.isEditable == true
+				if isEditable, area.contains(CGPoint(x: bounds.midX, y: bounds.midY)) {
+					let difference = abs(bounds.width - frame.width) + abs(bounds.height - frame.height)
+					if difference < best?.difference ?? .infinity { best = (subview, difference) }
+				}
+				stack.append(subview)
+			}
 		}
-		return nil
+		return best?.view
 	}
 
-	/// Whether `textView` is this field's: it lies inside the field's frame in the same window.
+	/// Whether `textView` is this field's: the field's own text view (a
+	/// multi-line editor), or the field editor working for the field's
+	/// own text field. Another field floating over this one (the palette)
+	/// is never mistaken for it.
 	func owns(_ textView: NSTextView) -> Bool {
-		guard let anchor, anchor.window === textView.window, anchor.window != nil else { return false }
-		let field = anchor.convert(anchor.bounds, to: nil).insetBy(dx: -2, dy: -2)
-		let view = textView.convert(textView.visibleRect, to: nil)
-		return field.contains(CGPoint(x: view.midX, y: view.midY))
+		guard let anchor, let window = anchor.window, window === textView.window else { return false }
+		if editableView?.window !== window, let root = window.contentView {
+			editableView = Self.editableView(in: root, matching: anchor.convert(anchor.bounds, to: nil))
+		}
+		guard let editableView else { return false }
+		return textView === editableView || (textView.delegate as? NSView) === editableView
 	}
 
 	/// The field took the keys: Normal mode, unless the key that opened it means insert.
@@ -289,6 +303,13 @@ final class VimFieldController {
 		pendingText = editor.pendingText
 	}
 
+	/// Puts a caret where Normal mode's block starts, before a ⌘ key acts on the text.
+	func collapseBlock(in textView: NSTextView) {
+		let range = textView.selectedRange()
+		textView.setSelectedRange(NSRange(location: range.location, length: 0))
+		lastWrittenRange = textView.selectedRange()
+	}
+
 	/// Normal mode's block is an ink cell over the character; Visual
 	/// mode's selection and Insert mode's caret are AppKit's own.
 	private var selectionAttributes: [NSAttributedString.Key: Any] {
@@ -307,7 +328,9 @@ final class VimFieldRouter {
 	private var register = VimRegister()
 	private var controllers: [ObjectIdentifier: WeakController] = [:]
 	private var active: (controller: VimFieldController, textView: NSTextView)?
-	private var startsInInsert = false
+	/// Until when the next field to take the keys opens in Insert mode: a
+	/// moment, so a request no field answered does not reach a later click.
+	private var insertDeadline: TimeInterval = 0
 	private var monitor: Any?
 	private var observations: [ObjectIdentifier: NSKeyValueObservation] = [:]
 
@@ -319,10 +342,12 @@ final class VimFieldRouter {
 	private static let returnKeys: Set<UInt16> = [36, 76]
 	private static let backspace: UInt16 = 51
 	private static let arrows: [UInt16: VimKey] = [123: .left, 124: .right, 125: .down, 126: .up]
+	/// Tab, Home, End, Page Up, Page Down, forward delete.
+	private static let appKitKeys: Set<UInt16> = [48, 115, 119, 116, 121, 117]
 
 	/// The next field to take the keys opens in Insert mode (`i`, `o`, `/`).
 	func startNextFieldInInsert() {
-		startsInInsert = true
+		insertDeadline = ProcessInfo.processInfo.systemUptime + 0.5
 	}
 
 	func register(_ controller: VimFieldController) {
@@ -367,8 +392,8 @@ final class VimFieldRouter {
 		}
 		guard let textView, let controller = owner(of: textView) else { return }
 		active = (controller, textView)
-		controller.activate(textView, startsInInsert: startsInInsert)
-		startsInInsert = false
+		controller.activate(textView, startsInInsert: ProcessInfo.processInfo.systemUptime < insertDeadline)
+		insertDeadline = 0
 	}
 
 	private func owner(of textView: NSTextView) -> VimFieldController? {
@@ -382,7 +407,15 @@ final class VimFieldRouter {
 		if active?.textView !== textView || active?.controller.isActive != true { firstResponderChanged(in: window) }
 		guard let (controller, _) = active, active?.textView === textView else { return false }
 		let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-		if flags.contains(.command) { return false }
+		// An input method composing text owns Esc and ⏎ until it commits.
+		if textView.hasMarkedText() { return false }
+		// Tab, Home, End, the page keys, forward delete and the function keys keep AppKit's meaning.
+		if Self.appKitKeys.contains(event.keyCode) || flags.contains(.function) && Self.arrows[event.keyCode] == nil { return false }
+		if flags.contains(.command) {
+			// ⌘V and the rest act at the caret, not on Normal mode's one-character block.
+			if controller.editor.mode == .normal { controller.collapseBlock(in: textView) }
+			return false
+		}
 		guard let key = Self.key(of: event, flags: flags) else { return false }
 
 		controller.read(from: textView)
@@ -424,9 +457,12 @@ enum VimText {
 	static func characterOffset(utf16 offset: Int, in text: String) -> Int {
 		let utf16 = text.utf16
 		let clamped = min(max(0, offset), utf16.count)
-		guard let index = utf16.index(utf16.startIndex, offsetBy: clamped, limitedBy: utf16.endIndex),
-		      let characterIndex = index.samePosition(in: text)
-		else { return text.count }
+		guard var index = utf16.index(utf16.startIndex, offsetBy: clamped, limitedBy: utf16.endIndex) else { return text.count }
+		// An offset inside a character (an emoji's second half) rounds down to its start.
+		while index > utf16.startIndex, index.samePosition(in: text) == nil {
+			index = utf16.index(before: index)
+		}
+		guard let characterIndex = index.samePosition(in: text) else { return 0 }
 		return text.distance(from: text.startIndex, to: characterIndex)
 	}
 

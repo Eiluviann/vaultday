@@ -42,6 +42,8 @@ struct SidebarColumn: View {
 		// The rows `j` and `k` walk, and the current row `g1` lands on.
 		.onAppear { app.syncSidebarRows(app.sidebarRows) }
 		.onChange(of: app.sidebarRows) { _, rows in app.syncSidebarRows(rows) }
+		// ⌘2, a click or `gt` opens another workspace without changing the rows.
+		.onChange(of: app.openSidebarRow) { app.syncSidebarRows(app.sidebarRows) }
 	}
 }
 

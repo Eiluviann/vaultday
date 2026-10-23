@@ -202,6 +202,8 @@ struct DayHeader: View {
 		// The controls `h` and `l` walk once `k` climbs above the first card.
 		.onAppear { app.setDayHeaderControls(controls) }
 		.onChange(of: controls) { _, controls in app.setDayHeaderControls(controls) }
+		// Browse and the story screen hold the Today pane without a header: `k` must find none there.
+		.onDisappear { app.setDayHeaderControls([]) }
 	}
 
 	/// The header's controls left to right, as it shows them.
