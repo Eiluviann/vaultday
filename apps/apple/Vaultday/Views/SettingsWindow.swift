@@ -45,9 +45,9 @@ private struct GeneralSettings: View {
 				)
 			}
 			SetupCard(icon: "cursorarrow.motionlines", title: "Hover selects", description: "Pointing at a row selects it, on this Mac") {
-				SetupSwitch(label: "Hover selects", isOn: Binding(get: { settings.hoverSelects }, set: { settings.setHoverSelects($0) }))
+				SetupSwitch(label: "Hover selects", isOn: Binding(get: { settings.hoverSelects }, set: { app.setHoverSelects($0) }))
 			}
-			SetupCard(icon: "command", title: "Shortcut caps", description: "How the key caps in hints and the palette show a key press", tags: [SetupTag(text: "Planned")]) {
+			SetupCard(icon: "command", title: "Shortcut caps", description: "How the shortcut caps arrive with the selection; Reduce Motion always crossfades") {
 				SegmentedChoice(
 					label: "Shortcut caps",
 					options: ShortcutCapsSetting.allCases.map { ($0, $0.title) },

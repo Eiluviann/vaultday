@@ -26,14 +26,18 @@ struct HomeWindow: View {
 		VStack(spacing: 0) {
 			HeaderBar(app: app)
 			HStack(spacing: 0) {
-				if app.focus.isSidebarCollapsed {
-					SidebarRail(app: app)
-				} else {
-					SidebarColumn(app: app)
+				Group {
+					if app.focus.isSidebarCollapsed {
+						SidebarRail(app: app)
+					} else {
+						SidebarColumn(app: app)
+					}
 				}
+				.paneNumber(.sidebar, dispatcher: app.dispatcher)
 				if app.screen == .browse, !app.isShowingAll {
 					BrowseColumn(app: app, browse: app.browse)
 						.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+						.paneNumber(.today, dispatcher: app.dispatcher)
 				} else {
 					Group {
 						if app.isShowingAll, let all = app.allWorkspaces {
@@ -43,10 +47,13 @@ struct HomeWindow: View {
 						}
 					}
 					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+					.paneNumber(.today, dispatcher: app.dispatcher)
 					InboxColumn(app: app)
 						.frame(width: HomeLayout.inboxWidth)
+						.paneNumber(.inbox, dispatcher: app.dispatcher)
 					SidePanelColumn(app: app)
 						.frame(width: HomeLayout.sidePanelWidth)
+						.paneNumber(.sidePanel, dispatcher: app.dispatcher)
 				}
 			}
 			.frame(maxHeight: .infinity)
@@ -78,8 +85,24 @@ struct HomeWindow: View {
 			app.handle(KeyStroke(press), isTyping: isTypingInTextField) ? .handled : .ignored
 		}
 		.overlay(alignment: .bottomTrailing) {
-			ShowCommand(text: app.dispatcher.pendingText)
+			ShowCommand(dispatcher: app.dispatcher)
 		}
+		.overlay(alignment: .bottomLeading) {
+			RegisterNote(register: app.keyboard.register)
+				.padding(.leading, app.focus.isSidebarCollapsed ? HomeLayout.railWidth : HomeLayout.sidebarWidth)
+		}
+		// The palette and the change editor float over the window's top third.
+		.overlay(alignment: .top) {
+			if app.palette.isOpen {
+				CommandPalette(app: app, palette: app.palette)
+					.padding(.top, HomeLayout.headerHeight + 60)
+			} else if let request = app.keyboard.changeRequest {
+				ChangeFieldEditor(app: app, request: request)
+					.padding(.top, HomeLayout.headerHeight + 60)
+			}
+		}
+		.onChange(of: app.palette.isOpen) { if !app.palette.isOpen { hasKeyFocus = true } }
+		.onChange(of: app.keyboard.changeRequest) { if app.keyboard.changeRequest == nil { hasKeyFocus = true } }
 		.onAppear {
 			hasKeyFocus = true
 			forceClick.start(app: app)
@@ -101,23 +124,6 @@ struct HomeWindow: View {
 @MainActor
 private var isTypingInTextField: Bool {
 	NSApp.windows.contains { $0.isVisible && $0.firstResponder is NSText }
-}
-
-/// The pending strokes, bottom right, as vim's showcmd.
-private struct ShowCommand: View {
-	let text: String
-
-	var body: some View {
-		if !text.isEmpty {
-			Text(text)
-				.font(Tokens.Typography.kbd.font)
-				.foregroundStyle(Tokens.Colors.ink)
-				.padding(.horizontal, Tokens.Spacing.space8)
-				.padding(.vertical, Tokens.Spacing.space4)
-				.background(Tokens.Colors.fillControl, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXs))
-				.padding(Tokens.Spacing.space12)
-		}
-	}
 }
 
 extension EnvironmentValues {
@@ -168,6 +174,9 @@ extension KeyStroke {
 		case .downArrow: "down"
 		case .leftArrow: "left"
 		case .rightArrow: "right"
+		case .pageUp: "pageup"
+		case .pageDown: "pagedown"
+		case .delete: "delete"
 		default: String(press.key.character).lowercased()
 		}
 		self.init(key: key, modifiers: modifiers)

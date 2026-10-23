@@ -97,6 +97,9 @@ pub enum TaskEdit {
     Estimate(Option<String>),
     /// Replaces the description, up to the first inline field.
     Text(String),
+    /// Puts back a whole line a receipt reported, for undo and redo. The
+    /// line must stay one line and keep the task's `[id:: …]`.
+    Restore(String),
 }
 
 /// The two task sections of a story.
@@ -1058,7 +1061,23 @@ fn edited_line(line: &str, task: &Task, edit: &TaskEdit) -> Result<String, Write
             Ok(with_optional_field(line, "estimate", value))
         }
         TaskEdit::Text(text) => with_text(line, task, text),
+        TaskEdit::Restore(text) => restored_line(task, text),
     }
+}
+
+fn restored_line(task: &Task, text: &str) -> Result<String, WriteError> {
+    if text.contains(['\n', '\r']) {
+        return Err(WriteError::InvalidInput(
+            "a restored task line is a single line".to_owned(),
+        ));
+    }
+    let id = task.id().unwrap_or_default();
+    if id.is_empty() || !text.contains(&format!("[id:: {id}]")) {
+        return Err(WriteError::InvalidInput(format!(
+            "a restored task line keeps [id:: {id}]"
+        )));
+    }
+    Ok(text.to_owned())
 }
 
 fn with_status(line: &str, task: &Task, status: char) -> Result<String, WriteError> {
@@ -1297,6 +1316,8 @@ fn same_slot(left: &TaskEdit, right: &TaskEdit) -> bool {
             | (TaskEdit::Due(_), TaskEdit::Due(_))
             | (TaskEdit::Estimate(_), TaskEdit::Estimate(_))
             | (TaskEdit::Text(_), TaskEdit::Text(_))
+            | (TaskEdit::Restore(_), _)
+            | (_, TaskEdit::Restore(_))
     )
 }
 

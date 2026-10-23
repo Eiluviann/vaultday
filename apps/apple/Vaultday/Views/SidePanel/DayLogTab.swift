@@ -102,6 +102,7 @@ struct DayLogTab: View {
 				TextField("Append to today's log", text: Bindable(model).draft)
 					.textFieldStyle(.plain)
 					.focused($isAppendFocused)
+					.onChange(of: app.dayLogFocusRequest) { isAppendFocused = true }
 					.padding(.horizontal, 10)
 					.frame(height: 30)
 					.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))

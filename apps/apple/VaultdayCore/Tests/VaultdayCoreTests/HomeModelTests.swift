@@ -107,6 +107,35 @@ final class HomeModelTests: XCTestCase {
 		XCTAssertEqual(today.totals.doneCount, 1)
 	}
 
+	// MARK: The register through the core
+
+	func testCutPasteAndUndoWriteThroughTheCoreAndPutTheVaultBack() throws {
+		let harness = try OnboardingHarness(self)
+		let vault = try TestFixtures.copyOfMockVault(self)
+		let workspace = openWorkspace(harness, vault: vault)
+		let today = plan(workspace)
+		let register = PlanRegister(plan: today) { _ in }
+		let note = vault.appending(path: Self.storyNote)
+		let before = try String(contentsOf: note, encoding: .utf8)
+		let order = today.items.map(\.taskId)
+		let first = try XCTUnwrap(today.unfinishedItems.first?.taskId)
+
+		register.cut(first)
+		XCTAssertFalse(today.items.map(\.taskId).contains(first), register.message ?? "")
+		XCTAssertNil(today.lineState(of: first)?.scheduled)
+
+		register.paste(after: true, anchor: today.unfinishedItems.last?.taskId)
+		XCTAssertEqual(today.lineState(of: first)?.scheduled, "2026-10-23")
+		XCTAssertEqual(today.unfinishedItems.last?.taskId, first)
+
+		register.undo()
+		register.undo()
+		XCTAssertEqual(today.items.map(\.taskId), order)
+		XCTAssertEqual(try String(contentsOf: note, encoding: .utf8), before, "undo restores the note byte for byte")
+		XCTAssertNil(today.lineState(of: "task-999"))
+		XCTAssertNotNil(today.apply(.reopen, to: "task-999"), "the core refuses an unknown task")
+	}
+
 	// MARK: Over free time
 
 	func testAPlanBeyondTheFreeTimeShowsTheToastUntilDismissedAndRePlanAnswersIt() throws {

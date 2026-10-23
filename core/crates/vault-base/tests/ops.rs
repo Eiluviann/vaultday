@@ -5,10 +5,11 @@ mod common;
 
 use common::{WEB_142, diff, read, sandbox, snapshot, workspace};
 use vault_base::ops::{
-    AddTaskRequest, LogRequest, OpError, add_story_task, append_day_log, build_report,
-    format_task_line, next_task_id, open_vault, resolve_workspace, task_by_id, tick_task_done,
-    waiting_items,
+    AddTaskRequest, LogRequest, OpError, add_story_task, append_day_log, build_report, edit_task,
+    format_task_line, next_task_id, open_vault, resolve_workspace, restore_task_line, task_by_id,
+    tick_task_done, waiting_items,
 };
+use vault_base::writer::TaskEdit;
 use vault_base::{Date, PlainFileAccess, Time};
 
 fn date(text: &str) -> Date {
@@ -466,4 +467,69 @@ fn operations_never_read_the_sync_folder() {
     let workspace = workspace(&sandbox.root);
     let vault = open_vault(&workspace, &PlainFileAccess).unwrap();
     assert!(vault.story_by_number("HIDDEN-1").is_none());
+}
+
+#[test]
+fn an_edit_and_its_inverse_leave_the_vault_as_it_was() {
+    let sandbox = sandbox();
+    let before = snapshot(&sandbox.root);
+    let root = workspace(&sandbox.root);
+    let scheduled = edit_task(
+        &root,
+        &PlainFileAccess,
+        "task-6",
+        &TaskEdit::Schedule(Some(date("2026-10-24"))),
+    )
+    .unwrap();
+    assert!(scheduled.new_line.contains("[scheduled:: 2026-10-24]"));
+    assert_eq!(diff(&before, &snapshot(&sandbox.root)).len(), 1);
+
+    edit_task(&root, &PlainFileAccess, "task-6", &TaskEdit::Schedule(None)).unwrap();
+    edit_task(
+        &root,
+        &PlainFileAccess,
+        "task-6",
+        &TaskEdit::Done(date("2026-10-23")),
+    )
+    .unwrap();
+    edit_task(&root, &PlainFileAccess, "task-6", &TaskEdit::Reopen).unwrap();
+    assert!(diff(&before, &snapshot(&sandbox.root)).is_empty());
+
+    let missing = edit_task(&root, &PlainFileAccess, "task-999", &TaskEdit::Reopen).unwrap_err();
+    assert!(matches!(missing, OpError::NotFound(_)));
+}
+
+#[test]
+fn restoring_a_receipts_old_line_undoes_an_edit_byte_for_byte() {
+    let sandbox = sandbox();
+    let before = snapshot(&sandbox.root);
+    let root = workspace(&sandbox.root);
+    // Clearing a field and setting it again would move it to the end of the line.
+    let cleared = edit_task(&root, &PlainFileAccess, "task-2", &TaskEdit::Schedule(None)).unwrap();
+    let old = cleared.old_line.clone().unwrap();
+    restore_task_line(&root, &PlainFileAccess, "task-2", &cleared.new_line, &old).unwrap();
+    assert!(diff(&before, &snapshot(&sandbox.root)).is_empty());
+
+    let stale =
+        restore_task_line(&root, &PlainFileAccess, "task-2", &cleared.new_line, &old).unwrap_err();
+    assert!(matches!(stale, OpError::Conflict(_)), "{stale:?}");
+    let without_id =
+        restore_task_line(&root, &PlainFileAccess, "task-2", &old, "- [ ] Lost").unwrap_err();
+    assert!(
+        matches!(without_id, OpError::InvalidInput(_)),
+        "{without_id:?}"
+    );
+    let two_lines = restore_task_line(
+        &root,
+        &PlainFileAccess,
+        "task-2",
+        &old,
+        &format!("{old}\n- [ ] x"),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(two_lines, OpError::InvalidInput(_)),
+        "{two_lines:?}"
+    );
+    assert!(diff(&before, &snapshot(&sandbox.root)).is_empty());
 }

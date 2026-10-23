@@ -225,6 +225,100 @@ pub fn tick_task_done(
     Ok(change.into())
 }
 
+/// One change to a task line, for [`edit_task`]. Dates are `YYYY-MM-DD`;
+/// `None` removes the field.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum TaskEditInput {
+    /// `[x]` with `[completion:: date]`.
+    Done {
+        /// The completion day.
+        date: String,
+    },
+    /// `[ ]` without a completion date.
+    Reopen,
+    /// Sets or removes `[scheduled:: …]`.
+    Schedule {
+        /// The scheduled day.
+        date: Option<String>,
+    },
+    /// Sets or removes `[due:: …]`.
+    Due {
+        /// The due day.
+        date: Option<String>,
+    },
+    /// Sets or removes `[estimate:: …]` (`2h`, `45m`).
+    Estimate {
+        /// The estimate text.
+        estimate: Option<String>,
+    },
+    /// Replaces the description, keeping the fields.
+    Text {
+        /// The new description.
+        text: String,
+    },
+}
+
+impl TaskEditInput {
+    fn into_edit(self) -> Result<vault_base::writer::TaskEdit, CoreError> {
+        use vault_base::writer::TaskEdit;
+        let day = |text: Option<String>| -> Result<Option<Date>, CoreError> {
+            text.map(|text| ops::parse_date(&text))
+                .transpose()
+                .map_err(CoreError::from)
+        };
+        Ok(match self {
+            TaskEditInput::Done { date } => TaskEdit::Done(ops::parse_date(&date)?),
+            TaskEditInput::Reopen => TaskEdit::Reopen,
+            TaskEditInput::Schedule { date } => TaskEdit::Schedule(day(date)?),
+            TaskEditInput::Due { date } => TaskEdit::Due(day(date)?),
+            TaskEditInput::Estimate { estimate } => TaskEdit::Estimate(estimate),
+            TaskEditInput::Text { text } => TaskEdit::Text(text),
+        })
+    }
+}
+
+/// Applies one edit to the task `id`, changing only its line. The apps'
+/// register operations and their undo run through it.
+///
+/// # Errors
+/// [`CoreError::NotFound`] without such a task, [`CoreError::InvalidInput`]
+/// for an unusable value, [`CoreError::Conflict`] when the line changed.
+#[uniffi::export]
+pub fn edit_task(
+    workspace: &WorkspaceHandle,
+    id: String,
+    edit: TaskEditInput,
+) -> Result<ChangeView, CoreError> {
+    let edit = edit.into_edit()?;
+    let change = ops::edit_task(&workspace.workspace, &PlainFileAccess, &id, &edit)?;
+    Ok(change.into())
+}
+
+/// Puts the line of task `id` back to `line` while it still reads
+/// `expected`: the exact undo and redo of [`edit_task`] from its
+/// [`ChangeView`].
+///
+/// # Errors
+/// [`CoreError::NotFound`] without such a task, [`CoreError::Conflict`]
+/// when the line changed since, [`CoreError::InvalidInput`] for a line that
+/// is not one line or drops the id.
+#[uniffi::export]
+pub fn restore_task_line(
+    workspace: &WorkspaceHandle,
+    id: String,
+    expected: String,
+    line: String,
+) -> Result<ChangeView, CoreError> {
+    let change = ops::restore_task_line(
+        &workspace.workspace,
+        &PlainFileAccess,
+        &id,
+        &expected,
+        &line,
+    )?;
+    Ok(change.into())
+}
+
 /// The next free `task-N` id.
 ///
 /// # Errors

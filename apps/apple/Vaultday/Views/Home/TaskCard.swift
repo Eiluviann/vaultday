@@ -112,8 +112,18 @@ struct TaskCard: View {
 				CautionChip(text: item.assignedTo.map { "\($0) · waiting \(days)d" } ?? "waiting \(days)d")
 			}
 			Spacer()
+			if isSelected, !isReadOnly {
+				SelectionCaps(app: app)
+			}
 			if !isReadOnly {
 				MoreActions(app: app, taskId: item.taskId, canMove: true)
+					.overlay(alignment: .topTrailing) {
+						if isSelected, app.keyboard.showsItemMenu {
+							ItemMenuPanel(app: app)
+								.offset(y: 26)
+								.zIndex(1)
+						}
+					}
 			}
 		}
 		.padding(EdgeInsets(top: 4, leading: 34, bottom: 3, trailing: 10))

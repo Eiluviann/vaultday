@@ -16,7 +16,7 @@ final class KeyboardTests: XCTestCase {
 	func testTheRepositoryKeymapParsesAndKeepsHJKLForMovement() throws {
 		let keymap = try repoKeymap()
 		let movement: Set<KeyAction> = [.moveLeft, .moveDown, .moveUp, .moveRight]
-		for (sequence, action) in keymap.sequences(for: .vim) where sequence.count == 1 && sequence[0].modifiers.isEmpty {
+		for (sequence, action, _) in keymap.sequences(for: .vim) where sequence.count == 1 && sequence[0].modifiers.isEmpty {
 			if ["h", "j", "k", "l"].contains(sequence[0].key) {
 				XCTAssertTrue(movement.contains(action), "bare \(sequence[0].key) is bound to \(action)")
 			}
@@ -59,17 +59,18 @@ final class KeyboardTests: XCTestCase {
 		let standard = KeyDispatcher(keymap: keymap, scheme: .standard)
 		XCTAssertEqual(standard.handle(stroke("cmd+0")), .action(.showAllWorkspaces))
 		XCTAssertEqual(standard.handle(stroke("cmd+3")), .action(.showWorkspace(3)))
-		XCTAssertEqual(standard.handle(stroke("cmd+k")), .action(.focusSearch))
+		XCTAssertEqual(standard.handle(stroke("cmd+k")), .action(.openPalette))
 		XCTAssertEqual(standard.handle(stroke("cmd+n")), .action(.addTask))
 		XCTAssertEqual(standard.handle(stroke("x")), .unbound, "the standard scheme has no bare letters")
 		XCTAssertEqual(standard.handle(stroke("escape")), .action(.dismiss))
 		XCTAssertEqual(vim.label(for: .completeTask), "x")
 		XCTAssertEqual(vim.label(for: .moveTaskUp), "⌥K")
 		XCTAssertEqual(vim.label(for: .focusPane(.today)), "g 1")
-		XCTAssertEqual(standard.label(for: .focusSearch), "⌘K")
+		XCTAssertEqual(standard.label(for: .openPalette), "⌘K")
 		XCTAssertEqual(standard.label(for: .toggleTimer), "Space")
 		XCTAssertEqual(standard.label(for: .autoSchedule), "⇧⌘R")
-		XCTAssertNil(standard.label(for: .focusPane(.today)), "unbound under Standard")
+		XCTAssertEqual(standard.label(for: .focusPane(.today)), "⌃1")
+		XCTAssertNil(standard.label(for: .repeatLast), "unbound under Standard")
 		XCTAssertNil(KeyAction(name: "workspace.10"))
 		XCTAssertNil(KeyAction(name: "workspace.0"))
 	}
@@ -90,7 +91,7 @@ final class KeyboardTests: XCTestCase {
 		let cases: [(String, Int)] = [
 			("version: 1\nbindings:\n  - action: nope\n    vim: \"j\"\n", 3),
 			("version: 1\nbindings:\n  - action: open\n    vim: \"hyper+x\"\n", 3),
-			("version: 1\nbindings:\n  - action: open\n    vim: \"j\"\n  - action: move.down\n    vim: \"j\"\n", 5),
+			("version: 1\nbindings:\n  - action: open\n    label: \"Open\"\n    vim: \"x\"\n  - action: task.done\n    label: \"Done\"\n    vim: \"x\"\n", 6),
 			("bindings:\n", 1),
 			("version: 1\nkeys:\n", 2),
 		]

@@ -23,7 +23,7 @@ use crate::scan::{Task, TaskStatus};
 use crate::vault::{ME, Note, Vault, VaultError};
 use crate::workspace::{Workspace, WorkspaceError, find_workspace_root};
 use crate::writer::{
-    NewTask, TaskSection, TaskTarget, VaultWriter, WriteError, WriteReceipt, task_line,
+    NewTask, TaskEdit, TaskSection, TaskTarget, VaultWriter, WriteError, WriteReceipt, task_line,
 };
 
 const TASK_ID_PREFIX: &str = "task-";
@@ -352,6 +352,53 @@ pub fn tick_task_done(
         .ok_or_else(|| OpError::NotFound(format!("no task with [id:: {id}] in the workspace")))?;
     let target = TaskTarget::new(found.path, id);
     let receipt = VaultWriter::new(file_access, workspace).tick_done(&target, date)?;
+    Ok(change_record(receipt))
+}
+
+/// Applies one edit to the task `id`, changing only its line: the register
+/// operations of the apps (cut to the backlog, paste onto a day, push and
+/// pull) and the undo of each are edits of this kind.
+///
+/// # Errors
+/// [`OpError::NotFound`] without such a task, [`OpError::InvalidInput`] for
+/// an unusable value, [`OpError::Conflict`] when the line changed meanwhile.
+pub fn edit_task(
+    workspace: &Workspace,
+    file_access: &dyn FileAccess,
+    id: &str,
+    edit: &TaskEdit,
+) -> Result<ChangeRecord, OpError> {
+    let vault = open_vault(workspace, file_access)?;
+    let found = vault
+        .task_by_id(id)
+        .ok_or_else(|| OpError::NotFound(format!("no task with [id:: {id}] in the workspace")))?;
+    let target = TaskTarget::new(found.path, id);
+    let receipt = VaultWriter::new(file_access, workspace).edit_task(&target, edit)?;
+    Ok(change_record(receipt))
+}
+
+/// Puts the line of task `id` back to `line`, provided it still reads
+/// `expected` (the line a receipt reported): the exact undo and redo of an
+/// [`edit_task`], field order included.
+///
+/// # Errors
+/// [`OpError::NotFound`] without such a task, [`OpError::Conflict`] when the
+/// line no longer reads `expected`, [`OpError::InvalidInput`] for a line
+/// that is not one line or drops the id.
+pub fn restore_task_line(
+    workspace: &Workspace,
+    file_access: &dyn FileAccess,
+    id: &str,
+    expected: &str,
+    line: &str,
+) -> Result<ChangeRecord, OpError> {
+    let vault = open_vault(workspace, file_access)?;
+    let found = vault
+        .task_by_id(id)
+        .ok_or_else(|| OpError::NotFound(format!("no task with [id:: {id}] in the workspace")))?;
+    let target = TaskTarget::new(found.path, id).expecting_line(expected);
+    let receipt = VaultWriter::new(file_access, workspace)
+        .edit_task(&target, &TaskEdit::Restore(line.to_owned()))?;
     Ok(change_record(receipt))
 }
 

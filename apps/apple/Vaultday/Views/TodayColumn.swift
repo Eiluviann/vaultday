@@ -307,23 +307,14 @@ private struct TipsLine: View {
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space6) {
 			Text("Drag to reorder or onto the calendar to lock")
-			tip("done", .completeTask)
-			tip("timer", .toggleTimer)
-			tip("add", .addTask)
-			tip("re-plan", .replan)
-			tip("lock", .togglePin)
+			ForEach(app.dispatcher.tips, id: \.name) { tip in
+				Text("· \(tip.name)")
+				ActionCap(app: app, action: tip.action)
+			}
 			Spacer()
 		}
 		.font(Tokens.Typography.caption.font)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.padding(.top, 10)
-	}
-
-	@ViewBuilder
-	private func tip(_ name: String, _ action: KeyAction) -> some View {
-		if app.keyLabel(action) != nil {
-			Text("· \(name)")
-			ActionCap(app: app, action: action)
-		}
 	}
 }

@@ -422,6 +422,70 @@ public final class DayPlanModel {
 	}
 }
 
+// MARK: - The register's edits
+
+extension DayPlanModel: PlanEditing {
+	public var shownDate: String { date }
+
+	public var todayDate: String { DayText.string(now()) }
+
+	public func lineState(of taskId: String) -> TaskLineState? {
+		guard let vault, let task = try? taskById(workspace: vault, id: taskId) else { return nil }
+		return TaskLineState(text: task.text, scheduled: task.scheduled, due: task.due, estimate: task.estimate, completion: task.completion)
+	}
+
+	public func apply(_ edit: TaskLineEdit, to taskId: String) -> LineWrite {
+		guard let vault else { return .refused("No workspace is open") }
+		do {
+			let change = try editTask(workspace: vault, id: taskId, edit: Self.coreEdit(edit))
+			return .written(old: change.oldLine ?? change.newLine, new: change.newLine)
+		} catch {
+			return .refused(coreErrorMessage(error))
+		}
+	}
+
+	public func restore(_ taskId: String, line: String, expecting current: String) -> String? {
+		guard let vault else { return "No workspace is open" }
+		do {
+			_ = try restoreTaskLine(workspace: vault, id: taskId, expected: current, line: line)
+			return nil
+		} catch {
+			return coreErrorMessage(error)
+		}
+	}
+
+	public func listOrder(on day: String) -> [String] {
+		if day == date { return items.map(\.taskId) }
+		return (try? state?.dayOrder(date: day)) ?? []
+	}
+
+	public func storeOrder(_ taskIds: [String], on day: String) -> String? {
+		guard let state else { return "The order needs the workspace's app state" }
+		do {
+			try state.setDayOrder(date: day, taskIds: taskIds)
+			_ = try state.flush()
+			return nil
+		} catch {
+			return coreErrorMessage(error)
+		}
+	}
+
+	public func refresh() {
+		reload()
+	}
+
+	private static func coreEdit(_ edit: TaskLineEdit) -> TaskEditInput {
+		switch edit {
+		case let .done(day): .done(date: day)
+		case .reopen: .reopen
+		case let .schedule(day): .schedule(date: day)
+		case let .due(day): .due(date: day)
+		case let .estimate(estimate): .estimate(estimate: estimate)
+		case let .text(text): .text(text: text)
+		}
+	}
+}
+
 /// Day strings and titles, in the host's calendar.
 public enum DayText {
 	/// `YYYY-MM-DD`.

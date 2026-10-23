@@ -65,8 +65,16 @@ final class AppModel {
 	private(set) var allWorkspaces: AllWorkspacesModel?
 	let focus: PaneFocusModel
 	let dispatcher: KeyDispatcher
-	/// Bumped to move keyboard focus into the header's search field (⌘K until the palette).
-	private(set) var searchFocusRequest = 0
+	/// Strokes to effects: the register, undo and repeat, the change editor.
+	let keyboard: KeyboardSession
+	/// The command palette, rendered from the same key table.
+	let palette: CommandPaletteModel
+	/// The stories worked on last, for the palette's empty state.
+	private var recentStories = RecentStories()
+	/// Bumped to move keyboard focus into the Day log's append field (⌘L).
+	private(set) var dayLogFocusRequest = 0
+	/// Where the next quick-add task goes: after or before this task (`o`, `O`).
+	private var insertAnchor: (taskId: String, isAfter: Bool)?
 	/// Bumped to move keyboard focus into the quick-add field.
 	private(set) var quickAddFocusRequest = 0
 	/// The Home text fields that hold keyboard focus now, by name; while any
@@ -104,6 +112,16 @@ final class AppModel {
 		}
 		dispatcher = KeyDispatcher(keymap: keymap, scheme: .standard)
 		focus = PaneFocusModel()
+		let register = PlanRegister(plan: dayPlan) { text in
+			NSPasteboard.general.clearContents()
+			NSPasteboard.general.setString(text, forType: .string)
+		}
+		keyboard = KeyboardSession(dispatcher: dispatcher, focus: focus, register: register)
+		palette = CommandPaletteModel(dispatcher: dispatcher)
+		keyboard.selectedTaskId = { [weak self] in self?.selectedTaskId }
+		keyboard.onAction = { [weak self] in self?.performAppAction($0) }
+		keyboard.isEnabled = { [weak self] in self?.isEnabled($0) ?? false }
+		keyboard.onOwnAction = { [weak self] in self?.registerChanged($0) }
 	}
 
 	/// Opens the environment and the app document, restores the folder grants.
@@ -140,7 +158,8 @@ final class AppModel {
 			self.setup = setup
 			allWorkspaces = AllWorkspacesModel(session: session)
 			workspaces.onChange = { [weak self] in self?.workspacesChanged() }
-			dispatcher.setScheme(KeyScheme(settings.keyboardScheme))
+			keyboard.setScheme(KeyScheme(settings.keyboardScheme))
+			focus.hoverSelects = settings.hoverSelects
 			let store = WindowStateStore(layout: environment.layout)
 			windowStateStore = store
 			let windowState = store.load()
@@ -235,11 +254,9 @@ final class AppModel {
 		if isTyping || !focusedTextFields.isEmpty, stroke.modifiers.isDisjoint(with: [.command, .control]) {
 			return false
 		}
-		switch dispatcher.handle(stroke) {
-		case let .action(action):
-			perform(action)
-			return true
-		case .pending:
+		switch keyboard.handle(stroke) {
+		case .action, .pending:
+			saveWindowState()
 			return true
 		case .unbound:
 			return false
@@ -269,24 +286,47 @@ final class AppModel {
 
 	/// Runs one action, from a key or from a control that names it.
 	func perform(_ action: KeyAction) {
-		// The match walk and the group jumps belong to the Browse table.
-		if [.nextMatch, .previousMatch, .nextGroup, .previousGroup, .toggleFold].contains(action), screen != .browse { return }
-		focus.apply(action)
+		keyboard.run(action)
+		saveWindowState()
+	}
+
+	/// The match walk and the group jumps belong to the Browse table.
+	private func isEnabled(_ action: KeyAction) -> Bool {
+		![.nextMatch, .previousMatch, .nextGroup, .previousGroup, .toggleFold].contains(action) || screen == .browse
+	}
+
+	/// The task the selection is on: a card of the day or a row of Browse.
+	var selectedTaskId: String? {
+		selectedBrowseRowId ?? selectedItem?.taskId
+	}
+
+	/// The actions the keyboard session hands over: everything but the
+	/// register, undo, repeat and the change keys.
+	private func performAppAction(_ action: KeyAction) {
 		switch action {
 		case .showAllWorkspaces:
 			showAllWorkspaces()
 		case let .showWorkspace(place):
 			showWorkspace(at: place - 1)
-		case .focusSearch:
-			searchFocusRequest += 1
+		case .openPalette:
+			openPalette()
 		case .addTask:
+			insertAnchor = nil
 			quickAddFocusRequest += 1
-		case .completeTask:
-			if let item = selectedItem, !item.isDone { completeTask(item.taskId) }
-		case .moveTaskUp:
-			moveSelectedTask(by: -1)
-		case .moveTaskDown:
-			moveSelectedTask(by: 1)
+		case .addTaskAfter, .addTaskBefore:
+			insertAnchor = selectedItem.map { ($0.taskId, action == .addTaskAfter) }
+			quickAddFocusRequest += 1
+		case .nextWorkspace:
+			stepWorkspace(by: 1)
+		case .previousWorkspace:
+			stepWorkspace(by: -1)
+		case .nextSidePanelTab:
+			stepSidePanelTab(by: 1)
+		case .previousSidePanelTab:
+			stepSidePanelTab(by: -1)
+		case .appendDayLog:
+			showSidePanelTab(.dayLog)
+			dayLogFocusRequest += 1
 		case .replan:
 			schedule(.replan)
 		case .autoSchedule:
@@ -303,7 +343,9 @@ final class AppModel {
 			leaveBrowse()
 			showToday()
 		case .dismiss:
-			if peek.subject != nil {
+			if palette.isOpen {
+				palette.close()
+			} else if peek.subject != nil {
 				peek.dismiss()
 			} else if preview.isOpen {
 				preview.close()
@@ -332,10 +374,14 @@ final class AppModel {
 			jumpGroup(by: -1)
 		case .peek:
 			if let subject = peekSubject { peek.toggle(subject) }
-		case .nextMatch, .previousMatch, .moveDown, .moveUp, .moveLeft, .moveRight, .moveFirst, .moveLast, .toggleSidebar:
+		case .openLink:
+			openLinkOfSelection()
+		case .openInClaudeCode:
+			openSelectionInClaudeCode()
+		default:
+			// Movement is the focus model's; the register's keys never arrive here.
 			break
 		}
-		saveWindowState()
 	}
 
 	/// The keys that run `action` under the current scheme, for the caps beside controls.
@@ -417,12 +463,25 @@ final class AppModel {
 			browse.toggleFold(group)
 			syncTodayItemCount()
 		case nil:
-			if let item = selectedItem { preview.open(taskId: item.taskId) }
+			if let item = selectedItem { openPreview(taskId: item.taskId) }
 		}
 	}
 
 	/// Opens the preview of a task, from a peek's Open or a row's click.
+	/// `gx`: the open preview's note, else the selected item's, in Obsidian.
+	private func openLinkOfSelection() {
+		guard let link = preview.content?.obsidianLink ?? peekSubject.flatMap({ peek.link(for: $0) }) else { return }
+		NSWorkspace.shared.open(link)
+	}
+
+	/// `⌘⇧C`: the preview's Open in Claude Code, for the open preview's task or the selected one.
+	private func openSelectionInClaudeCode() {
+		guard let taskId = preview.content?.taskId ?? selectedTaskId else { return }
+		handleLink(preview.claudeCodeLink(taskId: taskId))
+	}
+
 	func openPreview(taskId: String) {
+		touchStory(ofTask: taskId)
 		peek.dismiss()
 		preview.open(taskId: taskId)
 	}
@@ -505,12 +564,13 @@ final class AppModel {
 
 	/// The pointer entered a card: it selects it when Settings say hover selects.
 	func hover(_ item: PlanItem) {
-		guard settings?.hoverSelects == true else { return }
-		select(item)
+		guard let index = dayPlan.items.firstIndex(of: item) else { return }
+		focus.hover(index, in: .today)
 	}
 
+	/// The checkbox: done through the register, so `u` puts it back.
 	func completeTask(_ taskId: String) {
-		dayPlan.tick(taskId: taskId)
+		keyboard.register.complete(taskId)
 		afterPlanChange()
 	}
 
@@ -522,11 +582,13 @@ final class AppModel {
 		}
 	}
 
-	private func moveSelectedTask(by step: Int) {
-		guard let item = selectedItem, !item.isDone else { return }
-		dayPlan.step(taskId: item.taskId, by: step)
+	/// The register changed the plan: the list, the panes and the selection follow.
+	private func registerChanged(_ action: KeyAction) {
+		let moved = action == .moveTaskUp || action == .moveTaskDown ? selectedTaskId : nil
+		if screen == .browse { BrowseModel.refresh([browse, backlog]) }
+		syncTodayItemCount()
 		afterPlanChange()
-		if let index = dayPlan.items.firstIndex(where: { $0.taskId == item.taskId }) {
+		if let moved, let index = dayPlan.items.firstIndex(where: { $0.taskId == moved }) {
 			focus.select(index, in: .today)
 		}
 	}
@@ -568,6 +630,7 @@ final class AppModel {
 	func startTimer(taskId: String) {
 		// A drop carries any text; only a task of the list starts the timer.
 		guard taskText(taskId) != nil else { return }
+		touchStory(ofTask: taskId)
 		let story = dayPlan.items.first { $0.taskId == taskId }?.storyNumber
 		sessions.start(taskId: taskId, story: story)
 		dayPlan.reload()
@@ -585,8 +648,17 @@ final class AppModel {
 
 	/// Saves the quick-add confirmation and shows the new task.
 	func saveQuickAdd() {
+		let known = Set(dayPlan.items.map(\.taskId))
 		guard quickAdd.save() else { return }
 		dayPlan.reload()
+		// `o` and `O`: the new task goes after or before the selection it was added from.
+		if let anchor = insertAnchor,
+		   let added = dayPlan.unfinishedItems.first(where: { !known.contains($0.taskId) }),
+		   let index = dayPlan.unfinishedItems.firstIndex(where: { $0.taskId == anchor.taskId })
+		{
+			dayPlan.move(taskId: added.taskId, to: anchor.isAfter ? index + 1 : index)
+		}
+		insertAnchor = nil
 		afterPlanChange()
 	}
 
@@ -605,6 +677,8 @@ final class AppModel {
 
 	func showWorkspace(_ entry: WorkspaceEntry) {
 		guard let workspace else { return }
+		keyboard.reset()
+		recentStories.clear()
 		workspace.switchTo(entry)
 		// Closing the previous workspace ends its folder access; every granted folder opens again.
 		setup?.workspaces.reload()
@@ -758,7 +832,61 @@ final class AppModel {
 
 	func setKeyboardScheme(_ scheme: KeyboardSchemeSetting) {
 		settings?.setKeyboardScheme(scheme)
-		dispatcher.setScheme(KeyScheme(scheme))
+		keyboard.setScheme(KeyScheme(scheme))
+	}
+
+	func setHoverSelects(_ isOn: Bool) {
+		settings?.setHoverSelects(isOn)
+		focus.hoverSelects = isOn
+	}
+
+	// MARK: Palette
+
+	/// ⌘K: the palette, with the stories worked on last and the workspaces.
+	func openPalette() {
+		let dayStories = dayPlan.items.compactMap { item in
+			item.storyNumber.map { PaletteStory(number: $0, title: item.storyTitle ?? $0) }
+		}
+		palette.recentStories = recentStories.filled(with: dayStories)
+		palette.workspaces = workspaceEntries.map { PaletteWorkspace(id: $0.id, name: $0.name) }
+		palette.open()
+	}
+
+	/// Runs the palette's choice: a command, a story in Browse, a workspace.
+	func choosePaletteRow(_ row: PaletteRow? = nil) {
+		switch palette.choose(row) {
+		case let .action(action):
+			perform(action)
+		case let .story(number):
+			showBrowse()
+			browse.queryText = "story:\(number)"
+			browse.submitQuery()
+			syncTodayItemCount()
+		case let .workspace(id):
+			if let entry = workspaceEntries.first(where: { $0.id == id }) { showWorkspace(entry) }
+		case nil:
+			break
+		}
+	}
+
+	/// The story of a task the user opened, peeked or timed moves to the front.
+	private func touchStory(ofTask taskId: String) {
+		guard let item = dayPlan.items.first(where: { $0.taskId == taskId }), let number = item.storyNumber else { return }
+		recentStories.touch(PaletteStory(number: number, title: item.storyTitle ?? number))
+	}
+
+	private func stepWorkspace(by step: Int) {
+		let entries = workspaceEntries
+		guard !entries.isEmpty else { return }
+		let current = entries.firstIndex { $0.id == workspace?.workspaceId } ?? (step > 0 ? -1 : 0)
+		let target = (current + step + entries.count) % entries.count
+		showWorkspace(entries[target])
+	}
+
+	private func stepSidePanelTab(by step: Int) {
+		let tabs = SidePanelTab.allCases
+		guard let current = tabs.firstIndex(of: sidePanelTab) else { return }
+		showSidePanelTab(tabs[(current + step + tabs.count) % tabs.count])
 	}
 
 	func handle(_ url: URL) {

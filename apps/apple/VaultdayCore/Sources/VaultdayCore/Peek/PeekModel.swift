@@ -76,6 +76,11 @@ public final class PeekModel {
 		}
 	}
 
+	/// The `obsidian://` link of `subject`'s note, without showing it (`gx`).
+	public func link(for subject: PeekSubject) -> URL? {
+		(try? Self.content(for: subject, in: vault, today: DayText.string(now())))?.obsidianLink
+	}
+
 	/// Shows the subject, or closes the peek when it is already showing it (`K` twice).
 	public func toggle(_ subject: PeekSubject) {
 		if self.subject == subject { dismiss() } else { show(subject) }

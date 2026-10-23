@@ -1,177 +1,470 @@
-# Vaultday key bindings: the single source for the key dispatcher, and later
-# for the command palette and the footer tips (PR 10 fills the table from the
-# design note's key table).
+# Vaultday key bindings: the single source for the key dispatcher, the
+# command palette (⌘K), the footer tips and the key table, so the four never
+# diverge.
 #
 # Each binding names an action and the keys that run it under each scheme.
 # Keys are strokes separated by spaces; a stroke is a key with optional
 # modifiers joined by `+` (`ctrl+cmd+s`). Key names: a single character,
-# `return`, `escape`, `tab`, `space`, `up`, `down`, `left`, `right`.
+# `return`, `escape`, `tab`, `space`, `delete`, `up`, `down`, `left`,
+# `right`, `pageup`, `pagedown`. A symbol typed with Shift (`>`, `:`, `}`)
+# carries Shift by itself; a capital is `shift+` its letter (`shift+g` is G).
 # An empty value leaves the action unbound under that scheme.
 #
-# Rules from the design note: bare `h` `j` `k` `l` are only ever movement;
-# a pane jump is `g` plus the pane number (`g0` sidebar, `g1` Today,
-# `g2` Inbox, `g3` side panel); `gg` and `G` stay first and last item.
+# Fields: `action` and `label` (what the palette and the key table print),
+# `group` (the palette section), `tip` (the footer's short name, when the
+# footer shows the key) and `menu: true` (the action is also a row of the
+# selected item's more-actions menu, which a pending stroke then opens) and
+# `pane` (the keys act only while that pane holds focus: `sidebar`, `today`,
+# `inbox` or `side-panel`; bare `1` to `7` reach the rail only from the side
+# panel, so the Inbox keeps its digit keys).
+# An action bound twice carries its label once, on its first entry.
+#
+# Rules from the design note, enforced when the file loads: bare `h` `j` `k`
+# `l` are directional movement in every view and never bound to anything
+# else, nor start a chord; no sequence is bound twice, or hides a longer one,
+# within a scheme where both can act; every action has a label. Pane jumps are `g` plus the pane
+# number (`g0` sidebar, `g1` Today, `g2` Inbox, `g3` side panel); `]` `[` and
+# `1` to `7` reach the side panel's rail.
 version: 1
 bindings:
-  - action: pane.sidebar
-    vim: "g 0"
-    standard: ""
-  - action: pane.today
-    vim: "g 1"
-    standard: ""
-  - action: pane.inbox
-    vim: "g 2"
-    standard: ""
-  - action: pane.side-panel
-    vim: "g 3"
-    standard: ""
-  - action: move.down
-    vim: "j"
-    standard: "down"
-  - action: move.up
-    vim: "k"
-    standard: "up"
-  - action: move.left
-    vim: "h"
-    standard: "left"
-  - action: move.right
-    vim: "l"
-    standard: "right"
-  - action: move.first
-    vim: "g g"
-    standard: ""
-  - action: move.last
-    vim: "shift+g"
-    standard: ""
+  # Selected task
   - action: open
+    label: "Open the task's preview"
+    group: "Selected task"
     vim: "return"
     standard: "return"
-  - action: sidebar.toggle
-    vim: "ctrl+cmd+s"
-    standard: "ctrl+cmd+s"
-  - action: workspace.all
-    vim: "cmd+0"
-    standard: "cmd+0"
-  - action: workspace.1
-    vim: "cmd+1"
-    standard: "cmd+1"
-  - action: workspace.2
-    vim: "cmd+2"
-    standard: "cmd+2"
-  - action: workspace.3
-    vim: "cmd+3"
-    standard: "cmd+3"
-  - action: workspace.4
-    vim: "cmd+4"
-    standard: "cmd+4"
-  - action: workspace.5
-    vim: "cmd+5"
-    standard: "cmd+5"
-  - action: workspace.6
-    vim: "cmd+6"
-    standard: "cmd+6"
-  - action: workspace.7
-    vim: "cmd+7"
-    standard: "cmd+7"
-  - action: workspace.8
-    vim: "cmd+8"
-    standard: "cmd+8"
-  - action: workspace.9
-    vim: "cmd+9"
-    standard: "cmd+9"
-  # The palette is PR 10; until then ⌘K focuses the search field.
-  - action: search.focus
-    vim: "cmd+k"
-    standard: "cmd+k"
-  - action: task.add
-    vim: "i"
-    standard: "cmd+n"
+  - action: peek
+    label: "Peek"
+    group: "Selected task"
+    menu: true
+    vim: "shift+k"
+    standard: "cmd+y"
+  - action: timer.toggle
+    label: "Start the timer, or pause and resume it"
+    group: "Selected task"
+    tip: "timer"
+    menu: true
+    vim: "space"
+    standard: "space"
   - action: task.done
+    label: "Done, writes [x] in the note"
+    group: "Selected task"
+    tip: "done"
     vim: "x"
     standard: "cmd+d"
-  - action: task.move-up
-    vim: "alt+k"
-    standard: "alt+cmd+up"
-  - action: task.move-down
-    vim: "alt+j"
-    standard: "alt+cmd+down"
-  - action: plan.replan
-    vim: "r"
-    standard: "cmd+r"
-  - action: plan.auto-schedule
-    vim: "="
-    standard: "shift+cmd+r"
-  # The padlock of the selected task's calendar block: pin to the private
-  # calendar, or unpin. `X` is the design note's key; `m` the board's.
   - action: task.pin
+    label: "Lock the calendar slot, or unlock it"
+    group: "Selected task"
+    tip: "lock"
+    menu: true
     vim: "m"
-    standard: "cmd+l"
+    standard: "alt+cmd+l"
   - action: task.pin
     vim: "shift+x"
     standard: ""
-  - action: timer.toggle
-    vim: "space"
-    standard: "space"
-  - action: day.previous
-    vim: "["
-    standard: "cmd+["
-  - action: day.next
-    vim: "]"
-    standard: "cmd+]"
-  - action: day.today
-    vim: "t"
-    standard: "cmd+t"
+  - action: task.push-tomorrow
+    label: "Push to tomorrow"
+    group: "Selected task"
+    menu: true
+    vim: "> >"
+    standard: "ctrl+cmd+right"
+  - action: task.pull-today
+    label: "Pull to today"
+    group: "Selected task"
+    vim: "< <"
+    standard: "ctrl+cmd+left"
+  - action: task.move-up
+    label: "Move the task up"
+    group: "Selected task"
+    menu: true
+    vim: "alt+k"
+    standard: "alt+cmd+up"
+  - action: task.move-down
+    label: "Move the task down"
+    group: "Selected task"
+    menu: true
+    vim: "alt+j"
+    standard: "alt+cmd+down"
+  - action: item.menu
+    label: "More actions"
+    group: "Selected task"
+    vim: '\'
+    standard: "ctrl+return"
+  - action: item.open-link
+    label: "Open the link"
+    group: "Selected task"
+    vim: "g x"
+    standard: "shift+cmd+o"
+  - action: item.claude-code
+    label: "Open in Claude Code"
+    group: "Selected task"
+    menu: true
+    vim: "shift+cmd+c"
+    standard: "shift+cmd+c"
+  # Change
+  - action: change.text
+    label: "Change the text"
+    group: "Change"
+    vim: "c c"
+    standard: "cmd+e"
+  - action: change.estimate
+    label: "Change the estimate"
+    group: "Change"
+    vim: "c e"
+    standard: "alt+cmd+e"
+  - action: change.due
+    label: "Change the due day"
+    group: "Change"
+    vim: "c d"
+    standard: "shift+cmd+d"
+  - action: change.scheduled
+    label: "Change the scheduled day"
+    group: "Change"
+    vim: "c s"
+    standard: "alt+cmd+s"
+  # Register
+  - action: register.yank
+    label: "Yank the task and copy its id"
+    group: "Register"
+    menu: true
+    vim: "y y"
+    standard: "cmd+c"
+  - action: register.cut
+    label: "Cut to the backlog"
+    group: "Register"
+    menu: true
+    vim: "d d"
+    standard: "cmd+x"
+  - action: register.paste-after
+    label: "Paste after the selection, scheduled on this day"
+    group: "Register"
+    vim: "p"
+    standard: "cmd+v"
+  - action: register.paste-before
+    label: "Paste before the selection, scheduled on this day"
+    group: "Register"
+    vim: "shift+p"
+    standard: "shift+cmd+v"
+  - action: edit.undo
+    label: "Undo"
+    group: "Register"
+    vim: "u"
+    standard: "cmd+z"
+  - action: edit.redo
+    label: "Redo"
+    group: "Register"
+    vim: "ctrl+r"
+    standard: "shift+cmd+z"
+  - action: edit.repeat
+    label: "Repeat the last change"
+    group: "Register"
+    vim: "."
+    standard: ""
+  # Navigation
+  - action: move.down
+    label: "Move down"
+    group: "Navigation"
+    vim: "j"
+    standard: "down"
+  - action: move.up
+    label: "Move up"
+    group: "Navigation"
+    vim: "k"
+    standard: "up"
+  - action: move.left
+    label: "Move left"
+    group: "Navigation"
+    vim: "h"
+    standard: "left"
+  - action: move.right
+    label: "Move right"
+    group: "Navigation"
+    vim: "l"
+    standard: "right"
+  - action: move.first
+    label: "First item"
+    group: "Navigation"
+    vim: "g g"
+    standard: "cmd+up"
+  - action: move.last
+    label: "Last item"
+    group: "Navigation"
+    vim: "shift+g"
+    standard: "cmd+down"
+  - action: move.half-page-down
+    label: "Half a page down"
+    group: "Navigation"
+    vim: "ctrl+d"
+    standard: "pagedown"
+  - action: move.half-page-up
+    label: "Half a page up"
+    group: "Navigation"
+    vim: "ctrl+u"
+    standard: "pageup"
+  - action: task.add
+    label: "Quick add"
+    group: "Navigation"
+    tip: "add"
+    vim: "i"
+    standard: "cmd+n"
+  - action: task.add-after
+    label: "Add a task after the selection"
+    group: "Navigation"
+    vim: "o"
+    standard: "alt+cmd+n"
+  - action: task.add-before
+    label: "Add a task before the selection"
+    group: "Navigation"
+    vim: "shift+o"
+    standard: "shift+alt+cmd+n"
+  - action: palette.open
+    label: "Command palette"
+    group: "Navigation"
+    tip: "palette"
+    vim: "cmd+k"
+    standard: "cmd+k"
+  - action: palette.open
+    vim: ":"
+    standard: ""
   - action: dismiss
+    label: "Close the palette, the toast or the confirmation"
+    group: "Navigation"
     vim: "escape"
     standard: "escape"
-  # Browse, Day log and Peek (PR 9b). Browse keys act while Browse is shown.
-  - action: browse.open
-    vim: "g b"
-    standard: "shift+cmd+b"
-  - action: daylog.open
-    vim: "g l"
-    standard: "shift+cmd+l"
-  - action: browse.query
-    vim: "/"
-    standard: "cmd+f"
-  - action: browse.fold
-    vim: "z a"
-    standard: ""
-  - action: browse.next-group
-    vim: "shift+}"
-    standard: "alt+down"
-  - action: browse.previous-group
-    vim: "shift+{"
-    standard: "alt+up"
-  - action: browse.next-match
-    vim: "n"
-    standard: "cmd+g"
-  - action: browse.previous-match
-    vim: "shift+n"
-    standard: "shift+cmd+g"
-  - action: peek
-    vim: "shift+k"
-    standard: "cmd+y"
+  # Panes and tabs
+  - action: pane.sidebar
+    label: "Sidebar"
+    group: "Panes and tabs"
+    vim: "g 0"
+    standard: "ctrl+0"
+  - action: pane.today
+    label: "Today"
+    group: "Panes and tabs"
+    vim: "g 1"
+    standard: "ctrl+1"
+  - action: pane.inbox
+    label: "Inbox"
+    group: "Panes and tabs"
+    vim: "g 2"
+    standard: "ctrl+2"
+  - action: pane.side-panel
+    label: "Side panel"
+    group: "Panes and tabs"
+    vim: "g 3"
+    standard: "ctrl+3"
+  - action: side-panel.next
+    label: "Next side panel tab"
+    group: "Panes and tabs"
+    vim: "]"
+    standard: "ctrl+tab"
+  - action: side-panel.previous
+    label: "Previous side panel tab"
+    group: "Panes and tabs"
+    vim: "["
+    standard: "ctrl+shift+tab"
   # The side panel's tabs by their place on the rail: Calendar, Hours,
   # Chasers, Backlog, Objectives, Day log, Claude.
   - action: side-panel.tab.1
+    label: "Calendar tab"
+    group: "Panes and tabs"
     vim: "alt+1"
     standard: "alt+1"
+  - action: side-panel.tab.1
+    pane: "side-panel"
+    vim: "1"
+    standard: ""
   - action: side-panel.tab.2
+    label: "Hours tab"
+    group: "Panes and tabs"
     vim: "alt+2"
     standard: "alt+2"
+  - action: side-panel.tab.2
+    pane: "side-panel"
+    vim: "2"
+    standard: ""
   - action: side-panel.tab.3
+    label: "Chasers tab"
+    group: "Panes and tabs"
     vim: "alt+3"
     standard: "alt+3"
+  - action: side-panel.tab.3
+    pane: "side-panel"
+    vim: "3"
+    standard: ""
   - action: side-panel.tab.4
+    label: "Backlog tab"
+    group: "Panes and tabs"
     vim: "alt+4"
     standard: "alt+4"
+  - action: side-panel.tab.4
+    pane: "side-panel"
+    vim: "4"
+    standard: ""
   - action: side-panel.tab.5
+    label: "Objectives tab"
+    group: "Panes and tabs"
     vim: "alt+5"
     standard: "alt+5"
+  - action: side-panel.tab.5
+    pane: "side-panel"
+    vim: "5"
+    standard: ""
   - action: side-panel.tab.6
+    label: "Day log tab"
+    group: "Panes and tabs"
     vim: "alt+6"
     standard: "alt+6"
+  - action: side-panel.tab.6
+    pane: "side-panel"
+    vim: "6"
+    standard: ""
   - action: side-panel.tab.7
+    label: "Claude tab"
+    group: "Panes and tabs"
     vim: "alt+7"
     standard: "alt+7"
+  - action: side-panel.tab.7
+    pane: "side-panel"
+    vim: "7"
+    standard: ""
+  - action: sidebar.toggle
+    label: "Show or hide the sidebar"
+    group: "Panes and tabs"
+    vim: "ctrl+cmd+s"
+    standard: "ctrl+cmd+s"
+  # Day and workspace
+  - action: plan.auto-schedule
+    label: "Arrange the day in list order"
+    group: "Day and workspace"
+    vim: "="
+    standard: "shift+cmd+r"
+  - action: plan.replan
+    label: "Re-plan from now"
+    group: "Day and workspace"
+    tip: "re-plan"
+    vim: "r"
+    standard: "cmd+r"
+  # The design note's table has no day keys. Under Vim motions `]` `[` step
+  # the rail, so the day steps sit on ⌥h ⌥l (left and right in time, never
+  # bare h l) and today on `gd` ("go to the day"): `t` is a vim motion.
+  - action: day.previous
+    label: "Previous day"
+    group: "Day and workspace"
+    vim: "alt+h"
+    standard: "cmd+["
+  - action: day.next
+    label: "Next day"
+    group: "Day and workspace"
+    vim: "alt+l"
+    standard: "cmd+]"
+  - action: day.today
+    label: "Back to today"
+    group: "Day and workspace"
+    vim: "g d"
+    standard: "cmd+t"
+  - action: daylog.open
+    label: "Day log"
+    group: "Day and workspace"
+    vim: "g l"
+    standard: "shift+cmd+l"
+  - action: daylog.append
+    label: "Append to the day log"
+    group: "Day and workspace"
+    vim: "cmd+l"
+    standard: "cmd+l"
+  - action: workspace.next
+    label: "Next workspace"
+    group: "Day and workspace"
+    vim: "g t"
+    standard: "ctrl+cmd+]"
+  - action: workspace.previous
+    label: "Previous workspace"
+    group: "Day and workspace"
+    vim: "g shift+t"
+    standard: "ctrl+cmd+["
+  - action: workspace.all
+    label: "All workspaces"
+    group: "Day and workspace"
+    vim: "cmd+0"
+    standard: "cmd+0"
+  - action: workspace.1
+    label: "Workspace 1"
+    group: "Day and workspace"
+    vim: "cmd+1"
+    standard: "cmd+1"
+  - action: workspace.2
+    label: "Workspace 2"
+    group: "Day and workspace"
+    vim: "cmd+2"
+    standard: "cmd+2"
+  - action: workspace.3
+    label: "Workspace 3"
+    group: "Day and workspace"
+    vim: "cmd+3"
+    standard: "cmd+3"
+  - action: workspace.4
+    label: "Workspace 4"
+    group: "Day and workspace"
+    vim: "cmd+4"
+    standard: "cmd+4"
+  - action: workspace.5
+    label: "Workspace 5"
+    group: "Day and workspace"
+    vim: "cmd+5"
+    standard: "cmd+5"
+  - action: workspace.6
+    label: "Workspace 6"
+    group: "Day and workspace"
+    vim: "cmd+6"
+    standard: "cmd+6"
+  - action: workspace.7
+    label: "Workspace 7"
+    group: "Day and workspace"
+    vim: "cmd+7"
+    standard: "cmd+7"
+  - action: workspace.8
+    label: "Workspace 8"
+    group: "Day and workspace"
+    vim: "cmd+8"
+    standard: "cmd+8"
+  - action: workspace.9
+    label: "Workspace 9"
+    group: "Day and workspace"
+    vim: "cmd+9"
+    standard: "cmd+9"
+  # Browse (PR 9b). Browse keys act while Browse is shown.
+  - action: browse.open
+    label: "Browse"
+    group: "Browse"
+    vim: "g b"
+    standard: "shift+cmd+b"
+  - action: browse.query
+    label: "Search the Browse table"
+    group: "Browse"
+    vim: "/"
+    standard: "cmd+f"
+  - action: browse.next-match
+    label: "Next match"
+    group: "Browse"
+    vim: "n"
+    standard: "cmd+g"
+  - action: browse.previous-match
+    label: "Previous match"
+    group: "Browse"
+    vim: "shift+n"
+    standard: "shift+cmd+g"
+  - action: browse.next-group
+    label: "Next story group"
+    group: "Browse"
+    vim: "shift+}"
+    standard: "alt+down"
+  - action: browse.previous-group
+    label: "Previous story group"
+    group: "Browse"
+    vim: "shift+{"
+    standard: "alt+up"
+  - action: browse.fold
+    label: "Fold or open the story group"
+    group: "Browse"
+    vim: "z a"
+    standard: ""

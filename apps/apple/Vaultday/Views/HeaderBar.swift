@@ -2,8 +2,8 @@ import SwiftUI
 import VaultdayCore
 
 /// The 38 px header: room for the traffic lights, the sidebar toggle, the
-/// screen-share toggle (a later version) and the search field whose
-/// placeholder names the scope. Until the palette arrives, ⌘K focuses the field.
+/// screen-share toggle (a later version) and the palette's field, whose
+/// placeholder names the scope.
 struct HeaderBar: View {
 	let app: AppModel
 
@@ -52,31 +52,33 @@ private struct ScreenShareToggle: View {
 	}
 }
 
-/// The search field: the scope in its placeholder, ⌘K to focus it. Search
-/// itself arrives with the palette.
+/// The palette's place in the header: the scope in its placeholder; a click
+/// or ⌘K opens the command palette, where commands, stories and workspaces
+/// are found.
 private struct SearchField: View {
 	let app: AppModel
-	@State private var text = ""
-	@FocusState private var isFocused: Bool
 
 	var body: some View {
-		HStack(spacing: Tokens.Spacing.space6) {
-			Image(systemName: "magnifyingglass")
-				.font(.system(size: 11))
-			TextField(placeholder, text: $text)
-				.textFieldStyle(.plain)
-				.focused($isFocused)
-				.onExitCommand { isFocused = false }
-			ActionCap(app: app, action: .focusSearch)
+		Button {
+			app.perform(.openPalette)
+		} label: {
+			HStack(spacing: Tokens.Spacing.space6) {
+				Image(systemName: "magnifyingglass")
+					.font(.system(size: 11))
+				Text(placeholder)
+					.frame(maxWidth: .infinity, alignment: .leading)
+				ActionCap(app: app, action: .openPalette)
+			}
+			.font(Tokens.Typography.callout.font)
+			.foregroundStyle(Tokens.Colors.inkMuted)
+			.padding(.horizontal, Tokens.Spacing.space8)
+			.frame(width: 220, height: 24)
+			.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 7))
+			.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(app.palette.isOpen ? Tokens.Colors.focus : Tokens.Colors.lineButton))
+			.contentShape(Rectangle())
 		}
-		.font(Tokens.Typography.callout.font)
-		.foregroundStyle(Tokens.Colors.inkMuted)
-		.padding(.horizontal, Tokens.Spacing.space8)
-		.frame(width: 220, height: 24)
-		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 7))
-		.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(isFocused ? Tokens.Colors.focus : Tokens.Colors.lineButton))
-		.onChange(of: app.searchFocusRequest) { isFocused = true }
-		.onChange(of: isFocused) { app.setTextField("search", isFocused: isFocused) }
+		.buttonStyle(.plain)
+		.accessibilityLabel("Command palette")
 	}
 
 	private var placeholder: String {

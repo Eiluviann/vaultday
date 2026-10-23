@@ -416,7 +416,9 @@ final class SidePanelModelTests: XCTestCase {
 		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "x")), .action(.completeTask), "bare x still ticks")
 		XCTAssertEqual(dispatcher.label(for: .togglePin), "m")
 		dispatcher.setScheme(.standard)
-		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "l", modifiers: .command)), .action(.togglePin))
+		// ⌘L is the design note's Day log key, so the padlock moved to ⌥⌘L.
+		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "l", modifiers: [.option, .command])), .action(.togglePin))
+		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "l", modifiers: .command)), .action(.appendDayLog))
 	}
 
 	// MARK: Helpers
