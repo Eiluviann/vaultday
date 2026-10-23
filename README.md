@@ -12,7 +12,7 @@ One app for the working day: tasks, time boxes, timer, rituals and the day log o
 
 ## Commands
 
-Building and gating locally (the shared Cargo cache, `scripts/gates.sh --changed` and `--full`, which caches to keep): [docs/building.md](docs/building.md). In short:
+Building and gating locally (`scripts/gates.sh --changed` and `--full`, which caches to keep, why each worktree keeps its own Cargo target): [docs/building.md](docs/building.md). In short:
 
 ```bash
 source scripts/env.sh && scripts/gates.sh --changed   # while iterating

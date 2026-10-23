@@ -8,8 +8,9 @@
 #   debug    arm64 only, unoptimised. The local default: it compiles in a
 #            fraction of the time and is enough for `xcodebuild test`.
 #
-# A build is skipped when the core sources, the toolchain and the build kind
-# match the last one in this worktree (`--force` builds anyway).
+# A build is skipped when the core sources, the compiler, the build settings
+# from the environment and the build kind match the last one in this worktree
+# (`--force` builds anyway).
 #
 # Outputs (all gitignored):
 #   apps/apple/VaultdayCore/VaultdayCoreFFI.xcframework
@@ -18,7 +19,7 @@
 #
 # The bindings generator is `crates/uniffi-bindgen`, built from the same
 # pinned `uniffi` version `crates/ffi` links against. Cargo builds into
-# `CARGO_TARGET_DIR` when set (`scripts/env.sh` sets it locally), else `core/target`.
+# `core/target` (`scripts/env.sh` explains why never a shared directory).
 #
 # Usage: scripts/build-xcframework.sh [--release | --debug] [--force]
 set -euo pipefail
@@ -65,12 +66,17 @@ fi
 # not the host SDK's, so the app links without version warnings.
 export MACOSX_DEPLOYMENT_TARGET=15.0
 
-# Everything the XCFramework is built from, hashed by content: tracked and
-# untracked files under core/ (minus the napi crate, which the FFI does not
-# link), the toolchain pin and this script.
+# Everything the XCFramework is built from, hashed by content: the build kind,
+# the compiler (a RUSTUP_TOOLCHAIN override included), the environment Cargo
+# and the core read at compile time (`option_env!("VAULTDAY_GRAPH_CLIENT_ID")`
+# in crates/ffi, RUSTFLAGS, profile overrides), tracked and untracked files
+# under core/ (minus the napi crate, which the FFI does not link), the
+# toolchain pin and this script.
 function source_fingerprint() {
 	{
 		echo "$profile ${targets[*]}"
+		(cd "$core_dir" && rustc -vV) || true
+		env | grep -E '^(VAULTDAY_|RUSTFLAGS=|CARGO_ENCODED_RUSTFLAGS=|RUSTC_WRAPPER=|RUSTUP_TOOLCHAIN=|CARGO_PROFILE_|CARGO_BUILD_)' | sort || true
 		# A tracked file deleted in the working tree has nothing to hash.
 		(cd "$repo_root" && git ls-files -z --cached --others --exclude-standard -- \
 			core rust-toolchain.toml scripts/build-xcframework.sh scripts/env.sh ':!core/crates/node' |
@@ -85,9 +91,8 @@ if [[ "$force" == false && -d "$xcframework" && -d "$generated_dir" && -f "$stam
 	exit 0
 fi
 
-# The target directory may be shared with other worktrees (scripts/env.sh), and
-# Cargo copies the finished library to the same path for every one of them:
-# hold a lock from the build until the library is copied out.
+# Two builds in one worktree (the gates and a manual run, say) write the same
+# library: hold a lock from the build until the library is copied out.
 lock_dir="$target_dir/xcframework.lock"
 mkdir -p "$target_dir"
 until mkdir "$lock_dir" 2>/dev/null; do
@@ -96,7 +101,7 @@ until mkdir "$lock_dir" 2>/dev/null; do
 		rm -rf "$lock_dir"
 		continue
 	fi
-	echo "==> waiting for another worktree's XCFramework build (pid ${lock_owner:-unknown})"
+	echo "==> waiting for another XCFramework build in this worktree (pid ${lock_owner:-unknown})"
 	sleep 2
 done
 echo $$ >"$lock_dir/pid"

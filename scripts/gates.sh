@@ -34,8 +34,8 @@
 #
 # Uses `cargo nextest` when installed, `cargo test` otherwise. Logs go to
 # $TMPDIR/vaultday-gates/<worktree>/; a failing gate prints its last lines.
-# Exits non-zero when any gate fails. Sources scripts/env.sh (shared Cargo
-# target directory).
+# Exits non-zero when any gate fails. Sources scripts/env.sh (the worktree's
+# own Cargo target directory, incremental compilation off).
 set -uo pipefail
 
 # Physical path: `cargo metadata` reports manifest paths with symlinks resolved.
