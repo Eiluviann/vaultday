@@ -6,21 +6,22 @@ import VaultdayCore
 /// week. Tracked time is private and carries the hand glyph wherever it shows.
 struct HoursTab: View {
 	let hours: HoursModel
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 				if let message = hours.errorMessage {
 					Text(message)
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.danger)
 				}
-				DailyTargetCard(hours: hours)
+				// Today's tracked total is private; while sharing the card is not there at all.
+				if screenShare?.hides(.hoursTab) != true {
+					DailyTargetCard(hours: hours)
+				}
 				if hours.rows.isEmpty {
-					Text("No open story has an estimate or tracked time yet")
-						.font(Tokens.Typography.callout.font)
-						.foregroundStyle(Tokens.Colors.inkMuted)
-						.padding(.top, Tokens.Spacing.space4)
+					EmptyState(icon: "hourglass", text: "No open story has an estimate or tracked time yet")
 				} else {
 					HomeEyebrow(text: "Stories")
 						.padding(.top, Tokens.Spacing.space8)
@@ -56,16 +57,16 @@ private struct DailyTargetCard: View {
 			HStack {
 				HomeEyebrow(text: "Today")
 				Spacer()
-				Text("target from hours per day")
-					.font(Tokens.Typography.caption.font)
+				// The workspace's hours_per_day, which the design note calls the daily target.
+				Text("Daily target")
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			PrivateTracked(text: hours.targetText)
-				.font(Tokens.Typography.headline.font)
+				.textStyle(Tokens.Typography.headline)
 				.foregroundStyle(Tokens.Colors.ink)
 			if screenShare?.hides(.hoursTab) != true {
-				ProgressView(value: hours.targetShare)
-					.tint(Tokens.Colors.primary)
+				ProgressTrack(value: hours.targetShare)
 					.accessibilityLabel("Tracked today against the daily target")
 			}
 		}
@@ -85,12 +86,12 @@ private struct StoryHoursCard: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				Text(row.title)
-					.font(.system(size: 13, weight: .semibold))
+					.textStyle(Tokens.Typography.headline)
 					.foregroundStyle(Tokens.Colors.ink)
 					.lineLimit(1)
 				Spacer(minLength: 0)
 				Text(row.number)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			HStack(spacing: Tokens.Spacing.space8) {
@@ -99,17 +100,16 @@ private struct StoryHoursCard: View {
 					.foregroundStyle(row.isOver && !isHidden ? Tokens.Colors.caution : Tokens.Colors.inkMuted)
 				if row.isOver, !isHidden {
 					Image(systemName: "exclamationmark.triangle")
-						.font(.system(size: 10))
+						.iconGlyph(.tag)
 						.foregroundStyle(Tokens.Colors.caution)
 						.accessibilityLabel("Over the estimate")
 				}
 			}
-			.font(Tokens.Typography.caption.font)
+			.textStyle(Tokens.Typography.caption)
 			.foregroundStyle(Tokens.Colors.inkSecondary)
 			.lineLimit(1)
 			if let share = row.share, !isHidden {
-				ProgressView(value: share)
-					.tint(row.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
+				ProgressTrack(value: share, tint: row.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
 					.accessibilityLabel("Tracked against the estimate")
 			}
 		}

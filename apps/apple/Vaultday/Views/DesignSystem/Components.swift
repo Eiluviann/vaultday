@@ -1,9 +1,9 @@
 import SwiftUI
 import VaultdayCore
 
-// The design system's pieces the setup steps are drawn from (Button, Tag,
-// Callout, Card, SpherePanel, WorkspaceBadge, ChoiceCard, ScopeChip,
-// SegmentedControl, Kbd), as SwiftUI, in the design tokens.
+// The design system's components (Button, Tag, Callout, Card, SpherePanel,
+// WorkspaceBadge, ChoiceCard, ScopeChip, SegmentedControl, Kbd), as SwiftUI,
+// in the design tokens. Setup drew them first; every screen uses them.
 
 // MARK: Button
 
@@ -18,6 +18,9 @@ struct SetupButtonStyle: ButtonStyle {
 	func makeBody(configuration: Configuration) -> some View {
 		configuration.label
 			.font(isSmall ? Tokens.Typography.callout.font.weight(.medium) : Tokens.Typography.body.font.weight(kind == .primary ? .semibold : .medium))
+			// A label is never cut short: the button takes the width its label needs, and the row gives way around it.
+			.lineLimit(1)
+			.fixedSize(horizontal: true, vertical: false)
 			.padding(.horizontal, isSmall || kind == .plain ? Tokens.Spacing.space8 : Tokens.Spacing.space16)
 			.frame(height: isSmall ? Tokens.Size.sizeControlSm : Tokens.Size.sizeControl)
 			.foregroundStyle(foreground)
@@ -54,9 +57,9 @@ struct SetupLabel: View {
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space6) {
-			if let icon { Image(systemName: icon).imageScale(.small) }
+			if let icon { Image(systemName: icon).iconGlyph(.row) }
 			if !title.isEmpty { Text(title) }
-			if let iconAfter { Image(systemName: iconAfter).imageScale(.small) }
+			if let iconAfter { Image(systemName: iconAfter).iconGlyph(.row) }
 		}
 	}
 }
@@ -73,10 +76,10 @@ struct SetupTag: View {
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space4) {
-			if let icon { Image(systemName: icon).font(.system(size: 10, weight: .semibold)) }
+			if let icon { Image(systemName: icon).iconGlyph(.tag, weight: .semibold) }
 			Text(text)
 		}
-		.font(Tokens.Typography.caption.font.weight(.semibold))
+		.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 		.padding(.horizontal, Tokens.Spacing.space8)
 		.frame(height: 20)
 		.foregroundStyle(foreground)
@@ -110,7 +113,9 @@ struct PlannedTag: View {
 	var body: some View { SetupTag(text: "Planned") }
 }
 
-/// A note under the lede: sunken, with an icon, full sentences without a closing period.
+/// A note under the lede: sunken, with an icon, full sentences without a
+/// closing period. The icon sits on the text's first line, sharing its
+/// centre line, however many lines the text runs to.
 struct SetupCallout<Action: View>: View {
 	enum Tone { case neutral, caution }
 
@@ -120,11 +125,14 @@ struct SetupCallout<Action: View>: View {
 	@ViewBuilder var action: Action
 
 	var body: some View {
-		HStack(alignment: .top, spacing: Tokens.Spacing.space8) {
+		HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
+			// A symbol set in the text's own font stands on the same baseline and centres on its capitals.
 			Image(systemName: icon)
+				.textStyle(Tokens.Typography.callout)
+				.frame(width: IconBox.row.size)
 				.foregroundStyle(tone == .caution ? Tokens.Colors.caution : Tokens.Colors.inkMuted)
 			Text(text)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(tone == .caution ? Tokens.Colors.ink : Tokens.Colors.inkSecondary)
 				.frame(maxWidth: .infinity, alignment: .leading)
 			action
@@ -148,7 +156,7 @@ struct KbdCap: View {
 
 	var body: some View {
 		Text(text)
-			.font(Tokens.Typography.kbd.font)
+			.textStyle(Tokens.Typography.kbd)
 			.foregroundStyle(Tokens.Colors.ink)
 			.padding(.horizontal, 5)
 			.padding(.vertical, 2)
@@ -182,7 +190,6 @@ struct SegmentedChoice<Value: Hashable>: View {
 						.font(Tokens.Typography.callout.font.weight(isSelected ? .semibold : .regular))
 						.foregroundStyle(isSelected ? Tokens.Colors.ink : Tokens.Colors.inkSecondary)
 						.lineLimit(1)
-						.minimumScaleFactor(0.85)
 						.padding(.horizontal, Tokens.Spacing.space6)
 						.frame(maxWidth: fills ? .infinity : nil)
 						.frame(height: Tokens.Size.sizeControlSm)
@@ -211,6 +218,8 @@ struct SegmentedChoice<Value: Hashable>: View {
 /// A setting row: icon, title, a tag, a description and the control pinned right.
 struct SetupCard<Trailing: View, Extra: View>: View {
 	var icon: String?
+	/// A workspace card's badge, in the icon box on the title line.
+	var badge: WorkspaceBadge?
 	var iconTone: SetupTag.Tone = .neutral
 	let title: String
 	var description: String?
@@ -224,35 +233,42 @@ struct SetupCard<Trailing: View, Extra: View>: View {
 		VStack(spacing: 0) {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 				HStack(spacing: Tokens.Spacing.space8) {
-					if let icon {
+					if let badge {
+						badge
+							.frame(width: IconBox.menu.size, height: IconBox.menu.size)
+							.padding(.leading, Tokens.Spacing.space4)
+					} else if let icon {
 						Image(systemName: icon)
-							.frame(width: 18, height: 18)
+							.iconBox(.menu)
 							.foregroundStyle(tint)
 							.padding(.leading, Tokens.Spacing.space4)
 					}
 					Text(title)
-						.font(Tokens.Typography.headline.font)
+						.textStyle(Tokens.Typography.headline)
 						.foregroundStyle(Tokens.Colors.ink)
+						.lineLimit(1)
+						.layoutPriority(-1)
 					ForEach(tags.indices, id: \.self) { tags[$0] }
 					Spacer(minLength: Tokens.Spacing.space12)
 					trailing
 				}
 				.frame(minHeight: Tokens.Size.sizeRow)
+				// The body starts at the icon box's left edge, 16 pt in, so the icon anchors the column.
 				if let description {
 					Text(description)
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.inkSecondary)
-						.padding(.leading, icon == nil ? 0 : 30)
+						.padding(.leading, hasIconBox ? Tokens.Spacing.space4 : 0)
 						.frame(maxWidth: .infinity, alignment: .leading)
 				}
 				extra
-					.padding(.leading, icon == nil ? 0 : 30)
+					.padding(.leading, hasIconBox ? Tokens.Spacing.space4 : 0)
 			}
 			.padding(Tokens.Spacing.space12)
 			.frame(maxWidth: .infinity, alignment: .leading)
 			if let footnote {
 				Text(footnote)
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(footnoteColor)
 					.padding(.horizontal, Tokens.Spacing.space16)
 					.padding(.vertical, Tokens.Spacing.space8)
@@ -264,6 +280,8 @@ struct SetupCard<Trailing: View, Extra: View>: View {
 		.clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
 		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line, lineWidth: 1))
 	}
+
+	private var hasIconBox: Bool { badge != nil || icon != nil }
 
 	private var tint: Color {
 		switch iconTone {
@@ -278,20 +296,23 @@ struct SetupCard<Trailing: View, Extra: View>: View {
 }
 
 extension SetupCard where Extra == EmptyView {
-	init(icon: String? = nil, iconTone: SetupTag.Tone = .neutral, title: String, description: String? = nil, tags: [SetupTag] = [], footnote: String? = nil, footnoteTone: SetupTag.Tone = .neutral, @ViewBuilder trailing: () -> Trailing) {
-		self.init(icon: icon, iconTone: iconTone, title: title, description: description, tags: tags, footnote: footnote, footnoteTone: footnoteTone, trailing: trailing) { EmptyView() }
+	init(icon: String? = nil, badge: WorkspaceBadge? = nil, iconTone: SetupTag.Tone = .neutral, title: String, description: String? = nil, tags: [SetupTag] = [], footnote: String? = nil, footnoteTone: SetupTag.Tone = .neutral, @ViewBuilder trailing: () -> Trailing) {
+		self.init(icon: icon, badge: badge, iconTone: iconTone, title: title, description: description, tags: tags, footnote: footnote, footnoteTone: footnoteTone, trailing: trailing) { EmptyView() }
 	}
 }
 
 extension SetupCard where Trailing == EmptyView {
-	init(icon: String? = nil, iconTone: SetupTag.Tone = .neutral, title: String, description: String? = nil, tags: [SetupTag] = [], @ViewBuilder extra: () -> Extra) {
-		self.init(icon: icon, iconTone: iconTone, title: title, description: description, tags: tags, trailing: { EmptyView() }, extra: extra)
+	init(icon: String? = nil, badge: WorkspaceBadge? = nil, iconTone: SetupTag.Tone = .neutral, title: String, description: String? = nil, tags: [SetupTag] = [], @ViewBuilder extra: () -> Extra) {
+		self.init(icon: icon, badge: badge, iconTone: iconTone, title: title, description: description, tags: tags, trailing: { EmptyView() }, extra: extra)
 	}
 }
 
 // MARK: Sphere panel, badge, chips, choice cards
 
 /// The Work, Life or plain group panel: a header and the cards inside it.
+/// The header's icon tile is the sphere's soft tint with a hairline of the
+/// sphere color, as the design system edges its tinted notes, so the tile
+/// stands off the sunken panel.
 struct SpherePanel<Action: View, Content: View>: View {
 	let sphere: WorkspaceSphere
 	@ViewBuilder var action: Action
@@ -301,11 +322,13 @@ struct SpherePanel<Action: View, Content: View>: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Image(systemName: sphere == .work ? "briefcase" : "leaf")
-					.frame(width: 24, height: 24)
+					.iconGlyph(.row)
+					.frame(width: SpherePanelMetrics.tileSize, height: SpherePanelMetrics.tileSize)
 					.foregroundStyle(tint)
 					.background(soft, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
+					.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm).strokeBorder(tint.opacity(SpherePanelMetrics.tileEdgeOpacity), lineWidth: 1))
 				Text(sphere == .work ? "Work" : "Life")
-					.font(Tokens.Typography.heading.font)
+					.textStyle(Tokens.Typography.heading)
 					.foregroundStyle(tint)
 				Spacer()
 				action
@@ -314,10 +337,18 @@ struct SpherePanel<Action: View, Content: View>: View {
 		}
 		.padding(Tokens.Spacing.space12)
 		.background(Tokens.Colors.surfaceSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXl))
+		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusXl).strokeBorder(Tokens.Colors.line, lineWidth: 1))
 	}
 
 	private var tint: Color { sphere == .work ? Tokens.Colors.work : Tokens.Colors.life }
 	private var soft: Color { sphere == .work ? Tokens.Colors.workSoft : Tokens.Colors.lifeSoft }
+}
+
+/// The sphere panel's mark (SpherePanel guideline: a 22 pt tile, radius-sm).
+enum SpherePanelMetrics {
+	static let tileSize: CGFloat = 22
+	/// The tile's hairline: the sphere color at the strength of the info footnote's edge.
+	static let tileEdgeOpacity = 0.35
 }
 
 /// A workspace's identity color, from the accent word in its manifest.
@@ -343,17 +374,16 @@ enum WorkspaceColor: String, CaseIterable, Identifiable {
 	}
 }
 
-/// The numbered badge of a workspace.
+/// The numbered badge of a workspace: its ⌘ number, centred on a rounded
+/// square of its color; 16 pt in a card's icon box, 14 pt in lists.
 struct WorkspaceBadge: View {
 	let number: Int
 	let color: WorkspaceColor
+	var isLarge = true
 
 	var body: some View {
-		Text("\(number)")
-			.font(Tokens.Typography.caption.font.weight(.bold))
-			.foregroundStyle(Tokens.Colors.onWs)
-			.frame(width: 20, height: 20)
-			.background(color.color, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXs))
+		NumberMark(number: number, metrics: isLarge ? .badgeLarge : .badge, foreground: Tokens.Colors.onWs, fill: color.color)
+			.accessibilityElement()
 			.accessibilityLabel("Workspace \(number)")
 	}
 }
@@ -371,17 +401,13 @@ struct ScopeChip: View {
 		Button(action: toggle) {
 			HStack(spacing: Tokens.Spacing.space6) {
 				if let sphere {
-					Image(systemName: sphere == .work ? "briefcase" : "leaf").imageScale(.small)
+					Image(systemName: sphere == .work ? "briefcase" : "leaf").iconGlyph(.row)
 				} else if let number, let color {
-					Text("\(number)")
-						.font(.system(size: 10, weight: .bold))
-						.frame(width: 14, height: 14)
-						.foregroundStyle(isOn ? Tokens.Colors.onWs : Tokens.Colors.inkMuted)
-						.background(isOn ? color.color : Tokens.Colors.fillControl, in: Circle())
+					NumberMark(number: number, metrics: .badge, outline: .circle, foreground: isOn ? Tokens.Colors.onWs : Tokens.Colors.inkMuted, fill: isOn ? color.color : Tokens.Colors.fillControl)
 				}
 				Text(title)
 			}
-			.font(Tokens.Typography.callout.font.weight(.semibold))
+			.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 			.foregroundStyle(isOn ? Tokens.Colors.ink : Tokens.Colors.inkMuted)
 			.padding(.horizontal, Tokens.Spacing.space8)
 			.frame(height: Tokens.Size.sizeControlSm)
@@ -410,10 +436,10 @@ struct ChoiceCard: View {
 				VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
 					HStack(spacing: Tokens.Spacing.space6) {
 						Image(systemName: icon).foregroundStyle(Tokens.Colors.inkMuted)
-						Text(title).font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+						Text(title).textStyle(Tokens.Typography.body).fontWeight(.semibold).foregroundStyle(Tokens.Colors.ink)
 					}
 					Text(description)
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.inkSecondary)
 						.frame(maxWidth: .infinity, alignment: .leading)
 					if let tag {
@@ -431,9 +457,40 @@ struct ChoiceCard: View {
 	}
 }
 
+// MARK: Row options
+
+/// A row's options: an icon-only small secondary key with the vertical
+/// ellipsis (Button guideline), never a bare glyph; the menu opens from it.
+struct RowOptionsMenu<Items: View>: View {
+	let label: String
+	@ViewBuilder var items: Items
+
+	var body: some View {
+		Menu {
+			items
+		} label: {
+			Image(systemName: "ellipsis")
+				.iconGlyph(.row, weight: .semibold)
+				.rotationEffect(.degrees(90))
+				.foregroundStyle(Tokens.Colors.ink)
+				.frame(width: Tokens.Size.sizeControlSm, height: Tokens.Size.sizeControlSm)
+				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
+				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm).strokeBorder(Tokens.Colors.lineButton, lineWidth: 1))
+				.contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
+		}
+		.menuStyle(.button)
+		.buttonStyle(.plain)
+		.menuIndicator(.hidden)
+		.fixedSize()
+		.accessibilityLabel(label)
+	}
+}
+
 // MARK: Step pane
 
-/// A step's body: the title, the lede, and the content, scrolling above the footer.
+/// A step's body: the title, the lede, and the content, scrolling above the
+/// footer. The content keeps to the board's content width and to the left,
+/// however wide the window is; ledes stop at the measure.
 struct StepPane<Content: View>: View {
 	let title: String
 	let lede: String
@@ -442,20 +499,19 @@ struct StepPane<Content: View>: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space16) {
-				VStack(alignment: .leading, spacing: 6) {
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 					Text(title)
-						.font(Tokens.Typography.titleLarge.font)
-						.tracking(Tokens.Typography.titleLarge.tracking)
+						.textStyle(Tokens.Typography.titleLarge)
 						.foregroundStyle(Tokens.Colors.ink)
 						.accessibilityAddTraits(.isHeader)
 					Text(lede)
-						.font(Tokens.Typography.body.font)
+						.textStyle(Tokens.Typography.body)
 						.foregroundStyle(Tokens.Colors.inkSecondary)
-						.lineSpacing(Tokens.Typography.body.lineSpacing)
 						.frame(maxWidth: SetupLayout.measure, alignment: .leading)
 				}
 				content
 			}
+			.frame(maxWidth: SetupLayout.contentMaxWidth, alignment: .leading)
 			.padding(.horizontal, SetupLayout.gutter)
 			.padding(.top, SetupLayout.gutter)
 			.padding(.bottom, Tokens.Spacing.space16)
@@ -470,8 +526,7 @@ struct Eyebrow: View {
 
 	var body: some View {
 		Text(text.uppercased())
-			.font(Tokens.Typography.eyebrow.font)
-			.tracking(Tokens.Typography.eyebrow.tracking)
+			.textStyle(Tokens.Typography.eyebrow)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 	}
 }

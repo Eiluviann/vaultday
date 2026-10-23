@@ -10,13 +10,13 @@ struct PlannedTab: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			Text("Planned")
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.padding(.horizontal, 9)
 				.padding(.vertical, 4)
 				.background(Tokens.Colors.fillControl, in: Capsule())
 			Text(blurb)
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -35,7 +35,7 @@ struct BacklogTab: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack {
 				Text("\(backlog.taskCount) open, not scheduled")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 				Spacer()
 				Button("Open in Browse") {
@@ -46,7 +46,7 @@ struct BacklogTab: View {
 					}
 				}
 				.buttonStyle(.plain)
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.link)
 			}
 			ScrollView {
@@ -55,7 +55,7 @@ struct BacklogTab: View {
 						HStack(spacing: Tokens.Spacing.space6) {
 							if let number = group.storyNumber { MonoChip(text: number) }
 							Text(group.title)
-								.font(Tokens.Typography.callout.font.weight(.semibold))
+								.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 								.foregroundStyle(Tokens.Colors.inkSecondary)
 								.lineLimit(1)
 						}
@@ -63,13 +63,13 @@ struct BacklogTab: View {
 						ForEach(group.sections.flatMap(\.rows)) { row in
 							HStack(spacing: Tokens.Spacing.space8) {
 								Text(row.text)
-									.font(Tokens.Typography.body.font)
+									.textStyle(Tokens.Typography.body)
 									.foregroundStyle(Tokens.Colors.ink)
 									.lineLimit(2)
 									.frame(maxWidth: .infinity, alignment: .leading)
 								if let estimate = row.estimateLabel {
 									Text(estimate)
-										.font(Tokens.Typography.caption.font)
+										.textStyle(Tokens.Typography.caption)
 										.foregroundStyle(Tokens.Colors.inkMuted)
 								}
 							}
@@ -80,9 +80,7 @@ struct BacklogTab: View {
 						}
 					}
 					if backlog.groups.isEmpty {
-						Text("Every open Next Step has a day")
-							.font(Tokens.Typography.callout.font)
-							.foregroundStyle(Tokens.Colors.inkMuted)
+						EmptyState(icon: "checkmark.circle", text: "Every open Next Step has a day")
 					}
 				}
 			}

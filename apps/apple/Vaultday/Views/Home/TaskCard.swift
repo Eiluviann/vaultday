@@ -37,8 +37,9 @@ struct TaskCard: View {
 					}
 				}
 				.background(Tokens.Colors.surface)
-				.clipShape(RoundedRectangle(cornerRadius: 10))
-				.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(isSelected ? tint : Tokens.Colors.line, lineWidth: isSelected ? 2 : 1))
+				.clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
+				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line, lineWidth: 1))
+				.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusLg)
 			}
 		}
 		.lift(isHovered || isSelected)
@@ -69,7 +70,7 @@ struct TaskCard: View {
 				Circle().fill(readOnlyColor).frame(width: WorkspaceWash.dotSize, height: WorkspaceWash.dotSize)
 			} else {
 				Text("⋮⋮")
-					.font(.system(size: 14))
+					.iconGlyph(.menu)
 					.tracking(-2)
 					.foregroundStyle(Tokens.Colors.lineControl)
 					.accessibilityHidden(true)
@@ -87,7 +88,7 @@ struct TaskCard: View {
 			}
 			estimate
 		}
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 		.lineSpacing(2)
 		.padding(EdgeInsets(top: 9, leading: 6, bottom: 2, trailing: 10))
 	}
@@ -96,11 +97,11 @@ struct TaskCard: View {
 	private var estimate: some View {
 		if let minutes = item.estimateMinutes {
 			Text(DurationText.minutes(minutes))
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(item.state == .inProgress ? tint : Tokens.Colors.inkMuted)
 		} else {
 			Text("no estimate")
-				.font(Tokens.Typography.callout.font.weight(.semibold))
+				.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.caution)
 		}
 	}
@@ -135,7 +136,7 @@ struct TaskCard: View {
 		HStack(spacing: Tokens.Spacing.space4) {
 			Label("subtask", systemImage: "plus")
 				.labelStyle(TightLabelStyle())
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkDisabled)
 				.help("Adding subtasks from Home arrives in a later version")
 			Spacer()
@@ -149,14 +150,14 @@ struct TaskCard: View {
 	private var foldedSubtasks: some View {
 		HStack(spacing: Tokens.Spacing.space4) {
 			Image(systemName: "chevron.right")
-				.font(.system(size: 9, weight: .semibold))
+				.iconGlyph(.tag, weight: .semibold)
 				.accessibilityHidden(true)
 			Text(item.subtasks.count == 1 ? "1 subtask · folded" : "\(item.subtasks.count) subtasks · folded")
 			Spacer()
 			MonoChip(text: item.taskId, isRounded: false)
 				.help("Readable id")
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.frame(minHeight: 20)
 		.help(app.keyLabel(.toggleFold).map { "Open the subtasks (\($0))" } ?? "Open the subtasks")
@@ -178,7 +179,7 @@ struct TaskCard: View {
 	private var doneLine: some View {
 		HStack(alignment: .firstTextBaseline, spacing: 10) {
 			Text("⋮⋮")
-				.font(.system(size: 14))
+				.iconGlyph(.menu)
 				.tracking(-2)
 				.foregroundStyle(Tokens.Colors.line)
 				.accessibilityHidden(true)
@@ -188,10 +189,10 @@ struct TaskCard: View {
 				.frame(maxWidth: .infinity, alignment: .leading)
 			if let minutes = item.estimateMinutes {
 				Text(DurationText.minutes(minutes))
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 			}
 		}
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.padding(EdgeInsets(top: 10, leading: 6, bottom: 10, trailing: 10))
 		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.line))
@@ -231,16 +232,16 @@ private struct SubtaskRow: View {
 					}
 				}
 				}
-				.font(Tokens.Typography.caption.font.weight(.semibold))
+				.textStyle(Tokens.Typography.caption).fontWeight(.semibold)
 				.foregroundStyle(tint)
 			}
 			if let minutes = subtask.estimateMinutes {
 				Text(DurationText.minutes(minutes))
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 		.padding(.vertical, Tokens.Spacing.space4)
 		.overlay(alignment: .trailing) {
 			if !isReadOnly, isHovered || isRunning {
@@ -294,7 +295,7 @@ private struct MoreActions: View {
 			}
 		} label: {
 			Image(systemName: "ellipsis")
-				.font(.system(size: 12))
+				.iconGlyph(.row)
 				.frame(minWidth: 24, minHeight: 20)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
@@ -349,7 +350,7 @@ private struct SlotChip: View {
 
 	var body: some View {
 		Text(slot.isLocked ? slot.start.text : "projected \(slot.start.text)")
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 			.foregroundStyle(slot.isLocked ? Tokens.Colors.ink : Tokens.Colors.inkMuted)
 			.padding(.horizontal, Tokens.Spacing.space8)
 			.padding(.vertical, Tokens.Spacing.space2)
@@ -404,7 +405,7 @@ private struct DraggableTask: ViewModifier {
 struct TightLabelStyle: LabelStyle {
 	func makeBody(configuration: Configuration) -> some View {
 		HStack(spacing: 4) {
-			configuration.icon.font(.system(size: 8, weight: .semibold))
+			configuration.icon.iconGlyph(.tag, weight: .semibold)
 			configuration.title
 		}
 	}

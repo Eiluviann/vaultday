@@ -104,7 +104,7 @@ public enum ScreenShareChange: Equatable, Sendable {
 @Observable
 public final class ScreenShareModel {
 	public static let allWorkspacesReason = "Screen-share mode needs a single workspace: pick one first"
-	public static let hiddenWorkspaceNotice = "That workspace is hidden while screen-share mode is on"
+	public static let hiddenWorkspaceNotice = "That workspace is not available right now"
 	public static let startReason = "Screen-share mode starts from a work workspace"
 	public static let closeOutNotice = "The close-out shows tracked time: turn off screen-share mode to open it"
 	public static let noWorkWorkspaceNotice = "No work workspace is left to show: screen-share mode stays on until you turn it off"
@@ -167,7 +167,7 @@ public final class ScreenShareModel {
 	public static func toggleTooltip(isOn: Bool, keyLabel: String?) -> String {
 		if isOn {
 			let offHint = keyLabel.map { "; \($0) turns it off" } ?? ""
-			return "Screen-share mode is on: private workspaces are hidden and tracked time shows as private\(offHint)"
+			return "Screen-share mode is on\(offHint)"
 		}
 		let keyHint = keyLabel.map { " (\($0))" } ?? ""
 		return "Screen-share mode: hide other workspaces and silence their notifications\(keyHint)"

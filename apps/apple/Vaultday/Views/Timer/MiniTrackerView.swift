@@ -22,7 +22,7 @@ struct MiniTrackerView: View {
 		.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
 		.background(Tokens.Colors.surfaceRaised.opacity(0.96), in: RoundedRectangle(cornerRadius: 14))
 		.foregroundStyle(Tokens.Colors.ink)
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 	}
 
 	private func collapsedRow(_ session: SessionSummary) -> some View {
@@ -34,7 +34,7 @@ struct MiniTrackerView: View {
 				.accessibilityHidden(true)
 			VStack(alignment: .leading, spacing: 1) {
 				Text(app.sessionText(session))
-					.font(Tokens.Typography.body.font.weight(.semibold))
+					.textStyle(Tokens.Typography.body).fontWeight(.semibold)
 					.lineLimit(1)
 				Text([session.story, session.taskId].compactMap(\.self).joined(separator: " · "))
 					.font(Tokens.Typography.caption.font.monospaced())
@@ -43,7 +43,7 @@ struct MiniTrackerView: View {
 			}
 			Spacer(minLength: Tokens.Spacing.space4)
 			Text(DurationText.clock(seconds: session.elapsed(at: app.timerClock)))
-				.font(.system(size: 18, weight: .bold))
+				.textStyle(Tokens.Typography.timer)
 				.monospacedDigit()
 				.foregroundStyle(app.accentColor)
 			TrackerButton(symbol: session.isPaused ? "play.fill" : "pause.fill", label: session.isPaused ? "Resume" : "Pause", help: session.isPaused ? "Resume (Space)" : "Pause (Space)", isPrimary: false) {
@@ -57,7 +57,7 @@ struct MiniTrackerView: View {
 			} label: {
 				Image(systemName: app.isMiniTrackerExpanded ? "chevron.up" : "chevron.down")
 					.iconReplace(value: app.isMiniTrackerExpanded)
-					.font(.system(size: 10))
+					.iconGlyph(.tag)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.frame(width: 22, height: 24)
 			}
@@ -93,15 +93,15 @@ private struct ExpandedTracker: View {
 					Spacer()
 					if let minutes = subtask.estimateMinutes {
 						Text(DurationText.minutes(minutes))
-							.font(Tokens.Typography.caption.font)
+							.textStyle(Tokens.Typography.caption)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 					}
 				}
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 			}
 			if let next = app.nextUpItem {
 				Text("Next up · \(next.text)")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.lineLimit(1)
 			}
@@ -130,7 +130,7 @@ private struct TrackerButton: View {
 	var body: some View {
 		Button(action: action) {
 			Image(systemName: symbol)
-				.font(.system(size: 9))
+				.iconGlyph(.tag)
 				.iconReplace(value: symbol)
 				.foregroundStyle(isPrimary ? Tokens.Colors.onPrimary : Tokens.Colors.ink)
 				.frame(width: 28, height: 24)

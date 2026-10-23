@@ -51,7 +51,7 @@ struct FeatureSetsStep: View {
 				}
 			}
 			if workspaces.entries.isEmpty {
-				Text("Add a workspace to pick it here").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text("Add a workspace to pick it here").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		case .off, .everywhere:
 			EmptyView()

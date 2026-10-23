@@ -13,7 +13,7 @@ struct CommandPalette: View {
 		VStack(alignment: .leading, spacing: 2) {
 			TextField("Type a command, a story or a workspace…", text: $palette.query)
 				.textFieldStyle(.plain)
-				.font(.system(size: 15))
+				.textStyle(Tokens.Typography.headline).fontWeight(.regular)
 				.focused($isFocused)
 				.padding(.horizontal, 10)
 				.frame(height: 36)
@@ -33,7 +33,7 @@ struct CommandPalette: View {
 					LazyVStack(alignment: .leading, spacing: 2) {
 						ForEach(palette.sections) { section in
 							Text(section.title)
-								.font(Tokens.Typography.eyebrow.font)
+								.textStyle(Tokens.Typography.eyebrow)
 								.textCase(.uppercase)
 								.foregroundStyle(Tokens.Colors.inkMuted)
 								.padding(EdgeInsets(top: 6, leading: 10, bottom: 2, trailing: 10))
@@ -83,7 +83,7 @@ private struct PaletteRowView: View {
 					.lineLimit(1)
 				if let detail = row.detail {
 					Text(detail)
-						.font(Tokens.Typography.mono.font)
+						.textStyle(Tokens.Typography.mono)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				ForEach(Array(row.caps.enumerated()), id: \.offset) { _, caps in
@@ -92,13 +92,13 @@ private struct PaletteRowView: View {
 				// ⏎ draws on beside the highlighted row as the highlight moves.
 				IconPresence(isShown: isSelected) {
 					Image(systemName: "return")
-						.font(.system(size: 10, weight: .semibold))
+						.iconGlyph(.tag, weight: .semibold)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				.frame(width: 14)
 				.accessibilityHidden(true)
 			}
-			.font(Tokens.Typography.body.font)
+			.textStyle(Tokens.Typography.body)
 			.foregroundStyle(Tokens.Colors.ink)
 			.padding(.horizontal, 10)
 			.padding(.vertical, 6)

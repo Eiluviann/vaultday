@@ -57,14 +57,14 @@ struct PeekPopover: View {
 				}
 				if let subtitle = content.subtitle {
 					Text(subtitle)
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.lineLimit(1)
 				}
 				Spacer()
 				if let badge = content.badge {
 					Text(badge)
-						.font(Tokens.Typography.callout.font.weight(.semibold))
+						.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 						.foregroundStyle(Tokens.Colors.caution)
 						.padding(.horizontal, 8)
 						.padding(.vertical, 2)
@@ -72,7 +72,7 @@ struct PeekPopover: View {
 				}
 			}
 			Text(content.title)
-				.font(Tokens.Typography.title.font)
+				.textStyle(Tokens.Typography.title)
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
 			if !content.fields.isEmpty {
@@ -83,13 +83,13 @@ struct PeekPopover: View {
 							Spacer(minLength: 10)
 							Text(field.value).foregroundStyle(Tokens.Colors.ink).multilineTextAlignment(.trailing)
 						}
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 					}
 				}
 			}
 			if let excerpt = content.excerpt {
 				Text(PreviewText.attributed(excerpt))
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.lineLimit(4)
 					.padding(.horizontal, 10)
@@ -155,7 +155,7 @@ struct PeekPopover: View {
 						.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Tokens.Colors.lineButton))
 				}
 				.buttonStyle(.plain)
-				.font(Tokens.Typography.body.font)
+				.textStyle(Tokens.Typography.body)
 			}
 		}
 		.padding(.top, 10)
@@ -176,7 +176,7 @@ private struct PeekButton: View {
 				Text(title).fontWeight(isPrimary ? .semibold : .regular)
 				if let cap {
 					Text(cap)
-						.font(Tokens.Typography.kbd.font)
+						.textStyle(Tokens.Typography.kbd)
 						.padding(.horizontal, 5)
 						.padding(.vertical, 3)
 						.background(isPrimary ? Color.white.opacity(0.25) : Tokens.Colors.fillControl, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXs))
@@ -189,7 +189,7 @@ private struct PeekButton: View {
 			.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(isPrimary ? .clear : Tokens.Colors.lineButton))
 		}
 		.buttonStyle(.plain)
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 	}
 }
 
@@ -203,7 +203,7 @@ struct ActivityLine: View {
 			+ Text(entry.kind.map { "\($0) · " } ?? "")
 			+ Text(entry.text)
 			+ (entry.agent.map { Text(" · \($0)").foregroundStyle(Tokens.Colors.ai) } ?? Text("")))
-			.font(Tokens.Typography.callout.font)
+			.textStyle(Tokens.Typography.callout)
 			.foregroundStyle(entry.kind == "blocker" ? Tokens.Colors.caution : Tokens.Colors.inkSecondary)
 			.lineLimit(2)
 			.frame(maxWidth: .infinity, alignment: .leading)

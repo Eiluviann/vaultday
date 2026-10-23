@@ -35,7 +35,7 @@ struct SetupSidebar: View {
 			}
 			.padding(.horizontal, 6)
 			Text("These settings can be changed later in Settings")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.padding(.horizontal, 6)
 		}
@@ -54,15 +54,16 @@ struct SetupSidebar: View {
 				.frame(width: 34, height: 34)
 				.accessibilityHidden(true)
 			VStack(alignment: .leading, spacing: 0) {
-				Text("Vaultday").font(Tokens.Typography.heading.font).foregroundStyle(Tokens.Colors.ink)
-				Text("First run on this Mac").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				Text("Vaultday").textStyle(Tokens.Typography.heading).foregroundStyle(Tokens.Colors.ink)
+				Text("First run on this Mac").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)
 			}
 		}
 		.padding(.horizontal, 6)
 	}
 }
 
-/// The twelve steps: steps reached are links back, the shown one is raised with a sunrise mark.
+/// The twelve steps: steps done carry a slate check and are links back, the
+/// shown one is raised with a sunrise number, the rest a muted outline.
 struct StepList: View {
 	let onboarding: OnboardingModel
 
@@ -74,14 +75,10 @@ struct StepList: View {
 					onboarding.jump(to: step)
 				} label: {
 					HStack(spacing: Tokens.Spacing.space8) {
-						Text("\(step.rawValue)")
-							.font(Tokens.Typography.caption.font.weight(.bold))
-							.frame(width: 18, height: 18)
-							.foregroundStyle(markForeground(mark))
-							.background(markFill(mark), in: Circle())
-							.overlay(Circle().strokeBorder(mark == .upcoming ? Tokens.Colors.lineControl : .clear, lineWidth: 1))
+						stepMark(step, mark: mark)
 						Text(step.title)
-							.font(Tokens.Typography.body.font.weight(mark == .current ? .bold : .medium))
+							.textStyle(Tokens.Typography.body)
+							.fontWeight(mark == .current ? .bold : .medium)
 						Spacer(minLength: 0)
 					}
 					.foregroundStyle(titleColor(mark))
@@ -104,6 +101,27 @@ struct StepList: View {
 		}
 		.accessibilityElement(children: .contain)
 		.accessibilityLabel("Setup steps")
+	}
+
+	@ViewBuilder
+	private func stepMark(_ step: SetupStep, mark: StepMark) -> some View {
+		if mark == .done {
+			Image(systemName: "checkmark")
+				.iconGlyph(.tag, weight: .bold)
+				.foregroundStyle(Tokens.Colors.onPrimary)
+				.frame(width: NumberMarkMetrics.step.box, height: NumberMarkMetrics.step.box)
+				.background(Tokens.Colors.primary, in: Circle())
+				.accessibilityLabel("Done")
+		} else {
+			NumberMark(
+				number: step.rawValue,
+				metrics: .step,
+				outline: .circle,
+				foreground: markForeground(mark),
+				fill: markFill(mark),
+				stroke: mark == .upcoming ? Tokens.Colors.lineControl : nil,
+			)
+		}
 	}
 
 	private func titleColor(_ mark: StepMark) -> Color {
@@ -145,11 +163,11 @@ struct MotionsPopover: View {
 			)
 			HStack(spacing: Tokens.Spacing.space8) {
 				Image(systemName: "terminal")
-				Text("Vim motions").font(Tokens.Typography.title.font)
+				Text("Vim motions").textStyle(Tokens.Typography.title)
 			}
 			.foregroundStyle(Tokens.Colors.ink)
 			Text("One shortcut set everywhere: single keys act on the selected item, so the mouse is optional from here on")
-				.font(Tokens.Typography.callout.font)
+				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.fixedSize(horizontal: false, vertical: true)
 			group("In this setup", [
@@ -166,7 +184,7 @@ struct MotionsPopover: View {
 				("Type into a field · leave it", ["i", "Esc"]),
 			])
 			Text("Standard keeps the usual Mac keys: arrows, Tab, Return and ⌘ shortcuts")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 		.padding(Tokens.Spacing.space16)
@@ -179,7 +197,7 @@ struct MotionsPopover: View {
 			ForEach(rows.indices, id: \.self) { index in
 				HStack(alignment: .firstTextBaseline) {
 					Text(rows[index].0)
-						.font(Tokens.Typography.callout.font)
+						.textStyle(Tokens.Typography.callout)
 						.foregroundStyle(Tokens.Colors.ink)
 					Spacer(minLength: Tokens.Spacing.space8)
 					HStack(spacing: Tokens.Spacing.space4) {

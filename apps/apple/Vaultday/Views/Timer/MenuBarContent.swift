@@ -41,7 +41,7 @@ struct MenuBarContent: View {
 				.padding(EdgeInsets(top: 8, leading: 10, bottom: 2, trailing: 10))
 			if app.timerPicker.picks.isEmpty {
 				Text("No open tasks today")
-					.font(Tokens.Typography.callout.font)
+					.textStyle(Tokens.Typography.callout)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.padding(.horizontal, 10)
 			}
@@ -53,13 +53,13 @@ struct MenuBarContent: View {
 			}
 			if let message = app.timerMessage {
 				Label(message, systemImage: "exclamationmark.triangle")
-					.font(Tokens.Typography.caption.font)
+					.textStyle(Tokens.Typography.caption)
 					.foregroundStyle(Tokens.Colors.danger)
 					.padding(.horizontal, 10)
 			}
 			footer
 			Text("Long-running timer alert after \(DurationText.minutes(app.rhythm?.longTimerCheckMinutes ?? 180))")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.padding(EdgeInsets(top: 0, leading: 10, bottom: 4, trailing: 10))
 		}
@@ -67,7 +67,7 @@ struct MenuBarContent: View {
 		.frame(width: 330)
 		.background(Tokens.Colors.surface)
 		.foregroundStyle(Tokens.Colors.ink)
-		.font(Tokens.Typography.body.font)
+		.textStyle(Tokens.Typography.body)
 		// The popover's window stays out of a screen share while the mode is on,
 		// so it keeps its values: no screen-share environment here.
 		.background(WindowReader { app.windowSharing.register($0) })
@@ -115,7 +115,7 @@ struct MenuBarContent: View {
 			}
 			HStack(spacing: 10) {
 				Image(systemName: "clock")
-					.font(.system(size: 12))
+					.iconGlyph(.row)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.frame(width: 14)
 				Text("Start minutes ago")
@@ -123,7 +123,7 @@ struct MenuBarContent: View {
 				ForEach([5, 10, 30], id: \.self) { minutes in
 					Button("\(minutes)") { app.startPickedTimer(minutesAgo: minutes) }
 						.buttonStyle(.borderless)
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.help("Start the selected task \(minutes) minutes ago")
 						.disabled(app.timerPicker.selectedPick == nil && !app.timerPicker.isComposing)
 				}
@@ -150,7 +150,7 @@ struct MenuBarContent: View {
 			Button("Open Vaultday") { app.openMainWindow() }
 				.buttonStyle(.borderless)
 		}
-		.font(Tokens.Typography.caption.font)
+		.textStyle(Tokens.Typography.caption)
 		.foregroundStyle(Tokens.Colors.inkMuted)
 		.padding(EdgeInsets(top: 8, leading: 10, bottom: 4, trailing: 10))
 		.overlay(alignment: .top) { Rectangle().fill(Tokens.Colors.lineFaint).frame(height: 1) }
@@ -181,7 +181,7 @@ private struct LoggedHeader: View {
 					if let name = app.workspace?.name { Text(name + " ·") }
 					PrivateTimeValue("\(DurationText.minutes(app.dayPlan.totals.spentMinutes)) tracked today", carriesHand: true)
 				}
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer()
@@ -197,14 +197,14 @@ private struct CurrentEntry: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 6) {
 			Text([session.story, session.taskId].compactMap(\.self).joined(separator: " · "))
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.opacity(0.85)
 			Text(app.sessionText(session))
 				.fontWeight(.semibold)
 				.lineLimit(2)
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text(DurationText.clock(seconds: session.elapsed(at: app.timerClock)))
-					.font(.system(size: 20, weight: .bold))
+					.textStyle(Tokens.Typography.timer)
 					.monospacedDigit()
 				Spacer()
 				EntryButton(title: session.isPaused ? "Resume" : "Pause") { app.togglePauseTimer() }
@@ -252,7 +252,7 @@ private struct PickRow: View {
 				Spacer()
 				if isSelected {
 					Text("⏎")
-						.font(Tokens.Typography.kbd.font)
+						.textStyle(Tokens.Typography.kbd)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 			}
@@ -274,7 +274,7 @@ private struct ActionRow: View {
 		Button(action: action) {
 			HStack(spacing: 10) {
 				Image(systemName: symbol)
-					.font(.system(size: 12))
+					.iconGlyph(.row)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.frame(width: 14)
 				Text(title).lineLimit(1)
@@ -294,7 +294,7 @@ private struct KeyHint: View {
 	var body: some View {
 		HStack(spacing: 4) {
 			Text(keys)
-				.font(Tokens.Typography.kbd.font)
+				.textStyle(Tokens.Typography.kbd)
 				.padding(.horizontal, 5)
 				.padding(.vertical, 3)
 				.background(Tokens.Colors.fillControl, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusXs))
@@ -308,7 +308,7 @@ private struct HomeEyebrowText: View {
 
 	var body: some View {
 		Text(text.uppercased())
-			.font(Tokens.Typography.eyebrow.font)
+			.textStyle(Tokens.Typography.eyebrow)
 			.tracking(0.44)
 			.foregroundStyle(Tokens.Colors.inkMuted)
 	}

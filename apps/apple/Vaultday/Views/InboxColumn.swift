@@ -4,7 +4,8 @@ import VaultdayCore
 /// The 300 px Inbox column: the signals still in triage as cards, newest
 /// first, "Triage all" for the full screen, and the empty state ("Connect a
 /// mail account" until one exists, then "No new mail"). While anything is
-/// dragged over it the whole pane becomes the drop placeholder.
+/// dragged over it the whole pane becomes the drop placeholder, the only
+/// place its dashed edge shows.
 struct InboxColumn: View {
 	let app: AppModel
 	@State private var isTargeted = false
@@ -14,18 +15,18 @@ struct InboxColumn: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
 				Text("Inbox")
-					.font(Tokens.Typography.heading.font)
+					.textStyle(Tokens.Typography.heading)
 					.foregroundStyle(Tokens.Colors.ink)
 				if !inbox.cards.isEmpty {
 					Text("\(inbox.cards.count) to decide")
-						.font(Tokens.Typography.caption.font)
+						.textStyle(Tokens.Typography.caption)
 						.foregroundStyle(Tokens.Colors.inkMuted)
 				}
 				Spacer()
 				if inbox.isOpen, !inbox.cards.isEmpty || !inbox.snoozed.isEmpty {
 					Button("Triage all") { app.showTriage() }
 						.buttonStyle(.plain)
-						.font(Tokens.Typography.callout.font.weight(.semibold))
+						.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 						.foregroundStyle(Tokens.Colors.link)
 						.help("Open the full inbox")
 				}
@@ -92,14 +93,11 @@ struct SignalList: View {
 private struct InboxDropPlaceholder: View {
 	var body: some View {
 		RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg)
-			.fill(Tokens.Colors.surfaceSunken.opacity(0.92))
-			.overlay(
-				RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg)
-					.strokeBorder(Tokens.Colors.focus, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])),
-			)
+			.fill(Tokens.Colors.sunriseSoft.opacity(0.92))
+			.dropIndicator(isActive: true)
 			.overlay {
 				Label("Let go to leave it in the Inbox", systemImage: "tray")
-					.font(Tokens.Typography.callout.font.weight(.semibold))
+					.textStyle(Tokens.Typography.callout).fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 			}
 			.padding(8)
@@ -114,30 +112,23 @@ struct InboxMessage: View {
 
 	var body: some View {
 		Text(text)
-			.font(Tokens.Typography.caption.font)
+			.textStyle(Tokens.Typography.caption)
 			.foregroundStyle(Tokens.Colors.inkSecondary)
 			.lineLimit(2)
 			.accessibilityAddTraits(.updatesFrequently)
 	}
 }
 
-/// The empty column, as the rows board draws it: a dashed card with a glyph and one line.
+/// The empty column: a muted glyph and one muted line, no border.
 private struct InboxEmptyState: View {
 	let hasMailAccount: Bool
 
 	var body: some View {
-		VStack(spacing: Tokens.Spacing.space6) {
-			Image(systemName: hasMailAccount ? "checkmark.circle" : "envelope")
-				.font(.system(size: 16))
-				.foregroundStyle(hasMailAccount ? Tokens.Colors.positive : Tokens.Colors.inkMuted)
-			Text(hasMailAccount ? "No new mail" : "Connect a mail account")
-				.fontWeight(.semibold)
-				.foregroundStyle(Tokens.Colors.inkSecondary)
-		}
-		.font(Tokens.Typography.callout.font)
-		.padding(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
-		.frame(maxWidth: .infinity)
-		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.lineControl, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+		EmptyState(
+			icon: hasMailAccount ? "checkmark.circle" : "envelope",
+			text: hasMailAccount ? "No new mail" : "Connect a mail account",
+			tint: hasMailAccount ? Tokens.Colors.positive : Tokens.Colors.inkMuted,
+		)
 		.accessibilityElement(children: .combine)
 	}
 }

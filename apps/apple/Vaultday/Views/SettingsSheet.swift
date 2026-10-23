@@ -99,25 +99,25 @@ private struct DaySettings: View {
 			SetupCard(icon: "gauge.with.dots.needle.67percent", title: "Workload threshold", description: "The planned work a day may hold before planning warns") {
 				Stepper(value: Binding(get: { rhythm.workloadThresholdMinutes }, set: { rhythm.setWorkloadThreshold(minutes: $0) }), in: RhythmModel.minimumWorkloadMinutes ... RhythmModel.maximumWorkloadMinutes, step: 30) {
 					Text(Self.duration(rhythm.workloadThresholdMinutes))
-						.font(Tokens.Typography.body.font.monospacedDigit())
+						.textStyle(Tokens.Typography.body).monospacedDigit()
 						.frame(minWidth: 70, alignment: .trailing)
 				}
 				.accessibilityLabel("Workload threshold")
 			} extra: {
 				if let issue = rhythm.issues["workload"] {
-					Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+					Text(issue).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 				}
 			}
 			SetupCard(icon: "timer", title: "Long-running timer", description: "A session running this long, or past the workload threshold, asks whether you are still working on it") {
 				Stepper(value: Binding(get: { rhythm.longTimerLimitMinutes }, set: { rhythm.setLongTimerLimit(minutes: $0) }), in: RhythmModel.minimumLongTimerMinutes ... RhythmModel.maximumLongTimerMinutes, step: 15) {
 					Text(Self.duration(rhythm.longTimerLimitMinutes))
-						.font(Tokens.Typography.body.font.monospacedDigit())
+						.textStyle(Tokens.Typography.body).monospacedDigit()
 						.frame(minWidth: 70, alignment: .trailing)
 				}
 				.accessibilityLabel("Long-running timer limit")
 			} extra: {
 				if let issue = rhythm.issues["longTimer"] {
-					Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+					Text(issue).textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.caution)
 				}
 			}
 			SetupCard(icon: "plus.circle", title: "New tasks", description: "Where a task you add lands in a list") {
@@ -157,7 +157,7 @@ private struct WorkspaceSettings: View {
 					let inSphere = workspaces.entries(in: sphere)
 					if inSphere.isEmpty {
 						Text(sphere == .work ? "No work workspace yet" : "No life workspace yet")
-							.font(Tokens.Typography.callout.font)
+							.textStyle(Tokens.Typography.callout)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 							.padding(.vertical, Tokens.Spacing.space8)
 					}
@@ -180,7 +180,7 @@ private struct WorkspaceSettings: View {
 				}
 			}
 			Text("Add, remove and restore workspaces in setup, from the Vaultday menu")
-				.font(Tokens.Typography.caption.font)
+				.textStyle(Tokens.Typography.caption)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 		}
 		.onAppear { workspaces.reload() }
@@ -254,7 +254,7 @@ private struct DeviceSettings: View {
 				.accessibilityLabel("Copy the device id")
 			} extra: {
 				Text(settings.deviceId)
-					.font(Tokens.Typography.mono.font)
+					.textStyle(Tokens.Typography.mono)
 					.textSelection(.enabled)
 					.foregroundStyle(Tokens.Colors.ink)
 					.padding(Tokens.Spacing.space8)
