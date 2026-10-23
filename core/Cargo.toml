@@ -4,6 +4,7 @@ resolver = "3"
 # folder each, and is no crate itself.
 members = [
     "crates/app-state",
+    "crates/close-out",
     "crates/domain",
     "crates/features/*",
     "crates/ffi",

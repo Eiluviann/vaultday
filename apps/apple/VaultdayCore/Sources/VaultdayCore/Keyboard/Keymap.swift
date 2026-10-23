@@ -116,6 +116,8 @@ public enum KeyAction: Hashable, Sendable {
 	case showBrowse
 	/// `gl`: the side panel's Day log tab.
 	case showDayLog
+	/// `gW` (`gw` is a vim operator): the close-out the header offers.
+	case openCloseOut
 	/// `/`: the Browse query line.
 	case focusBrowseQuery
 	/// `za`: folds or opens the story group under the selection.
@@ -266,6 +268,7 @@ public enum KeyAction: Hashable, Sendable {
 		"report.open-claude-code": .openReportInClaudeCode,
 		"browse.open": .showBrowse,
 		"daylog.open": .showDayLog,
+		"ritual.close-out": .openCloseOut,
 		"browse.query": .focusBrowseQuery,
 		"browse.fold": .toggleFold,
 		"browse.next-group": .nextGroup,

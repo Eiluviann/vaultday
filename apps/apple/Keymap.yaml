@@ -496,6 +496,11 @@ bindings:
     group: "Day and workspace"
     vim: "g l"
     standard: "shift+cmd+l"
+  - action: ritual.close-out
+    label: "Week close-out"
+    group: "Day and workspace"
+    vim: "g shift+w"
+    standard: "shift+cmd+k"
   - action: daylog.append
     label: "Append to the day log"
     group: "Day and workspace"

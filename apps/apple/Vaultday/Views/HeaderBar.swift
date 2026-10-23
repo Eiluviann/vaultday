@@ -23,6 +23,9 @@ struct HeaderBar: View {
 			.help(app.keyLabel(.toggleSidebar).map { "Toggle sidebar (\($0))" } ?? "Toggle sidebar")
 			.accessibilityLabel("Toggle sidebar")
 			Spacer()
+			if let due = app.closeOutDue.due {
+				RitualButton(due: due) { app.openCloseOut() }
+			}
 			ScreenShareToggle()
 			SearchField(app: app)
 		}
@@ -32,6 +35,36 @@ struct HeaderBar: View {
 		.overlay(alignment: .bottom) {
 			Rectangle().fill(Tokens.Colors.line).frame(height: 1)
 		}
+	}
+}
+
+/// The header's ritual slot: only the next ritual still due, with its
+/// time; from Friday 14:00 that is the week close-out until it is closed.
+private struct RitualButton: View {
+	let due: CloseOutDue
+	let action: () -> Void
+
+	var body: some View {
+		Button(action: action) {
+			HStack(spacing: Tokens.Spacing.space6) {
+				Image(systemName: "checkmark.seal")
+					.font(.system(size: 11))
+				Text(due.title)
+					.fontWeight(.semibold)
+				Text(due.timeText)
+					.foregroundStyle(due.isOverdue ? Tokens.Colors.danger : Tokens.Colors.inkMuted)
+			}
+			.font(Tokens.Typography.callout.font)
+			.foregroundStyle(Tokens.Colors.ink)
+			.padding(.horizontal, Tokens.Spacing.space8)
+			.frame(height: 24)
+			.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 7))
+			.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(due.isOverdue ? Tokens.Colors.danger : Tokens.Colors.lineButton))
+			.contentShape(Rectangle())
+		}
+		.buttonStyle(.plain)
+		.help("Open the \(due.title.lowercased())")
+		.accessibilityLabel("\(due.title), \(due.timeText)")
 	}
 }
 

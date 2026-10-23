@@ -2129,6 +2129,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "vaultday-close-out"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "vaultday-app-state",
+ "vaultday-domain",
+ "vaultday-feature-toggl",
+ "vaultday-vault-base",
+]
+
+[[package]]
 name = "vaultday-domain"
 version = "0.1.0"
 dependencies = [
@@ -2166,6 +2180,7 @@ dependencies = [
  "thiserror",
  "uniffi",
  "vaultday-app-state",
+ "vaultday-close-out",
  "vaultday-domain",
  "vaultday-feature-toggl",
  "vaultday-mail",

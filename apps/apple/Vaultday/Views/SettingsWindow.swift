@@ -142,7 +142,12 @@ private struct WorkspaceSettings: View {
 					ForEach(inSphere) { entry in
 						SetupCard(title: entry.name, description: entry.rootPath.abbreviatedPath) {
 							Button {
-								configuring = ConfigureTarget(model: WorkspaceConfigureModel(root: entry.rootPath), billing: billing(entry))
+								configuring = ConfigureTarget(
+									model: WorkspaceConfigureModel(root: entry.rootPath),
+									billing: billing(entry),
+									closeOut: CloseOutSettingsModel(root: entry.rootPath),
+									leaveSources: WorkspaceSphere.allCases.flatMap { workspaces.entries(in: $0) }.map(\.name).filter { $0 != entry.name },
+								)
 							} label: {
 								SetupLabel(title: "Configure", icon: "gearshape")
 							}
@@ -158,7 +163,7 @@ private struct WorkspaceSettings: View {
 		}
 		.onAppear { workspaces.reload() }
 		.sheet(item: $configuring) { target in
-			ConfigureSheet(model: target.model, billing: target.billing, onDone: {
+			ConfigureSheet(model: target.model, billing: target.billing, closeOut: target.closeOut, leaveSources: target.leaveSources, onDone: {
 				workspaces.reload()
 				onChange()
 			})

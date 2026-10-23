@@ -40,6 +40,11 @@ pub trait NotifierPort: Send + Sync {
     /// signals are new there now. Told once per fetch, never per signal, and
     /// shown quietly: no sound, no banner that stays.
     fn new_signals(&self, workspace: String, added: u32, waiting: u32);
+
+    /// The Monday 07:30 alert: the close-out of the week starting
+    /// `week_start` (`YYYY-MM-DD`) in `workspace` still misses `missing`.
+    /// Told at most once per week and workspace.
+    fn close_out_missing(&self, workspace: String, week_start: String, missing: Vec<String>);
 }
 
 /// A stopped session and what its stop wrote to the day log.
@@ -204,7 +209,7 @@ impl WorkspaceStateHandle {
 }
 
 /// [`Notifier`] over a platform [`NotifierPort`].
-struct ForeignNotifier<'port>(&'port dyn NotifierPort);
+pub(crate) struct ForeignNotifier<'port>(pub(crate) &'port dyn NotifierPort);
 
 impl Notifier for ForeignNotifier<'_> {
     fn threshold_crossed(
@@ -226,9 +231,22 @@ impl Notifier for ForeignNotifier<'_> {
         self.0
             .long_timer(session.as_str().to_owned(), elapsed.as_secs());
     }
+
+    fn close_out_missing(
+        &self,
+        workspace: &str,
+        week_start: jiff::civil::Date,
+        missing: &[String],
+    ) {
+        self.0.close_out_missing(
+            workspace.to_owned(),
+            week_start.to_string(),
+            missing.to_vec(),
+        );
+    }
 }
 
-fn forward(notifier: &dyn Notifier, notification: &Notification) {
+pub(crate) fn forward(notifier: &dyn Notifier, notification: &Notification) {
     match notification {
         Notification::ThresholdCrossed {
             task,
@@ -237,6 +255,11 @@ fn forward(notifier: &dyn Notifier, notification: &Notification) {
             estimate,
         } => notifier.threshold_crossed(task, story.as_ref(), *reported, *estimate),
         Notification::LongTimer { session, elapsed } => notifier.long_timer(session, *elapsed),
+        Notification::CloseOutMissing {
+            workspace,
+            week_start,
+            missing,
+        } => notifier.close_out_missing(workspace, *week_start, missing),
     }
 }
 
@@ -335,6 +358,7 @@ mod tests {
         fn threshold_crossed(&self, _: String, _: Option<String>, _: u64, _: u64) {}
 
         fn new_signals(&self, _: String, _: u32, _: u32) {}
+        fn close_out_missing(&self, _: String, _: String, _: Vec<String>) {}
     }
 
     #[test]

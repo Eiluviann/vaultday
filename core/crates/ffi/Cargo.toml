@@ -20,6 +20,7 @@ uniffi = "=0.32.2"
 jiff = { version = "0.2", default-features = false, features = ["std", "tz-system"] }
 thiserror = "2"
 app-state = { package = "vaultday-app-state", path = "../app-state" }
+close-out = { package = "vaultday-close-out", path = "../close-out" }
 domain = { package = "vaultday-domain", path = "../domain" }
 mail = { package = "vaultday-mail", path = "../mail" }
 vaultday-vault-base = { path = "../vault-base" }

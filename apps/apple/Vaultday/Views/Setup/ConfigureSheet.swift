@@ -27,6 +27,10 @@ struct ConfigureSheet: View {
 	@Bindable var model: WorkspaceConfigureModel
 	/// The billing block and rate; `nil` while the Toggl and billing feature set is off.
 	var billing: BillingSettingsModel?
+	/// The close-out keys: `log_deadline` and the leave source.
+	var closeOut: CloseOutSettingsModel?
+	/// Workspaces whose `Leave.md` this one may read, by name.
+	var leaveSources: [String] = []
 	let onDone: () -> Void
 	@Environment(\.dismiss) private var dismiss
 	@State private var tab: Tab = .general
@@ -129,7 +133,7 @@ struct ConfigureSheet: View {
 					.buttonStyle(SetupButtonStyle())
 					.keyboardShortcut(.cancelAction)
 				Button("Done") {
-					if model.save(), billing?.save() ?? true {
+					if model.save(), billing?.save() ?? true, closeOut?.save() ?? true {
 						onDone()
 						dismiss()
 					} else if let first = firstTabWithIssue {
@@ -237,6 +241,9 @@ struct ConfigureSheet: View {
 			field("Log folder", key: "log_folder", note: "Holds the day logs, inside the workspace folder", isMono: true) {
 				TextField("Log", text: $model.logFolder).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
 			}
+			if let closeOut {
+				CloseOutFields(closeOut: closeOut, leaveSources: leaveSources)
+			}
 			if let billing {
 				BillingFields(billing: billing)
 			} else {
@@ -283,6 +290,64 @@ struct ConfigureSheet: View {
 		case .folders: []
 		case .tasks: ["ticket_pattern", "ticket_url", "hosts", "story_template"]
 		case .hours: ["hours_per_day", "log_folder"]
+		}
+	}
+}
+
+/// The week close-out's keys: the log deadline (the close-out runs only
+/// with one) and the workspace whose `Leave.md` lists leave and holidays.
+private struct CloseOutFields: View {
+	@Bindable var closeOut: CloseOutSettingsModel
+	let leaveSources: [String]
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
+			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
+				HStack(spacing: 6) {
+					Text("Week close-out").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+					Image(systemName: "doc.text").imageScale(.small).foregroundStyle(Tokens.Colors.inkMuted)
+						.accessibilityLabel("Saved to settings.json")
+				}
+				Toggle("Log the week by a deadline", isOn: $closeOut.hasDeadline)
+				if closeOut.hasDeadline {
+					HStack(spacing: Tokens.Spacing.space8) {
+						Picker("Deadline day", selection: $closeOut.deadlineDay) {
+							ForEach(WeekdayChoice.allCases) { day in
+								Text(day.title).tag(day)
+							}
+						}
+						.labelsHidden()
+						.frame(width: 90)
+						TextField("08:00", text: $closeOut.deadlineTime)
+							.textFieldStyle(.roundedBorder)
+							.font(Tokens.Typography.mono.font)
+							.frame(width: 70)
+							.accessibilityLabel("Deadline time")
+					}
+				}
+				Text("The close-out opens Friday at 14:00 and alerts Monday at 07:30 when something is missing")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkMuted)
+			}
+			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
+				Text("Leave and holidays").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+				Picker("Leave source", selection: $closeOut.leaveSource) {
+					Text("Life workspace").tag(String?.none)
+					ForEach(leaveSources, id: \.self) { name in
+						Text(name).tag(String?.some(name))
+					}
+				}
+				.labelsHidden()
+				.frame(width: 220)
+				Text("Read from Leave.md in that workspace, one date or range per line")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkMuted)
+			}
+			if let error = closeOut.errorMessage {
+				Label(error, systemImage: "exclamationmark.circle.fill")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.danger)
+			}
 		}
 	}
 }

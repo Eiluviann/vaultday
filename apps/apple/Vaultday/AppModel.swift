@@ -74,6 +74,10 @@ final class AppModel {
 	let reports = ReportsModel()
 	/// The Toggl queue of the open workspace and its drain schedule.
 	let togglQueue = TogglQueueModel()
+	/// The week close-out ritual screen.
+	let closeOut = CloseOutModel()
+	/// The header's ritual button and the Monday alert.
+	let closeOutDue = CloseOutDueModel()
 	/// The app-level document, for the models Settings builds per workspace.
 	@ObservationIgnored private(set) var coreSession: CoreSession?
 	let remindersIntake = RemindersIntakeModel(store: EKReminderStoreAccess())
@@ -470,6 +474,8 @@ final class AppModel {
 			showBrowse()
 		case .showDayLog:
 			showSidePanelTab(.dayLog)
+		case .openCloseOut:
+			openCloseOut()
 		case let .showSidePanelTab(place):
 			if SidePanelTab.allCases.indices.contains(place - 1) { showSidePanelTab(SidePanelTab.allCases[place - 1]) }
 		case .nextStoryPanelTab:
@@ -1133,6 +1139,7 @@ final class AppModel {
 		if let workspace, workspace.phase == .open {
 			hours.load(from: workspace, date: dayPlan.date)
 		}
+		refreshCloseOut()
 		await runIntake()
 	}
 
@@ -1354,6 +1361,7 @@ final class AppModel {
 		refreshSidePanel()
 		restartMailFetch()
 		restartTogglQueue()
+		refreshCloseOut()
 		Task { await runIntake() }
 		if isShowingAll {
 			reloadAllWorkspaces()

@@ -413,7 +413,10 @@ fn an_enclosing_workspace_never_reads_a_nested_one() {
         .notes()
         .map(|note| note.relative_path.as_path())
         .collect();
-    assert_eq!(paths, [Path::new("Notes/Groceries.md")]);
+    assert_eq!(
+        paths,
+        [Path::new("Leave.md"), Path::new("Notes/Groceries.md")]
+    );
     assert!(
         home_vault.projects().is_empty(),
         "the Acme hub belongs to the Acme workspace"
@@ -596,4 +599,27 @@ fn a_refused_manifest_names_the_file() {
         error.to_string().contains("settings.json") && error.to_string().contains("tokens"),
         "{error}"
     );
+}
+
+#[test]
+fn the_home_workspace_lists_leave_and_holidays() {
+    let source = fs::read_to_string(two_workspaces().join(vault_base::LEAVE_NOTE_NAME))
+        .expect("the fixture holds Leave.md");
+    let note = vault_base::LeaveNote::parse(&source);
+    assert_eq!(note.render(), source);
+    let days = |dates: Vec<vault_base::Date>| -> Vec<String> {
+        dates.iter().map(ToString::to_string).collect()
+    };
+    assert_eq!(
+        days(note.leave_days()),
+        [
+            "2026-10-21",
+            "2026-12-28",
+            "2026-12-29",
+            "2026-12-30",
+            "2026-12-31"
+        ]
+    );
+    assert_eq!(days(note.holidays()), ["2026-11-02", "2026-12-25"]);
+    assert_eq!(note.warnings().len(), 1, "the explanatory line is reported");
 }

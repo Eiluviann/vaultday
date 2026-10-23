@@ -505,13 +505,23 @@ pub fn enqueue_toggl_session(
     let Some(record) = sync.state().session(&SessionId::new(session_id.clone())) else {
         return Err(CoreError::NotFound(format!("no session {session_id}")));
     };
+    enqueue_record(&feature, &mut sync, &workspace.workspace, &record)
+}
+
+/// Queues one stored session as the workspace's billing model says.
+pub(crate) fn enqueue_record(
+    feature: &TogglFeature,
+    sync: &mut app_state::WorkspaceSync,
+    workspace: &Workspace,
+    record: &domain::session::SessionRecord,
+) -> Result<TogglEnqueueView, CoreError> {
     // Read afresh: the Configure sheet may have changed the billing block
     // since the handle was opened.
-    let settings = &current_settings(&workspace.workspace)?;
+    let settings = &current_settings(workspace)?;
     let toggl_settings = TogglSettings::from_entry(settings.features.get(feature_id().as_str()))
         .map_err(toggl_error)?;
     let task = match &record.target.task {
-        Some(task) => task_facts(&workspace.workspace, task.as_str())?,
+        Some(task) => task_facts(workspace, task.as_str())?,
         None => TaskFacts::default(),
     };
     let Some(policy) =
@@ -520,7 +530,7 @@ pub fn enqueue_toggl_session(
         return Ok(TogglEnqueueView::NotSent);
     };
     let details = EntryDetails {
-        description: task.text.unwrap_or_else(|| meeting_or_story(&record)),
+        description: task.text.unwrap_or_else(|| meeting_or_story(record)),
         story: record
             .target
             .story
@@ -536,7 +546,7 @@ pub fn enqueue_toggl_session(
     let mut failure = None;
     let outcome = sync.edit(Instant::now(), |state| {
         feature
-            .enqueue_session(state, &record, &policy, &details)
+            .enqueue_session(state, record, &policy, &details)
             .map_err(|error| {
                 let message = error.to_string();
                 failure = Some(error);
@@ -659,7 +669,7 @@ pub fn preview_toggl_flat_job(
         .collect())
 }
 
-/// Sends this device's due queue entries through the live client. In this
+/// Sends this device's due queue entries and flat days through the live client. In this
 /// build the live client is always refused (`allow_live` is off and nothing
 /// switches it on), so the answer says why and nothing leaves the Mac.
 ///
@@ -685,10 +695,21 @@ pub fn drain_toggl_queue(
     };
     let mapping = app.read_state(|state| TogglMapping::read(state, &workspace_id));
     let mut sync = lock(&state.sync);
-    let report = feature
-        .drain_queue(&mut sync, &api, &mapping, Timestamp::now())
+    let now = Timestamp::now();
+    let sessions = feature
+        .drain_queue(&mut sync, &api, &mapping, now)
         .map_err(toggl_error)?;
-    Ok(drain_view(&report))
+    let flat = feature
+        .drain_flat(&mut sync, &api, &mapping, now)
+        .map_err(toggl_error)?;
+    Ok(drain_view(&DrainReport {
+        sent: sessions.sent + flat.sent,
+        retrying: sessions.retrying + flat.retrying,
+        failed: sessions.failed + flat.failed,
+        waiting: sessions.waiting + flat.waiting,
+        is_unauthorized: sessions.is_unauthorized || flat.is_unauthorized,
+        is_unmapped: sessions.is_unmapped || flat.is_unmapped,
+    }))
 }
 
 impl AppStateHandle {
@@ -706,7 +727,7 @@ impl AppStateHandle {
     }
 }
 
-fn enabled(
+pub(crate) fn enabled(
     app: &AppStateHandle,
     workspace: &WorkspaceId,
 ) -> Result<Option<TogglFeature>, CoreError> {
@@ -720,14 +741,14 @@ fn enabled(
 }
 
 #[derive(Debug, Default)]
-struct TaskFacts {
-    text: Option<String>,
-    estimate: Option<Duration>,
-    is_billable: Option<bool>,
+pub(crate) struct TaskFacts {
+    pub(crate) text: Option<String>,
+    pub(crate) estimate: Option<Duration>,
+    pub(crate) is_billable: Option<bool>,
 }
 
 /// The task's text, estimate and `[billable:: …]` flag, read from the vault.
-fn task_facts(workspace: &Workspace, task: &str) -> Result<TaskFacts, CoreError> {
+pub(crate) fn task_facts(workspace: &Workspace, task: &str) -> Result<TaskFacts, CoreError> {
     let vault = ops::open_vault(workspace, &PlainFileAccess)?;
     let Some(found) = vault.task_by_id(task) else {
         return Ok(TaskFacts::default());
@@ -743,7 +764,7 @@ fn task_facts(workspace: &Workspace, task: &str) -> Result<TaskFacts, CoreError>
     })
 }
 
-fn meeting_or_story(record: &domain::session::SessionRecord) -> String {
+pub(crate) fn meeting_or_story(record: &domain::session::SessionRecord) -> String {
     match &record.source {
         domain::session::SessionSource::Meeting { title } => title.clone(),
         domain::session::SessionSource::Timer => record
@@ -790,7 +811,7 @@ fn flat_input(
     Ok(input)
 }
 
-fn current_settings(workspace: &Workspace) -> Result<WorkspaceSettings, CoreError> {
+pub(crate) fn current_settings(workspace: &Workspace) -> Result<WorkspaceSettings, CoreError> {
     Ok(open_settings(&workspace.root.to_string_lossy())?.settings)
 }
 
@@ -895,7 +916,7 @@ fn parse_day(text: &str) -> Result<Date, CoreError> {
         .map_err(|_| CoreError::InvalidDate(format!("{text} is not a date; expected YYYY-MM-DD")))
 }
 
-fn toggl_error(error: TogglError) -> CoreError {
+pub(crate) fn toggl_error(error: TogglError) -> CoreError {
     let message = error.to_string();
     match error {
         TogglError::LiveRefused(_) | TogglError::NotLoopback(_) => CoreError::Conflict(message),

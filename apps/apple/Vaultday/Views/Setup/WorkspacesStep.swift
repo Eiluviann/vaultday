@@ -130,6 +130,10 @@ struct ConfigureTarget: Identifiable {
 	let model: WorkspaceConfigureModel
 	/// The billing fields, while Toggl and billing is on for the workspace.
 	var billing: BillingSettingsModel?
+	/// The close-out keys.
+	var closeOut: CloseOutSettingsModel?
+	/// Workspaces whose `Leave.md` it may read.
+	var leaveSources: [String] = []
 }
 
 /// The Add-folder popover: an existing folder or a new one.

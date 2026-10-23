@@ -9,7 +9,8 @@
 use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
-use jiff::civil::{Date, Time};
+use jiff::civil::{Date, DateTime, Time};
+use jiff::tz::{Offset, TimeZone};
 use jiff::{Timestamp, Zoned};
 use thiserror::Error;
 
@@ -25,6 +26,9 @@ pub trait Clock {
     fn now(&self) -> Timestamp;
     /// Today's date in the user's time zone.
     fn today(&self) -> Date;
+    /// The current wall-clock time in the user's time zone, for rituals
+    /// that run at a time of day.
+    fn local_now(&self) -> DateTime;
 }
 
 /// What the app tells the user about, without saying how.
@@ -39,6 +43,9 @@ pub trait Notifier {
     );
     /// A session has been running longer than the long-timer limit.
     fn long_timer(&self, session: &SessionId, elapsed: SpentTime);
+    /// The Monday alert: the close-out of the week starting `week_start`
+    /// in `workspace` still misses what `missing` names.
+    fn close_out_missing(&self, workspace: &str, week_start: Date, missing: &[String]);
 }
 
 /// Why the calendar could not do what was asked.
@@ -234,20 +241,26 @@ impl CalendarSource for InMemoryCalendar {
 pub struct FixedClock {
     now: Cell<Timestamp>,
     today: Cell<Date>,
+    offset: Offset,
 }
 
 impl FixedClock {
-    /// A clock fixed at `now` on `today`.
+    /// A clock fixed at `now` on `today`, in UTC.
     pub const fn new(now: Timestamp, today: Date) -> Self {
         Self {
             now: Cell::new(now),
             today: Cell::new(today),
+            offset: Offset::UTC,
         }
     }
 
-    /// A clock fixed at the zoned instant, whose date is today.
+    /// A clock fixed at the zoned instant, whose date is today, in the
+    /// instant's offset.
     pub fn at(zoned: &Zoned) -> Self {
-        Self::new(zoned.timestamp(), zoned.date())
+        Self {
+            offset: zoned.offset(),
+            ..Self::new(zoned.timestamp(), zoned.date())
+        }
     }
 
     /// Moves the clock forward by `duration`, saturating at the end of time.
@@ -280,6 +293,13 @@ impl Clock for FixedClock {
     fn today(&self) -> Date {
         self.today.get()
     }
+
+    fn local_now(&self) -> DateTime {
+        self.now
+            .get()
+            .to_zoned(TimeZone::fixed(self.offset))
+            .datetime()
+    }
 }
 
 /// A notification a [`RecordingNotifier`] received.
@@ -302,6 +322,15 @@ pub enum Notification {
         session: SessionId,
         /// Its elapsed time at the check.
         elapsed: SpentTime,
+    },
+    /// See [`Notifier::close_out_missing`].
+    CloseOutMissing {
+        /// The workspace.
+        workspace: String,
+        /// The Monday of the week.
+        week_start: Date,
+        /// What is still missing.
+        missing: Vec<String>,
     },
 }
 
@@ -350,6 +379,14 @@ impl Notifier for RecordingNotifier {
             elapsed,
         });
     }
+
+    fn close_out_missing(&self, workspace: &str, week_start: Date, missing: &[String]) {
+        self.sent.borrow_mut().push(Notification::CloseOutMissing {
+            workspace: workspace.to_owned(),
+            week_start,
+            missing: missing.to_vec(),
+        });
+    }
 }
 
 #[cfg(test)]
@@ -379,6 +416,7 @@ mod tests {
         let clock = FixedClock::at(&zoned);
         assert_eq!(clock.today(), date(2026, 10, 22));
         assert_eq!(clock.now(), zoned.timestamp());
+        assert_eq!(clock.local_now(), date(2026, 10, 22).at(9, 30, 0, 0));
     }
 
     #[test]

@@ -76,6 +76,16 @@ struct HomeWindow: View {
 					.padding(.top, HomeLayout.headerHeight + 60)
 			}
 		}
+		.overlay(alignment: .topTrailing) {
+			if let alert = app.closeOutDue.alert {
+				CloseOutAlertBanner(alert: alert, open: { app.openCloseOut() }, dismiss: { app.closeOutDue.dismissAlert() })
+					.padding(.top, HomeLayout.headerHeight + Tokens.Spacing.space8)
+					.padding(.trailing, Tokens.Spacing.space16)
+			}
+		}
+		.sheet(isPresented: Binding(get: { app.closeOut.isPresented }, set: { app.closeOut.isPresented = $0 }), onDismiss: { app.refreshCloseOut() }) {
+			CloseOutScreen(model: app.closeOut)
+		}
 		.onChange(of: app.palette.isOpen) { if !app.palette.isOpen { hasKeyFocus = true } }
 		.onChange(of: app.keyboard.changeRequest) { if app.keyboard.changeRequest == nil { hasKeyFocus = true } }
 		.onAppear {

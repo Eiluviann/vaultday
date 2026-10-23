@@ -76,6 +76,7 @@ Generated from `apps/apple/Keymap.yaml` by `tools/keymap-doc`; do not edit by ha
 | Day and workspace | `day.next` | Next day | `⌥L` | `⌘]` |
 | Day and workspace | `day.today` | Back to today | `g d` | `⌘T` |
 | Day and workspace | `daylog.open` | Day log | `g l` | `⇧⌘L` |
+| Day and workspace | `ritual.close-out` | Week close-out | `g W` | `⇧⌘K` |
 | Day and workspace | `daylog.append` | Append to the day log | `⌘L` | `⌘L` |
 | Day and workspace | `workspace.next` | Next workspace | `g t` | `⌃⌘]` |
 | Day and workspace | `workspace.previous` | Previous workspace | `g T` | `⌃⌘[` |

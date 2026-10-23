@@ -17,6 +17,7 @@
 pub mod app_state;
 pub mod browse;
 pub mod calendar;
+pub mod close_out;
 pub mod files;
 pub mod home;
 pub mod inbox;

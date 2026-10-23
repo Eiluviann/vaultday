@@ -19,6 +19,8 @@
 //! confirmation popover, and [`registry`] is the feature registry with nothing
 //! plugged in: the base version has no feature set, so it only defines the
 //! manifest, the slots and the enablement rules later feature sets use.
+//! [`week`] holds the close-out's periods and their working days, and
+//! [`allocation`] spreads a day's logged hours over the stories worked.
 //! [`ticket`] is the generic ticket provider every workspace gets from its
 //! settings. [`today_list`] decides which tasks a day's list holds and in
 //! what order. [`browse`] reads the typed query line Browse filters tasks with.
@@ -65,6 +67,7 @@ macro_rules! id_type {
     };
 }
 
+pub mod allocation;
 pub mod billing;
 pub mod browse;
 pub mod calendar_day;
@@ -79,6 +82,7 @@ pub mod session;
 pub mod task;
 pub mod ticket;
 pub mod today_list;
+pub mod week;
 pub mod workspace;
 
 pub use error::{DomainError, Result};

@@ -1,0 +1,26 @@
+[package]
+name = "vaultday-close-out"
+description = "The week and month close-out ritual: what is missing, the allocation, the time-sheet tables and the closing log line."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "close_out"
+
+[dependencies]
+app-state = { package = "vaultday-app-state", path = "../app-state" }
+domain = { package = "vaultday-domain", path = "../domain" }
+# Same features as `domain`: civil dates and timestamps, no zone database.
+jiff = { version = "0.2", default-features = false, features = ["std"] }
+serde_json = "1"
+thiserror = "2"
+vaultday-feature-toggl = { path = "../features/toggl" }
+vaultday-vault-base = { path = "../vault-base" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

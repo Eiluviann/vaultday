@@ -94,6 +94,38 @@ pub enum BillingModel {
     Fte,
 }
 
+/// A day of the week, as `log_deadline` names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SettingsWeekday {
+    /// Monday.
+    Monday,
+    /// Tuesday.
+    Tuesday,
+    /// Wednesday.
+    Wednesday,
+    /// Thursday.
+    Thursday,
+    /// Friday.
+    Friday,
+    /// Saturday.
+    Saturday,
+    /// Sunday.
+    Sunday,
+}
+
+/// When a week's hours must be logged by: the first `weekday` at or after
+/// the week's Friday, at `time`. The week close-out runs for a workspace
+/// that has one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct LogDeadline {
+    /// The day of the deadline.
+    pub weekday: SettingsWeekday,
+    /// The time of day, `HH:MM` in 24 hours.
+    #[schemars(regex(pattern = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"))]
+    pub time: String,
+}
+
 /// The `billing` block of `settings.json`. Each model reads only its own
 /// keys; a key of another model is refused so a switch never leaves a stale
 /// value behind. Unknown keys are kept.
@@ -159,6 +191,14 @@ pub struct WorkspaceSettings {
     /// How the workspace bills its time; `None` until a model is picked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub billing: Option<BillingSettings>,
+    /// When the week's hours must be logged by; the week close-out runs only
+    /// for a workspace with one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_deadline: Option<LogDeadline>,
+    /// The name of the workspace whose `Leave.md` lists leave and public
+    /// holidays; the life workspace when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leave_source: Option<String>,
     /// Per-feature settings, keyed by feature id. Opaque in the base version;
     /// each feature validates its own entry against its settings schema.
     #[serde(default)]
@@ -239,6 +279,8 @@ impl WorkspaceSettings {
             log_folder: default_log_folder(),
             story_template: None,
             billing: None,
+            log_deadline: None,
+            leave_source: None,
             features: BTreeMap::new(),
             extra: Map::new(),
         }
@@ -337,8 +379,43 @@ impl WorkspaceSettings {
         if let Some(billing) = &self.billing {
             billing.validate()?;
         }
+        if let Some(deadline) = &self.log_deadline
+            && parse_hh_mm(&deadline.time).is_none()
+        {
+            return Err(SettingsError::InvalidValue {
+                key: "log_deadline.time",
+                reason: format!("must be HH:MM in 24 hours, got {:?}", deadline.time),
+            });
+        }
+        if let Some(source) = &self.leave_source
+            && source.trim().is_empty()
+        {
+            return Err(SettingsError::InvalidValue {
+                key: "leave_source",
+                reason: "must name a workspace".to_owned(),
+            });
+        }
         Ok(())
     }
+}
+
+impl LogDeadline {
+    /// The deadline's hour and minute.
+    #[must_use]
+    pub fn hour_minute(&self) -> Option<(u8, u8)> {
+        parse_hh_mm(&self.time)
+    }
+}
+
+/// `HH:MM` in 24 hours as hour and minute.
+fn parse_hh_mm(text: &str) -> Option<(u8, u8)> {
+    let (hour, minute) = text.split_once(':')?;
+    if hour.len() != 2 || minute.len() != 2 {
+        return None;
+    }
+    let hour: u8 = hour.parse().ok()?;
+    let minute: u8 = minute.parse().ok()?;
+    (hour < 24 && minute < 60).then_some((hour, minute))
 }
 
 impl BillingSettings {
@@ -425,7 +502,7 @@ impl BillingSettings {
 }
 
 /// The keys the schema defines; `extra` may not shadow them.
-const SCHEMA_KEYS: [&str; 14] = [
+const SCHEMA_KEYS: [&str; 16] = [
     "schema_version",
     "name",
     "kind",
@@ -438,6 +515,8 @@ const SCHEMA_KEYS: [&str; 14] = [
     "log_folder",
     "story_template",
     "billing",
+    "log_deadline",
+    "leave_source",
     "features",
     "extra",
 ];
@@ -1004,6 +1083,27 @@ mod tests {
             "billable_default",
         ] {
             assert!(text.contains(word), "{word}");
+        }
+    }
+
+    #[test]
+    fn log_deadline_and_leave_source_are_read_checked_and_kept() {
+        let text = r#"{"schema_version": 1, "name": "x", "kind": "work", "log_deadline": {"weekday": "monday", "time": "08:00"}, "leave_source": "Home"}"#;
+        let settings = WorkspaceSettings::from_json(text).unwrap();
+        let deadline = settings.log_deadline.clone().unwrap();
+        assert_eq!(deadline.weekday, super::SettingsWeekday::Monday);
+        assert_eq!(deadline.hour_minute(), Some((8, 0)));
+        assert_eq!(settings.leave_source.as_deref(), Some("Home"));
+        let written = settings.to_json().unwrap();
+        assert_eq!(WorkspaceSettings::from_json(&written).unwrap(), settings);
+        for bad in [
+            r#""log_deadline": {"weekday": "monday", "time": "24:00"}"#,
+            r#""log_deadline": {"weekday": "monday", "time": "8:00"}"#,
+            r#""log_deadline": {"weekday": "someday", "time": "08:00"}"#,
+            r#""leave_source": "  ""#,
+        ] {
+            let text = format!(r#"{{"schema_version": 1, "name": "x", "kind": "work", {bad}}}"#);
+            assert!(WorkspaceSettings::from_json(&text).is_err(), "{bad}");
         }
     }
 }

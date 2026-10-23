@@ -529,6 +529,7 @@ mod tests {
                 .unwrap()
                 .push((workspace, added, waiting));
         }
+        fn close_out_missing(&self, _: String, _: String, _: Vec<String>) {}
     }
 
     #[test]

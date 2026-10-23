@@ -81,6 +81,24 @@
       ],
       "description": "How the workspace bills its time; `None` until a model is picked."
     },
+    "log_deadline": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LogDeadline"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "When the week's hours must be logged by; the week close-out runs only\nfor a workspace with one."
+    },
+    "leave_source": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The name of the workspace whose `Leave.md` lists leave and public\nholidays; the life workspace when absent."
+    },
     "features": {
       "type": "object",
       "additionalProperties": true,
@@ -173,6 +191,65 @@
         }
       ],
       "description": "How a workspace bills its time. Rates and currencies are not here: they\nlive in the signed app-level document only."
+    },
+    "LogDeadline": {
+      "type": "object",
+      "properties": {
+        "weekday": {
+          "$ref": "#/$defs/SettingsWeekday",
+          "description": "The day of the deadline."
+        },
+        "time": {
+          "type": "string",
+          "description": "The time of day, `HH:MM` in 24 hours.",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        }
+      },
+      "required": [
+        "weekday",
+        "time"
+      ],
+      "description": "When a week's hours must be logged by: the first `weekday` at or after\nthe week's Friday, at `time`. The week close-out runs for a workspace\nthat has one."
+    },
+    "SettingsWeekday": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "monday",
+          "description": "Monday."
+        },
+        {
+          "type": "string",
+          "const": "tuesday",
+          "description": "Tuesday."
+        },
+        {
+          "type": "string",
+          "const": "wednesday",
+          "description": "Wednesday."
+        },
+        {
+          "type": "string",
+          "const": "thursday",
+          "description": "Thursday."
+        },
+        {
+          "type": "string",
+          "const": "friday",
+          "description": "Friday."
+        },
+        {
+          "type": "string",
+          "const": "saturday",
+          "description": "Saturday."
+        },
+        {
+          "type": "string",
+          "const": "sunday",
+          "description": "Sunday."
+        }
+      ],
+      "description": "A day of the week, as `log_deadline` names it."
     }
   },
   "propertyNames": {

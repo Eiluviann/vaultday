@@ -28,6 +28,7 @@ pub mod flat;
 pub mod http;
 pub mod mapping;
 pub mod queue;
+pub mod reconcile;
 pub mod settings;
 pub mod transport;
 pub mod week;
@@ -43,5 +44,9 @@ pub use flat::{FlatDay, FlatDayStatus, FlatJobInput, FlatRunReport, flat_job_ran
 pub use http::{HttpTogglApi, LIVE_BASE_URL, RetryPolicy, has_token, token_id};
 pub use mapping::{TogglMapping, allow_live, set_allow_live};
 pub use queue::{DrainReport, EnqueueOutcome, QueueItem, QueueState};
+pub use reconcile::{
+    FixedRow, HourlyRow, WorkItemFacts, WorkSession, reconcile_fixed, reconcile_hourly,
+    work_item_key,
+};
 pub use settings::TogglSettings;
 pub use week::{TogglWeekDay, WeekDayStatus};

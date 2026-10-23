@@ -123,6 +123,8 @@ final class SignalAnnouncementPort: NotifierPort, @unchecked Sendable {
 	func newSignals(workspace _: String, added: UInt32, waiting: UInt32) {
 		lock.withLock { stored = (Int(added), Int(waiting)) }
 	}
+
+	func closeOutMissing(workspace _: String, weekStart _: String, missing _: [String]) {}
 }
 
 /// Opens a signal's message in its account's mail app: the core hands back

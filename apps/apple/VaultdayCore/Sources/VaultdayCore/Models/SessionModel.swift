@@ -318,6 +318,8 @@ private final class LongTimerPort: NotifierPort, @unchecked Sendable {
 
 	func newSignals(workspace _: String, added _: UInt32, waiting _: UInt32) {}
 
+	func closeOutMissing(workspace _: String, weekStart _: String, missing _: [String]) {}
+
 	func takeLongTimers() -> [(String, Int)] {
 		lock.withLock {
 			defer { longTimers = [] }

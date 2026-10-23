@@ -19,6 +19,7 @@
 //! - [`VaultWriter`] is the one write path: line-scoped, atomic, re-read
 //!   before every write; [`WriteQueue`] debounces bursts; [`log`] formats day-log
 //!   lines; [`conflict`] merges sync conflict copies back into their note.
+//! - [`leave`] reads `Leave.md`, the user's leave and public holidays.
 //! - [`VaultWatcher`] turns file events into debounced batches that update the
 //!   [`FileIndex`], and [`IndexStore`] persists that index per device.
 
@@ -32,6 +33,7 @@ pub mod file_access;
 pub mod frontmatter;
 pub mod index;
 pub mod index_store;
+pub mod leave;
 mod line;
 pub mod log;
 pub mod note;
@@ -59,6 +61,7 @@ pub use file_access::{
 pub use frontmatter::Frontmatter;
 pub use index::{FileIndex, FileStamp, IndexDelta, IndexError, IndexScope};
 pub use index_store::{INDEX_STORE_SCHEMA_VERSION, IndexStore, IndexStoreError};
+pub use leave::{LEAVE_NOTE_NAME, LeaveEntry, LeaveKind, LeaveNote, LeaveWarning};
 pub use line::LineEnding;
 pub use log::{
     LogAppend, LogFormatError, LogShorthand, day_log_path, format_log_line, new_day_log_header,
@@ -79,8 +82,8 @@ pub use scan::{
     Section, Task, TaskStatus,
 };
 pub use settings::{
-    BillingModel, BillingSettings, SETTINGS_SCHEMA_VERSION, SettingsError, WorkspaceKind,
-    WorkspaceSettings,
+    BillingModel, BillingSettings, LogDeadline, SETTINGS_SCHEMA_VERSION, SettingsError,
+    SettingsWeekday, WorkspaceKind, WorkspaceSettings,
 };
 pub use today::{TodayStory, TodayView};
 pub use vault::{

@@ -1,7 +1,7 @@
 //! The FTE flat week: one entry of `flat_hours` per working day, with no
 //! task detail, created through the user's Toggl account by a Friday job.
-//! Leave and public holidays are left out (the dates come in as lists; the
-//! `Leave.md` parser is a later PR). Each day is a record keyed by its date,
+//! Leave and public holidays are left out (the dates come in as lists,
+//! read from `Leave.md` by the caller). Each day is a record keyed by its date,
 //! so a second run creates nothing.
 
 use std::time::Instant;
@@ -211,25 +211,23 @@ impl TogglFeature {
     }
 
     /// Queues an entry for every working day of `input` that has none yet,
-    /// then sends what is due. `start_of_day` gives the instant a day's entry
-    /// starts at (the caller knows the time zone). Days already queued, sent
-    /// or failed are left alone, so a second run creates nothing.
+    /// without sending anything: the app's drain sends them, through the
+    /// live guard. `start_of_day` gives the instant a day's entry starts at.
+    /// Days already queued, sent or failed are left alone, so a second call
+    /// queues nothing. Returns the days newly queued.
     ///
     /// # Errors
-    /// [`TogglError::InvalidInput`] for a bad range, an error of
+    /// [`TogglError::InvalidInput`] for a bad range or an error of
     /// `start_of_day`, or the document refused an edit.
-    pub fn run_flat_job(
+    pub fn queue_flat_job(
         &self,
-        sync: &mut WorkspaceSync,
-        api: &dyn TogglApi,
-        mapping: &TogglMapping,
+        state: &mut WorkspaceState,
         input: &FlatJobInput,
         start_of_day: &dyn Fn(Date) -> Result<Timestamp, TogglError>,
-        now: Timestamp,
-    ) -> Result<FlatRunReport, TogglError> {
-        let device = sync.device_id().as_str().to_owned();
+    ) -> Result<Vec<Date>, TogglError> {
+        let device = state.device_id().as_str().to_owned();
         let new_items: Vec<QueueItem> = self
-            .preview_flat_job(sync.state(), input)?
+            .preview_flat_job(state, input)?
             .into_iter()
             .filter(|day| day.status == FlatDayStatus::WillCreate)
             .map(|day| {
@@ -254,18 +252,62 @@ impl TogglFeature {
                 })
             })
             .collect::<Result<_, TogglError>>()?;
-        let queued = u32::try_from(new_items.len()).unwrap_or(u32::MAX);
-        if !new_items.is_empty() {
-            sync.edit(Instant::now(), |state| {
-                for item in &new_items {
-                    store_item(state, FLAT, item).map_err(|error| match error {
-                        TogglError::AppState(error) => error,
-                        other => app_state::AppStateError::InvalidSetting(other.to_string()),
-                    })?;
-                }
-                Ok(())
-            })?;
+        for item in &new_items {
+            store_item(state, FLAT, item)?;
         }
+        new_items
+            .iter()
+            .map(|item| {
+                item.key
+                    .parse()
+                    .map_err(|_| TogglError::InvalidInput(format!("{} is not a day", item.key)))
+            })
+            .collect()
+    }
+
+    /// Queues an entry for every working day of `input` that has none yet,
+    /// then sends what is due. `start_of_day` gives the instant a day's entry
+    /// starts at (the caller knows the time zone). Days already queued, sent
+    /// or failed are left alone, so a second run creates nothing.
+    ///
+    /// # Errors
+    /// [`TogglError::InvalidInput`] for a bad range, an error of
+    /// `start_of_day`, or the document refused an edit.
+    pub fn run_flat_job(
+        &self,
+        sync: &mut WorkspaceSync,
+        api: &dyn TogglApi,
+        mapping: &TogglMapping,
+        input: &FlatJobInput,
+        start_of_day: &dyn Fn(Date) -> Result<Timestamp, TogglError>,
+        now: Timestamp,
+    ) -> Result<FlatRunReport, TogglError> {
+        // Validated before the edit so a bad range is its own error, and no
+        // edit at all when every day has its entry.
+        let has_new_days = self
+            .preview_flat_job(sync.state(), input)?
+            .iter()
+            .any(|day| day.status == FlatDayStatus::WillCreate);
+        let mut failure = None;
+        let mut queued_days = Vec::new();
+        if has_new_days {
+            sync.edit(Instant::now(), |state| {
+                match self.queue_flat_job(state, input, start_of_day) {
+                    Ok(days) => {
+                        queued_days = days;
+                        Ok(())
+                    }
+                    Err(TogglError::AppState(error)) => Err(error),
+                    Err(other) => {
+                        let message = other.to_string();
+                        failure = Some(other);
+                        Err(app_state::AppStateError::InvalidSetting(message))
+                    }
+                }
+            })
+            .map_err(|error| failure.take().unwrap_or(TogglError::AppState(error)))?;
+        }
+        let queued = u32::try_from(queued_days.len()).unwrap_or(u32::MAX);
         let drain = drain_collection(sync, FLAT, api, mapping, now)?;
         let days = self.preview_flat_job(sync.state(), input)?;
         Ok(FlatRunReport {
@@ -273,6 +315,20 @@ impl TogglFeature {
             drain,
             days,
         })
+    }
+
+    /// Sends this device's due flat days through `api`, one attempt each.
+    ///
+    /// # Errors
+    /// The document refused an edit.
+    pub fn drain_flat(
+        &self,
+        sync: &mut WorkspaceSync,
+        api: &dyn TogglApi,
+        mapping: &TogglMapping,
+        now: Timestamp,
+    ) -> Result<DrainReport, TogglError> {
+        drain_collection(sync, FLAT, api, mapping, now)
     }
 
     /// Every flat day recorded, by date.
