@@ -33,6 +33,7 @@ fn new_task(text: &str, id: &str, assigned_to: Option<&str>) -> NewTask {
         estimate: None,
         due: None,
         reminder: None,
+        source: None,
     }
 }
 
@@ -343,6 +344,7 @@ fn an_imported_reminder_carries_its_due_day_and_source() {
         scheduled: Some(date("2026-10-26")),
         due: Some(date("2026-10-30")),
         reminder: Some("x-apple-reminder-7F3A".to_owned()),
+        source: None,
         ..new_task("Renew the passport", "task-23", None)
     };
     let receipt = VaultWriter::new(&PlainFileAccess, &workspace)
@@ -354,6 +356,7 @@ fn an_imported_reminder_carries_its_due_day_and_source() {
     );
     let bracketed = NewTask {
         reminder: Some("a]b".to_owned()),
+        source: None,
         ..new_task("Bad source", "task-24", None)
     };
     assert!(matches!(
@@ -362,6 +365,33 @@ fn an_imported_reminder_carries_its_due_day_and_source() {
             TaskSection::NextSteps,
             &bracketed
         ),
+        Err(WriteError::InvalidInput(_))
+    ));
+}
+
+#[test]
+fn a_triaged_task_ends_with_its_signal_source() {
+    let sandbox = sandbox();
+    let workspace = workspace(&sandbox.root);
+    let writer = VaultWriter::new(&PlainFileAccess, &workspace);
+    let task = NewTask {
+        estimate: Some("30m".to_owned()),
+        source: Some("sig-0123456789abcdef".to_owned()),
+        ..new_task("Answer the tier question", "task-25", Some("Lena Ortiz"))
+    };
+    let receipt = writer
+        .add_task(Path::new(ACME_12), TaskSection::PendingInput, &task)
+        .unwrap();
+    assert_eq!(
+        receipt.new_line,
+        "- [ ] Answer the tier question [id:: task-25] [created:: 2026-10-23] [estimate:: 30m] [assigned_to:: Lena Ortiz] [source:: sig-0123456789abcdef]"
+    );
+    let bracketed = NewTask {
+        source: Some("sig-[x]".to_owned()),
+        ..new_task("Bad signal", "task-26", None)
+    };
+    assert!(matches!(
+        writer.add_task(Path::new(ACME_12), TaskSection::NextSteps, &bracketed),
         Err(WriteError::InvalidInput(_))
     ));
 }

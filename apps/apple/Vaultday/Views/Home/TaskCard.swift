@@ -105,8 +105,7 @@ struct TaskCard: View {
 	private var storyLine: some View {
 		HStack(spacing: Tokens.Spacing.space6) {
 			if let number = item.storyNumber {
-				MonoChip(text: number)
-					.help(item.storyTitle ?? number)
+				StoryDropChip(app: app, number: number, title: item.storyTitle, isEnabled: !isReadOnly)
 			}
 			if let days = item.waitingDays, item.isPendingInput {
 				CautionChip(text: item.assignedTo.map { "\($0) · waiting \(days)d" } ?? "waiting \(days)d")
@@ -118,7 +117,7 @@ struct TaskCard: View {
 			if !isReadOnly {
 				MoreActions(app: app, taskId: item.taskId, canMove: true)
 					.overlay(alignment: .topTrailing) {
-						if isSelected, app.keyboard.showsItemMenu {
+						if isSelected, app.keyboard.showsItemMenu(in: .today) {
 							ItemMenuPanel(app: app)
 								.offset(y: 26)
 								.zIndex(1)
@@ -329,6 +328,29 @@ private struct SlotChip: View {
 				}
 			}
 			.help("\(DurationText.minutes(slot.minutes)) from \(slot.start.text)")
+	}
+}
+
+/// A card's story number, and the place to drop a signal to attach it to that story.
+private struct StoryDropChip: View {
+	let app: AppModel
+	let number: String
+	let title: String?
+	let isEnabled: Bool
+	@State private var isTargeted = false
+
+	var body: some View {
+		let chip = MonoChip(text: number)
+			.overlay(Capsule().strokeBorder(isTargeted ? Tokens.Colors.focus : .clear, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])))
+			.help(isTargeted ? "Drop to attach the signal to \(number)" : title ?? number)
+		if isEnabled {
+			chip.dropDestination(for: String.self) { payloads, _ in
+				guard let payload = payloads.first else { return false }
+				return app.dropOnStory(payload, story: number)
+			} isTargeted: { isTargeted = $0 }
+		} else {
+			chip
+		}
 	}
 }
 

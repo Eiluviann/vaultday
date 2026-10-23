@@ -86,7 +86,7 @@ final class KeyboardModelTests: XCTestCase {
 			("g d", .showToday), ("alt+h", .previousDay), ("alt+l", .nextDay),
 			("y y", .yank), ("d d", .cut), ("p", .pasteAfter), ("shift+p", .pasteBefore), ("u", .undo),
 			("ctrl+r", .redo), (".", .repeatLast), ("x", .completeTask), ("c c", .changeText), ("c e", .changeEstimate),
-			("c d", .changeDue), ("c s", .changeScheduled), ("> >", .pushToTomorrow), ("< <", .pullToToday), ("m", .togglePin),
+			("c d", .changeDue), ("c s", .changeScheduled), ("< <", .pullToToday), ("m", .togglePin),
 			("=", .autoSchedule), ("r", .replan), ("g t", .nextWorkspace), ("g shift+t", .previousWorkspace), ("g b", .showBrowse),
 			("g l", .showDayLog), ("cmd+l", .appendDayLog), ("space", .toggleTimer),
 			("alt+j", .moveTaskDown), ("alt+k", .moveTaskUp), ("g 0", .focusPane(.sidebar)), ("g 3", .focusPane(.sidePanel)),
@@ -97,6 +97,11 @@ final class KeyboardModelTests: XCTestCase {
 			var result: KeyResolution = .unbound
 			for part in notation.split(separator: " ") { result = vim.handle(stroke(String(part))) }
 			XCTAssertEqual(result, .action(action), notation)
+		}
+		// `>>` is "later" for the selection: a task in Today, a signal in the Inbox.
+		for (pane, action) in [(Pane.today, KeyAction.pushToTomorrow), (.inbox, .signalSnooze)] {
+			XCTAssertEqual(vim.handle(stroke(">"), in: pane), .pending([stroke(">")]))
+			XCTAssertEqual(vim.handle(stroke(">"), in: pane), .action(action), "> > in \(pane)")
 		}
 		XCTAssertEqual(vim.handle(stroke("cmd+shift+c")), .action(.openInClaudeCode), "⌘⇧C is Claude Code, as the preview's button")
 		XCTAssertEqual(vim.handle(stroke("g")), .pending([stroke("g")]))
@@ -135,9 +140,13 @@ final class KeyboardModelTests: XCTestCase {
 		let vim = KeyDispatcher(keymap: try repoKeymap(), scheme: .vim)
 		XCTAssertEqual(vim.handle(stroke("1"), in: .sidePanel), .action(.showSidePanelTab(1)))
 		XCTAssertEqual(vim.handle(stroke("7"), in: .sidePanel), .action(.showSidePanelTab(7)))
-		for pane in [Pane.sidebar, .today, .inbox] {
-			XCTAssertEqual(vim.handle(stroke("1"), in: pane), .unbound, "bare 1 is free outside the side panel (\(pane))")
+		for pane in [Pane.sidebar, .today] {
+			XCTAssertEqual(vim.handle(stroke("1"), in: pane), .unbound, "bare 1 is free outside the side panel and the Inbox (\(pane))")
 		}
+		// The Inbox keeps its digits for the signal outcomes.
+		XCTAssertEqual(vim.handle(stroke("1"), in: .inbox), .action(.signalTask))
+		XCTAssertEqual(vim.handle(stroke("4"), in: .inbox), .action(.signalDismiss))
+		XCTAssertEqual(vim.handle(stroke("5"), in: .inbox), .unbound)
 		XCTAssertEqual(vim.handle(stroke("alt+2"), in: .inbox), .action(.showSidePanelTab(2)))
 		// `g` then a digit is still a pane jump, wherever focus is.
 		XCTAssertEqual(vim.handle(stroke("g"), in: .sidePanel), .pending([stroke("g")]))

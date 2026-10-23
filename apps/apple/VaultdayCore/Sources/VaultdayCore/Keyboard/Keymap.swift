@@ -131,6 +131,16 @@ public enum KeyAction: Hashable, Sendable {
 	case openInClaudeCode
 	/// A side panel tab by its place on the rail, counted from 1.
 	case showSidePanelTab(Int)
+	/// The selected signal's outcomes, on the Inbox pane: `1` + Task, `2`
+	/// Wait for, `3` Attach, `4` Dismiss, `>>` Snooze, and the menu's Reply
+	/// in the mail app and Not a signal.
+	case signalTask
+	case signalWaitFor
+	case signalAttach
+	case signalDismiss
+	case signalSnooze
+	case signalReply
+	case signalNotASignal
 	/// `]` and `[` while the story screen's panel holds focus.
 	case nextStoryPanelTab
 	case previousStoryPanelTab
@@ -155,6 +165,11 @@ public enum KeyAction: Hashable, Sendable {
 		}
 		guard let action = Self.named[name] else { return nil }
 		self = action
+	}
+
+	/// Whether this acts on the selected signal rather than a task.
+	public var isSignalAction: Bool {
+		[.signalTask, .signalWaitFor, .signalAttach, .signalDismiss, .signalSnooze, .signalReply, .signalNotASignal].contains(self)
 	}
 
 	/// Whether this is one of the four directional moves bare `h` `j` `k` `l` are kept for.
@@ -231,6 +246,13 @@ public enum KeyAction: Hashable, Sendable {
 		"item.open-link": .openLink,
 		"item.claude-code": .openInClaudeCode,
 		"tracker.toggle": .toggleMiniTracker,
+		"signal.task": .signalTask,
+		"signal.wait-for": .signalWaitFor,
+		"signal.attach": .signalAttach,
+		"signal.dismiss": .signalDismiss,
+		"signal.snooze": .signalSnooze,
+		"signal.reply": .signalReply,
+		"signal.not-a-signal": .signalNotASignal,
 	]
 }
 

@@ -35,6 +35,11 @@ pub trait NotifierPort: Send + Sync {
         reported_seconds: u64,
         estimate_seconds: u64,
     );
+
+    /// A mail fetch brought `added` new signals into `workspace`; `waiting`
+    /// signals are new there now. Told once per fetch, never per signal, and
+    /// shown quietly: no sound, no banner that stays.
+    fn new_signals(&self, workspace: String, added: u32, waiting: u32);
 }
 
 /// A stopped session and what its stop wrote to the day log.
@@ -283,6 +288,8 @@ mod tests {
         }
 
         fn threshold_crossed(&self, _: String, _: Option<String>, _: u64, _: u64) {}
+
+        fn new_signals(&self, _: String, _: u32, _: u32) {}
     }
 
     #[test]

@@ -41,9 +41,15 @@ struct HomeWindow: View {
 					.frame(width: HomeLayout.inboxWidth + HomeLayout.sidePanelWidth)
 					.padding(.top, HomeLayout.headerHeight)
 					.transition(.move(edge: .trailing))
+			} else if let card = app.inbox.previewCard {
+				SignalPreviewPanel(app: app, card: card)
+					.frame(width: HomeLayout.inboxWidth + HomeLayout.sidePanelWidth)
+					.padding(.top, HomeLayout.headerHeight)
+					.transition(.move(edge: .trailing))
 			}
 		}
 		.animation(.easeOut(duration: 0.18), value: app.preview.isOpen)
+		.animation(.easeOut(duration: 0.18), value: app.inbox.previewId)
 		.ignoresSafeArea(.container, edges: .top)
 		.focusable()
 		.focusEffectDisabled()
@@ -103,6 +109,10 @@ struct HomeWindow: View {
 				BrowseColumn(app: app, browse: app.browse)
 					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
 					.paneNumber(.today, dispatcher: app.dispatcher)
+			} else if app.screen == .triage {
+				TriageScreen(app: app)
+					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+					.paneNumber(.inbox, dispatcher: app.dispatcher)
 			} else {
 				Group {
 					if app.isShowingAll, let all = app.allWorkspaces {

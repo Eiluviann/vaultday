@@ -21,11 +21,13 @@ struct SetupModels {
 }
 
 /// What the main area of the Home window shows: the day (Today, Inbox and
-/// the side panel), the Browse table across all three, or one story's
-/// screen in place of the whole window below the header (PR 15).
+/// the side panel), the Browse table across all three, the full Inbox
+/// triage screen ("Triage all") across all three, or one story's screen in
+/// place of the whole window below the header (PR 15).
 enum MainScreen {
 	case home
 	case browse
+	case triage
 	case story
 }
 
@@ -77,6 +79,8 @@ final class AppModel {
 	/// The day's selection when the story screen opened: its task and place.
 	@ObservationIgnored private var daySelectionBeforeStory: (taskId: String?, index: Int?)?
 	let dayLog = DayLogModel()
+	/// The Inbox column and the triage screen.
+	let inbox = InboxModel()
 	/// The Backlog tab's list: the Backlog preset of Browse.
 	let backlog = BrowseModel()
 	/// Where peekable views sit, for the force click; not observed.
@@ -148,10 +152,12 @@ final class AppModel {
 		keyboard = KeyboardSession(dispatcher: dispatcher, focus: focus, register: register)
 		palette = CommandPaletteModel(dispatcher: dispatcher)
 		keyboard.selectedTaskId = { [weak self] in self?.selectedTaskId }
+		keyboard.selectedSignalId = { [weak self] in self?.selectedSignal?.id }
 		keyboard.onAction = { [weak self] in self?.performAppAction($0) }
 		keyboard.isEnabled = { [weak self] in self?.isEnabled($0) ?? false }
 		keyboard.onOwnAction = { [weak self] in self?.registerChanged($0) }
 		configureTimerBackend()
+		configureInbox()
 	}
 
 	/// Opens the environment and the app document, restores the folder grants.
@@ -187,7 +193,13 @@ final class AppModel {
 			)
 			self.setup = setup
 			allWorkspaces = AllWorkspacesModel(session: session)
-			mailScheduler = MailFetchScheduler(session: session)
+			let mailScheduler = MailFetchScheduler(session: session)
+			mailScheduler.onFetched = { [weak self] in self?.inbox.reload() }
+			mailScheduler.onNewSignals = { [weak self] added, waiting in
+				guard let self, let workspace = self.workspace else { return }
+				QuietSignalNotification.post(workspaceId: workspace.workspaceId, workspaceName: workspace.name, added: added, waiting: waiting)
+			}
+			self.mailScheduler = mailScheduler
 			setup.accounts.onAccountsChange = { [weak self] in self?.restartMailFetch(isForced: true) }
 			workspaces.onChange = { [weak self] in self?.workspacesChanged() }
 			keyboard.setScheme(KeyScheme(settings.keyboardScheme))
@@ -411,6 +423,10 @@ final class AppModel {
 		case .dismiss:
 			if palette.isOpen {
 				palette.close()
+			} else if inbox.draft != nil {
+				inbox.cancelDraft()
+			} else if inbox.previewId != nil {
+				inbox.closePreview()
 			} else if peek.subject != nil {
 				peek.dismiss()
 			} else if preview.isOpen {
@@ -423,7 +439,10 @@ final class AppModel {
 				dayPlan.dismissToast()
 			}
 		case let .focusPane(pane):
-			if pane == .today { leaveBrowse() }
+			if pane == .today {
+				leaveBrowse()
+				leaveTriage()
+			}
 		case .open:
 			openSelection()
 		case .showBrowse:
@@ -450,10 +469,14 @@ final class AppModel {
 			if let subject = peekSubject { peek.toggle(subject) }
 		case .toggleMiniTracker:
 			toggleMiniTracker()
+		case .openLink where focus.focusedPane == .inbox:
+			if let signal = selectedSignal { inbox.replyInMailApp(signalId: signal.id) }
 		case .openLink:
 			openLinkOfSelection()
 		case .openInClaudeCode:
 			openSelectionInClaudeCode()
+		case _ where action.isSignalAction:
+			inbox.perform(action, on: selectedSignal?.id)
 		default:
 			// Movement is the focus model's; the register's keys never arrive here.
 			break
@@ -476,6 +499,21 @@ final class AppModel {
 		syncTodayItemCount()
 	}
 
+	/// "Triage all": the full Inbox in place of the day, keys on the Inbox pane.
+	func showTriage() {
+		guard workspace?.phase == .open else { return }
+		screen = .triage
+		inbox.reload()
+		focus.focus(.inbox)
+	}
+
+	/// Back to the day from the triage screen.
+	func leaveTriage() {
+		guard screen == .triage else { return }
+		screen = .home
+		syncTodayItemCount()
+	}
+
 	/// Back to the day from Browse.
 	func leaveBrowse() {
 		guard screen == .browse else { return }
@@ -486,7 +524,7 @@ final class AppModel {
 	/// The Today pane's item count follows what the main area shows.
 	func syncTodayItemCount() {
 		let count = switch screen {
-		case .home: dayPlan.items.count
+		case .home, .triage: dayPlan.items.count
 		case .browse: browse.items.count
 		case .story: story.accordion.steps.count
 		}
@@ -535,8 +573,18 @@ final class AppModel {
 		}
 	}
 
-	/// ⏎ on the selection: a task opens its preview, a Browse group header folds.
+	/// ⏎ on the selection: a task opens its preview, a Browse group header
+	/// folds, a signal opens its preview slide-over.
 	private func openSelection() {
+		// ⏎ while an outcome popover is open saves it, whatever holds focus.
+		if inbox.draft != nil {
+			inbox.saveDraft()
+			return
+		}
+		if focus.focusedPane == .inbox, let signal = selectedSignal {
+			inbox.openPreview(signalId: signal.id)
+			return
+		}
 		guard focus.focusedPane == .today else { return }
 		if screen == .story {
 			if let taskId = selectedStoryStep?.taskId { openPreview(taskId: taskId) }
@@ -879,6 +927,56 @@ final class AppModel {
 		)
 	}
 
+	// MARK: Inbox
+
+	/// The selected card of the Inbox, when the Inbox holds one.
+	var selectedSignal: SignalCard? {
+		inbox.card(at: focus.selection(in: .inbox))
+	}
+
+	func select(signal card: SignalCard) {
+		guard let index = inbox.cards.firstIndex(of: card) else { return }
+		focus.select(index, in: .inbox)
+	}
+
+	func hover(signal card: SignalCard) {
+		guard let index = inbox.cards.firstIndex(of: card) else { return }
+		focus.hover(index, in: .inbox)
+	}
+
+	/// Signals new right now in the open workspace, for the switcher badge.
+	var newSignalCount: Int { inbox.newCount }
+
+	/// A drag dropped on a Today card or the day: a signal becomes a task
+	/// planned on the shown day, a task moves to `index`.
+	func dropOnToday(_ payload: String, at index: Int) -> Bool {
+		switch DragPayload(payload) {
+		case let .signal(id):
+			return inbox.dropIntoToday(signalId: id, day: dayPlan.shownDate)
+		case let .task(id):
+			moveTask(id, to: index)
+			return true
+		case nil:
+			return false
+		}
+	}
+
+	/// A drag dropped on a story chip: a signal is attached to the story.
+	func dropOnStory(_ payload: String, story: String) -> Bool {
+		guard case let .signal(id) = DragPayload(payload) else { return false }
+		return inbox.dropOnStory(signalId: id, story: story)
+	}
+
+	private func configureInbox() {
+		inbox.onCardsChanged = { [weak self] count in self?.focus.setItemCount(count, in: .inbox) }
+		inbox.onPlanChanged = { [weak self] in
+			guard let self else { return }
+			dayPlan.reload()
+			if screen == .browse { BrowseModel.refresh([browse, backlog]) }
+			afterPlanChange()
+		}
+	}
+
 	/// Whether a mail account is connected; the Inbox column's empty state says so.
 	var hasMailAccount: Bool {
 		setup?.accounts.hasMailAccount ?? false
@@ -1151,6 +1249,11 @@ final class AppModel {
 			if story.isOpen { syncStoryItemCounts() } else { leaveStory() }
 		}
 		dayLog.load(from: workspace)
+		if workspace.phase == .open {
+			inbox.attach(store: CoreSignalStore(workspace: workspace))
+		} else {
+			inbox.detach()
+		}
 		syncTodayItemCount()
 		syncSidePanelItemCount()
 		refreshSidePanel()

@@ -276,6 +276,8 @@ private final class LongTimerPort: NotifierPort, @unchecked Sendable {
 
 	func thresholdCrossed(task _: String, story _: String?, reportedSeconds _: UInt64, estimateSeconds _: UInt64) {}
 
+	func newSignals(workspace _: String, added _: UInt32, waiting _: UInt32) {}
+
 	func takeLongTimers() -> [(String, Int)] {
 		lock.withLock {
 			defer { longTimers = [] }

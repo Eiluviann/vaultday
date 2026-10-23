@@ -115,14 +115,20 @@ private struct TodayCards: View {
 							item: item,
 							isSelected: app.focus.focusedPane == .today && app.focus.selection(in: .today) == index,
 						)
-						.dropDestination(for: String.self) { taskIds, _ in
-							guard let taskId = taskIds.first, !item.isDone else { return false }
-							app.moveTask(taskId, to: index)
-							return true
+						.dropDestination(for: String.self) { payloads, _ in
+							guard let payload = payloads.first, !item.isDone else { return false }
+							return app.dropOnToday(payload, at: index)
 						}
 					}
 				}
 				.padding(.vertical, Tokens.Spacing.space4)
+				.frame(maxWidth: .infinity, minHeight: 120, alignment: .top)
+				.contentShape(Rectangle())
+				// Below the cards: a task moves to the end, a signal becomes a task of the day.
+				.dropDestination(for: String.self) { payloads, _ in
+					guard let payload = payloads.first else { return false }
+					return app.dropOnToday(payload, at: plan.items.count)
+				}
 			}
 			.scrollIndicators(.automatic)
 		}

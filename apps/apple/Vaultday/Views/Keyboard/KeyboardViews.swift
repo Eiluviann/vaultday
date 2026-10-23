@@ -153,12 +153,14 @@ enum CapTransition {
 
 /// The selected item's more-actions menu, opened by `\` or by a pending
 /// stroke that completes inside it: the matching rows light, the rest dim.
+/// A signal card's menu lists the signal's rows, a task card's the task's.
 struct ItemMenuPanel: View {
 	let app: AppModel
+	var isForSignal = false
 
 	var body: some View {
 		let dispatcher = app.dispatcher
-		let rows = dispatcher.keyTable.filter(\.isInItemMenu)
+		let rows = dispatcher.keyTable.filter { $0.isInItemMenu && $0.action.isSignalAction == isForSignal }
 		let lit = Set(dispatcher.completions.filter(\.isInItemMenu).map(\.action))
 		let isPending = !dispatcher.completions.isEmpty
 		VStack(alignment: .leading, spacing: 2) {
@@ -176,7 +178,8 @@ struct ItemMenuPanel: View {
 					HStack(spacing: Tokens.Spacing.space8) {
 						Text(row.label)
 							.frame(maxWidth: .infinity, alignment: .leading)
-						if let caps = row.caps.first {
+						// Reply in the mail app is `gx`, the open-the-link key, on a signal.
+						if let caps = row.caps.first ?? (row.action == .signalReply ? dispatcher.caps(for: .openLink).first : nil) {
 							SequenceCaps(caps: caps, typed: isLit ? dispatcher.pending.count : 0)
 						}
 					}

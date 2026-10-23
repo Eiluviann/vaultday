@@ -44,7 +44,8 @@ struct SidebarColumn: View {
 
 // MARK: Switcher
 
-/// All workspaces (⌘0) and each workspace (⌘1 to ⌘9), with its color dot. Badges arrive with the signals.
+/// All workspaces (⌘0) and each workspace (⌘1 to ⌘9), with its color dot.
+/// The open workspace's row carries the count of new signals as its badge.
 private struct WorkspaceSwitcher: View {
 	let app: AppModel
 
@@ -68,6 +69,7 @@ private struct WorkspaceSwitcher: View {
 					selectedFill: entry.color,
 					selectedText: Tokens.Colors.onWs,
 					isSelected: !app.isShowingAll && entry.id == app.workspace?.workspaceId,
+					badge: entry.id == app.workspace?.workspaceId ? app.newSignalCount : 0,
 				) {
 					app.showWorkspace(entry)
 				}
@@ -88,6 +90,8 @@ private struct SwitcherRow: View {
 	let selectedFill: Color
 	let selectedText: Color
 	let isSelected: Bool
+	/// New signals; the badge hides at zero.
+	var badge = 0
 	let action: () -> Void
 
 	var body: some View {
@@ -99,6 +103,16 @@ private struct SwitcherRow: View {
 				Text(title)
 					.lineLimit(1)
 				Spacer(minLength: Tokens.Spacing.space4)
+				if badge > 0 {
+					Text(badge > 99 ? "99+" : "\(badge)")
+						.font(Tokens.Typography.caption.font.weight(.semibold))
+						.monospacedDigit()
+						.foregroundStyle(isSelected ? selectedFill : Tokens.Colors.onWs)
+						.padding(.horizontal, 6)
+						.padding(.vertical, 1)
+						.background(isSelected ? AnyShapeStyle(Tokens.Colors.surfaceRaised) : dot, in: Capsule())
+						.accessibilityLabel("\(badge) new signals")
+				}
 				if let shortcut {
 					Text(shortcut)
 						.font(Tokens.Typography.caption.font.weight(isSelected ? .medium : .regular))

@@ -16,7 +16,7 @@
 # selected item's more-actions menu, which a pending stroke then opens) and
 # `pane` (the keys act only while that pane holds focus: `sidebar`, `today`,
 # `inbox`, `side-panel` or `story-panel`; bare `1` to `7` reach the rail only
-# from the side panel, so the Inbox keeps its digit keys). Only a binding
+# from the side panel, so the Inbox keeps its digit keys for the signal outcomes). Only a binding
 # scoped to the story panel, a pane outside the Home window, may reuse keys
 # bound everywhere: it wins while that pane holds focus.
 # An action bound twice carries its label once, on its first entry.
@@ -66,10 +66,13 @@ bindings:
   - action: task.pin
     vim: "shift+x"
     standard: ""
+  # Push to tomorrow acts on Today's selection; the same keys snooze the
+  # Inbox's selected signal, so both are "later" for what is selected.
   - action: task.push-tomorrow
     label: "Push to tomorrow"
     group: "Selected task"
     menu: true
+    pane: "today"
     vim: "> >"
     standard: "ctrl+cmd+right"
   - action: task.pull-today
@@ -105,6 +108,55 @@ bindings:
     menu: true
     vim: "shift+cmd+c"
     standard: "shift+cmd+c"
+  # Selected signal: the Inbox's own keys, on the selected card. Bare digits
+  # act only while the Inbox holds focus (the side panel keeps 1 to 7); `\`
+  # opens the signal's menu and `gx` replies in the mail app there.
+  - action: signal.task
+    label: "+ Task, a line under Next Steps"
+    group: "Selected signal"
+    pane: "inbox"
+    vim: "1"
+    standard: "1"
+  - action: signal.wait-for
+    label: "Wait for the sender, a line under Pending Input"
+    group: "Selected signal"
+    pane: "inbox"
+    vim: "2"
+    standard: "2"
+  - action: signal.attach
+    label: "Attach to a story"
+    group: "Selected signal"
+    menu: true
+    pane: "inbox"
+    vim: "3"
+    standard: "3"
+  - action: signal.dismiss
+    label: "Dismiss, writes nothing"
+    group: "Selected signal"
+    pane: "inbox"
+    vim: "4"
+    standard: "4"
+  - action: signal.snooze
+    label: "Snooze until a date"
+    group: "Selected signal"
+    menu: true
+    pane: "inbox"
+    vim: "> >"
+    standard: "ctrl+cmd+right"
+  - action: signal.reply
+    label: "Reply in the mail app"
+    group: "Selected signal"
+    menu: true
+    pane: "inbox"
+    vim: ""
+    standard: ""
+  - action: signal.not-a-signal
+    label: "Not a signal"
+    group: "Selected signal"
+    menu: true
+    pane: "inbox"
+    vim: ""
+    standard: ""
   # Change
   - action: change.text
     label: "Change the text"

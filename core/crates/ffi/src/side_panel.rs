@@ -461,6 +461,7 @@ impl WorkspaceStateHandle {
             estimate: None,
             due: due.filter(|_| !item.has_due_time),
             reminder: Some(item.external_id.clone()),
+            source: None,
         };
         writer
             .add_task(&note, TaskSection::NextSteps, &task)

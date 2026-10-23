@@ -142,6 +142,9 @@ pub struct NewTask {
     /// The Reminders item the task was imported from, written as
     /// `[reminder:: ]`, so an interrupted import finds its line again.
     pub reminder: Option<String>,
+    /// The signal the task was triaged from, written last as `[source:: ]`,
+    /// so a second conversion of one signal finds its line.
+    pub source: Option<String>,
 }
 
 /// A story note to create from the workspace template.
@@ -1242,6 +1245,10 @@ fn new_task_line(indent: &str, task: &NewTask) -> Result<String, WriteError> {
     if let Some(reminder) = &task.reminder {
         let reminder = validated_value("reminder", reminder)?;
         line.push_str(&format!(" [reminder:: {reminder}]"));
+    }
+    if let Some(source) = &task.source {
+        let source = validated_value("source", source)?;
+        line.push_str(&format!(" [source:: {source}]"));
     }
     Ok(line)
 }

@@ -96,7 +96,15 @@ pub enum SignalState {
     },
     /// Put away for good; a refetch of the message never brings it back.
     Dismissed,
-    /// Turned into a task. PR 13 writes `[source:: sig-…]` on the task line.
+    /// Put away as "Not a signal": final like a dismissal, kept apart so a
+    /// later screener can learn which senders are noise.
+    Rejected,
+    /// Kept on a story for reference, without a task.
+    Attached {
+        /// The story number, such as `WEB-142`.
+        story: String,
+    },
+    /// Turned into a task line carrying `[source:: sig-…]`.
     Converted {
         /// The task, once it is written.
         task: Option<TaskId>,
@@ -113,6 +121,13 @@ pub enum SignalAction {
     },
     /// Put it away for good.
     Dismiss,
+    /// Put it away as not a signal.
+    Reject,
+    /// Keep it on a story without a task.
+    Attach {
+        /// The story number.
+        story: String,
+    },
     /// Turn it into a task.
     Convert {
         /// The task, when already written.
@@ -138,8 +153,8 @@ pub enum SignalInsert {
     Duplicate(SignalId),
 }
 
-/// A transition the state machine refuses: a dismissed or converted signal
-/// is final, and a snooze must end in the future.
+/// A transition the state machine refuses: a dismissed, rejected, attached
+/// or converted signal is final, and a snooze must end in the future.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignalTransitionRefused {
     /// The state the signal was in.
@@ -220,8 +235,8 @@ impl SignalState {
     /// The state after `action` at `now`.
     ///
     /// # Errors
-    /// [`SignalTransitionRefused`] when the signal is dismissed or converted,
-    /// or a snooze would end at or before `now`.
+    /// [`SignalTransitionRefused`] when the signal is final (see
+    /// [`SignalState::is_final`]), or a snooze would end at or before `now`.
     pub fn apply(
         &self,
         action: &SignalAction,
@@ -232,10 +247,15 @@ impl SignalState {
             action: action.label(),
         };
         match (self, action) {
-            (SignalState::Dismissed | SignalState::Converted { .. }, _) => Err(refused()),
+            (state, _) if state.is_final() => Err(refused()),
             (_, SignalAction::Snooze { until }) if *until <= now => Err(refused()),
             (_, SignalAction::Snooze { until }) => Ok(SignalState::Snoozed { until: *until }),
             (_, SignalAction::Dismiss) => Ok(SignalState::Dismissed),
+            (_, SignalAction::Reject) => Ok(SignalState::Rejected),
+            (_, SignalAction::Attach { story }) if story.trim().is_empty() => Err(refused()),
+            (_, SignalAction::Attach { story }) => Ok(SignalState::Attached {
+                story: story.trim().to_owned(),
+            }),
             (_, SignalAction::Convert { task }) => {
                 Ok(SignalState::Converted { task: task.clone() })
             }
@@ -249,8 +269,17 @@ impl SignalState {
             SignalState::New => "new",
             SignalState::Snoozed { .. } => "snoozed",
             SignalState::Dismissed => "dismissed",
+            SignalState::Rejected => "rejected",
+            SignalState::Attached { .. } => "attached",
             SignalState::Converted { .. } => "converted",
         }
+    }
+
+    /// Whether the signal is decided for good: dismissed, rejected, attached
+    /// or converted. Only a new or snoozed signal is still in triage.
+    #[must_use]
+    pub const fn is_final(&self) -> bool {
+        !matches!(self, SignalState::New | SignalState::Snoozed { .. })
     }
 
     /// How final a state is; when two devices set a state concurrently the
@@ -259,8 +288,9 @@ impl SignalState {
         match self {
             SignalState::New => 0,
             SignalState::Snoozed { .. } => 1,
-            SignalState::Dismissed => 2,
-            SignalState::Converted { .. } => 3,
+            SignalState::Dismissed | SignalState::Rejected => 2,
+            SignalState::Attached { .. } => 3,
+            SignalState::Converted { .. } => 4,
         }
     }
 
@@ -269,6 +299,8 @@ impl SignalState {
             SignalState::New => "new".to_owned(),
             SignalState::Snoozed { until } => format!("snoozed {until}"),
             SignalState::Dismissed => "dismissed".to_owned(),
+            SignalState::Rejected => "rejected".to_owned(),
+            SignalState::Attached { story } => format!("attached {story}"),
             SignalState::Converted { task: None } => "converted".to_owned(),
             SignalState::Converted { task: Some(task) } => format!("converted {task}"),
         }
@@ -282,6 +314,10 @@ impl SignalState {
                 until: until.parse().ok()?,
             }),
             ("dismissed", "") => Some(SignalState::Dismissed),
+            ("rejected", "") => Some(SignalState::Rejected),
+            ("attached", story) if !story.is_empty() => Some(SignalState::Attached {
+                story: story.to_owned(),
+            }),
             ("converted", "") => Some(SignalState::Converted { task: None }),
             ("converted", task) => Some(SignalState::Converted {
                 task: Some(TaskId::new(task)),
@@ -298,6 +334,8 @@ impl SignalAction {
         match self {
             SignalAction::Snooze { .. } => "snooze",
             SignalAction::Dismiss => "dismiss",
+            SignalAction::Reject => "reject",
+            SignalAction::Attach { .. } => "attach",
             SignalAction::Convert { .. } => "convert",
         }
     }
@@ -398,6 +436,10 @@ mod tests {
                 until: at("2026-10-24T09:00:00Z"),
             },
             SignalState::Dismissed,
+            SignalState::Rejected,
+            SignalState::Attached {
+                story: "WEB-142".to_owned(),
+            },
             SignalState::Converted { task: None },
             SignalState::Converted {
                 task: Some(TaskId::new("task-7")),
@@ -406,5 +448,49 @@ mod tests {
             assert_eq!(SignalState::decode(&state.encode()), Some(state));
         }
         assert_eq!(SignalState::decode("archived"), None);
+        assert_eq!(SignalState::decode("attached "), None);
+    }
+
+    #[test]
+    fn reject_and_attach_are_final_and_attach_needs_a_story() {
+        let now = at("2026-10-23T09:00:00Z");
+        let later = at("2026-10-24T09:00:00Z");
+        let snoozed = SignalState::Snoozed { until: later };
+        assert_eq!(
+            snoozed.apply(&SignalAction::Reject, now),
+            Ok(SignalState::Rejected)
+        );
+        let blank = SignalAction::Attach {
+            story: "  ".to_owned(),
+        };
+        assert!(
+            SignalState::New.apply(&blank, now).is_err(),
+            "an attachment names a story"
+        );
+        let attach = SignalAction::Attach {
+            story: " WEB-142 ".to_owned(),
+        };
+        let attached = SignalState::New.apply(&attach, now).unwrap();
+        assert_eq!(
+            attached,
+            SignalState::Attached {
+                story: "WEB-142".to_owned()
+            }
+        );
+        for state in [SignalState::Rejected, attached] {
+            assert!(state.is_final());
+            for action in [
+                SignalAction::Dismiss,
+                SignalAction::Snooze { until: later },
+                SignalAction::Convert { task: None },
+            ] {
+                assert!(state.apply(&action, now).is_err());
+            }
+        }
+        assert!(!SignalState::New.is_final());
+        assert!(!SignalState::Snoozed { until: later }.is_final());
+        assert!(
+            SignalState::Rejected.finality() < SignalState::Converted { task: None }.finality()
+        );
     }
 }

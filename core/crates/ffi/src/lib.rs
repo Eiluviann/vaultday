@@ -19,6 +19,7 @@ pub mod browse;
 pub mod calendar;
 pub mod files;
 pub mod home;
+pub mod inbox;
 pub mod mail_accounts;
 pub mod onboarding;
 pub mod preferences;

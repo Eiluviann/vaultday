@@ -21,6 +21,11 @@ public final class MailFetchScheduler {
 	public private(set) var lastFetch: MailFetchSummary?
 	/// Signals that are new right now in the open workspace.
 	public private(set) var newSignalCount = 0
+	/// Called on the main actor after every fetch, so the Inbox reads the store again.
+	@ObservationIgnored public var onFetched: () -> Void = {}
+	/// The quiet notification: called once for a fetch that brought new
+	/// signals, never per signal, with how many came and how many are new now.
+	@ObservationIgnored public var onNewSignals: (_ added: Int, _ waiting: Int) -> Void = { _, _ in }
 
 	private let session: CoreSession
 	@ObservationIgnored private var loop: Task<Void, Never>?
@@ -85,10 +90,38 @@ public final class MailFetchScheduler {
 				added: Int(fetched.added),
 				failures: fetched.failures.map { "\($0.connection): \($0.message)" },
 			)
+			// The core decides whether this fetch is told; the port only carries it here.
+			let port = SignalAnnouncementPort()
+			if state.announceNewSignals(workspace: workspaceId, added: fetched.added, notifier: port),
+			   let announced = port.announced
+			{
+				onNewSignals(announced.added, announced.waiting)
+			}
 		case let .failure(error):
 			lastFetch = MailFetchSummary(finishedAt: Date(), added: 0, failures: [coreErrorMessage(error)])
 		}
 		newSignalCount = Int(state.newSignalCount())
+		onFetched()
+	}
+}
+
+/// The core's `Notifier` port for one fetch: it keeps the announcement so
+/// the notification is posted on the main actor after the call returns.
+final class SignalAnnouncementPort: NotifierPort, @unchecked Sendable {
+	// Only touched during the synchronous `announceNewSignals` call and right after it.
+	private let lock = NSLock()
+	private var stored: (added: Int, waiting: Int)?
+
+	var announced: (added: Int, waiting: Int)? {
+		lock.withLock { stored }
+	}
+
+	func longTimer(sessionId _: String, elapsedSeconds _: UInt64) {}
+
+	func thresholdCrossed(task _: String, story _: String?, reportedSeconds _: UInt64, estimateSeconds _: UInt64) {}
+
+	func newSignals(workspace _: String, added: UInt32, waiting: UInt32) {
+		lock.withLock { stored = (Int(added), Int(waiting)) }
 	}
 }
 

@@ -202,6 +202,10 @@ pub enum SignalStateView {
     Snoozed,
     /// Put away for good.
     Dismissed,
+    /// Put away as not a signal.
+    Rejected,
+    /// Kept on a story without a task.
+    Attached,
     /// Turned into a task.
     Converted,
 }
@@ -233,6 +237,8 @@ pub struct SignalView {
     pub snoozed_until: Option<String>,
     /// The task a converted signal became.
     pub task: Option<String>,
+    /// The story an attached signal is kept on.
+    pub story: Option<String>,
 }
 
 /// Whether Microsoft 365 sign-in can run in this build.
@@ -566,13 +572,17 @@ impl WorkspaceStateHandle {
 }
 
 impl WorkspaceStateHandle {
-    fn act_on_signal(&self, id: &str, action: &SignalAction) -> Result<SignalStateView, CoreError> {
+    pub(crate) fn act_on_signal(
+        &self,
+        id: &str,
+        action: &SignalAction,
+    ) -> Result<SignalStateView, CoreError> {
         let id = SignalId::new(id);
         let now = Timestamp::now();
         let state = lock(&self.sync).edit(Instant::now(), |doc| {
             doc.apply_signal_action(&id, action, now)
         })?;
-        Ok(state_view(&state).0)
+        Ok(state_parts(&state).state)
     }
 }
 
@@ -672,7 +682,12 @@ fn core_account(view: MailAccountView) -> MailAccount {
 }
 
 fn signal_view(record: SignalRecord, now: Timestamp) -> SignalView {
-    let (state, snoozed_until, task) = state_view(&record.state.effective(now));
+    let StateParts {
+        state,
+        snoozed_until,
+        task,
+        story,
+    } = state_parts(&record.state.effective(now));
     let signal = record.signal;
     SignalView {
         id: signal.id.as_str().to_owned(),
@@ -687,19 +702,41 @@ fn signal_view(record: SignalRecord, now: Timestamp) -> SignalView {
         state,
         snoozed_until,
         task,
+        story,
     }
 }
 
-fn state_view(state: &SignalState) -> (SignalStateView, Option<String>, Option<String>) {
+/// A stored state as the bridge's flat fields.
+pub(crate) struct StateParts {
+    pub(crate) state: SignalStateView,
+    pub(crate) snoozed_until: Option<String>,
+    pub(crate) task: Option<String>,
+    pub(crate) story: Option<String>,
+}
+
+pub(crate) fn state_parts(state: &SignalState) -> StateParts {
+    let bare = |state| StateParts {
+        state,
+        snoozed_until: None,
+        task: None,
+        story: None,
+    };
     match state {
-        SignalState::New => (SignalStateView::New, None, None),
-        SignalState::Snoozed { until } => (SignalStateView::Snoozed, Some(until.to_string()), None),
-        SignalState::Dismissed => (SignalStateView::Dismissed, None, None),
-        SignalState::Converted { task } => (
-            SignalStateView::Converted,
-            None,
-            task.as_ref().map(|task| task.as_str().to_owned()),
-        ),
+        SignalState::New => bare(SignalStateView::New),
+        SignalState::Snoozed { until } => StateParts {
+            snoozed_until: Some(until.to_string()),
+            ..bare(SignalStateView::Snoozed)
+        },
+        SignalState::Dismissed => bare(SignalStateView::Dismissed),
+        SignalState::Rejected => bare(SignalStateView::Rejected),
+        SignalState::Attached { story } => StateParts {
+            story: Some(story.clone()),
+            ..bare(SignalStateView::Attached)
+        },
+        SignalState::Converted { task } => StateParts {
+            task: task.as_ref().map(|task| task.as_str().to_owned()),
+            ..bare(SignalStateView::Converted)
+        },
     }
 }
 

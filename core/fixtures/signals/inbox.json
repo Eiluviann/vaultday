@@ -1,0 +1,62 @@
+{
+  "about": "Synthetic signals for the Inbox tests, Rust and Swift. Every name, address and text here is made up; no real mail. `expected` is what triage pre-fills under the mock vault's ticket_pattern (WEB|ACME)-\\d+.",
+  "signals": [
+    {
+      "account": "con-mail-synthetic",
+      "folder": "INBOX",
+      "provider_ref": "7:101",
+      "message_id": "<pricing-tiers@example.test>",
+      "thread_id": "<pricing-thread@example.test>",
+      "sender_name": "Lena Ortiz",
+      "sender_address": "lena@example.test",
+      "received_at": "2026-10-23T07:41:00Z",
+      "subject": "Re: WEB-142 checkout, two comments on the summary",
+      "excerpt": "The order summary reads better with the total first. Could you also move the coupon field?",
+      "link": "message:%3Cpricing-tiers@example.test%3E",
+      "raw_text": "The order summary reads better with the total first. Could you also move the coupon field? SYNTHETIC-BODY-MARKER the rest of a made-up body.",
+      "expected": {
+        "headline": "WEB-142 checkout, two comments on the summary",
+        "sender": "Lena Ortiz",
+        "ticket": "WEB-142"
+      }
+    },
+    {
+      "account": "con-mail-synthetic",
+      "folder": "INBOX",
+      "provider_ref": "7:102",
+      "message_id": "<invoice-export@example.test>",
+      "thread_id": "<invoice-export@example.test>",
+      "sender_name": null,
+      "sender_address": "billing-bot@example.test",
+      "received_at": "2026-10-23T06:05:00Z",
+      "subject": "FW: [ext] Export failed overnight",
+      "excerpt": "The nightly run for ACME-12 stopped at the second batch.",
+      "link": "message:%3Cinvoice-export@example.test%3E",
+      "raw_text": "The nightly run for ACME-12 stopped at the second batch. SYNTHETIC-BODY-MARKER",
+      "expected": {
+        "headline": "(ext) Export failed overnight",
+        "sender": "billing-bot@example.test",
+        "ticket": "ACME-12"
+      }
+    },
+    {
+      "account": "con-mail-synthetic",
+      "folder": "INBOX",
+      "provider_ref": "7:103",
+      "message_id": "<staging-move@example.test>",
+      "thread_id": "<staging-move@example.test>",
+      "sender_name": "Sam Patel",
+      "sender_address": "sam@example.test",
+      "received_at": "2026-10-22T16:20:00Z",
+      "subject": "Staging moved to the new server overnight",
+      "excerpt": "Addresses and logins are unchanged.",
+      "link": "message:%3Cstaging-move@example.test%3E",
+      "raw_text": "Addresses and logins are unchanged. SYNTHETIC-BODY-MARKER",
+      "expected": {
+        "headline": "Staging moved to the new server overnight",
+        "sender": "Sam Patel",
+        "ticket": null
+      }
+    }
+  ]
+}

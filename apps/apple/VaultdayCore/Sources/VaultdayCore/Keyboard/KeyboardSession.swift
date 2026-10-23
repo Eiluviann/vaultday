@@ -38,6 +38,8 @@ public final class KeyboardSession {
 
 	/// The task the selection is on, when it is one.
 	@ObservationIgnored public var selectedTaskId: () -> String? = { nil }
+	/// The signal the Inbox selection is on, when it is one.
+	@ObservationIgnored public var selectedSignalId: () -> String? = { nil }
 	/// The app's handler of every action the session does not run itself.
 	@ObservationIgnored public var onAction: (KeyAction) -> Void = { _ in }
 	/// Called after the session ran one of its own actions, so the app reads the plan again.
@@ -54,6 +56,12 @@ public final class KeyboardSession {
 	/// The item menu shows while `\` opened it or a pending stroke completes inside it.
 	public var showsItemMenu: Bool {
 		isItemMenuOpen || dispatcher.opensItemMenu
+	}
+
+	/// Whether the item menu shows on the selected item of `pane`: the Inbox
+	/// has its signal menu, every other pane the task menu.
+	public func showsItemMenu(in pane: Pane) -> Bool {
+		showsItemMenu && focus.focusedPane == pane
 	}
 
 	/// Feeds one stroke; an action it completes runs.
@@ -151,7 +159,8 @@ public final class KeyboardSession {
 		case .changeText, .changeEstimate, .changeDue, .changeScheduled:
 			openChange(action, taskId: taskId)
 		case .openItemMenu:
-			isItemMenuOpen = taskId != nil && !isItemMenuOpen
+			let selection = focus.focusedPane == .inbox ? selectedSignalId() : taskId
+			isItemMenuOpen = selection != nil && !isItemMenuOpen
 		default:
 			return false
 		}

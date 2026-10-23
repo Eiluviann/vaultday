@@ -455,6 +455,7 @@ pub fn format_task_line(
         estimate: None,
         due: None,
         reminder: None,
+        source: None,
     };
     Ok(task_line(&task)?)
 }
@@ -485,6 +486,7 @@ pub fn add_story_task(
         estimate: request.estimate.clone(),
         due: None,
         reminder: None,
+        source: None,
     };
     let writer = VaultWriter::new(file_access, workspace);
     let receipt = match &request.begin_marker {

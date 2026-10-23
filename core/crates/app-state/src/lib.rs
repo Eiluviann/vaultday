@@ -34,6 +34,7 @@ pub mod signals;
 pub mod signed;
 pub mod sync_files;
 pub mod sync_folder;
+pub mod triage;
 pub mod volatile;
 pub mod workspace_state;
 
@@ -68,5 +69,6 @@ pub use sync_folder::{
     WORKSPACE_ID_FILE, WorkspaceSync, claim_workspace_id, holds_app_state, read_workspace_id,
     sync_folder,
 };
+pub use triage::{SignalPrefill, UNTITLED_HEADLINE};
 pub use volatile::{GITIGNORE_SNIPPET, VolatileStateDir};
 pub use workspace_state::{MAX_RAW_TEXT_BYTES, PlannedTimeBox, RolloverEntry, WorkspaceState};
