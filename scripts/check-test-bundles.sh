@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 # Fails unless the newest `xcodebuild test` result under a DerivedData folder
-# ran tests from both bundles the Vaultday scheme holds: the app tests
-# (VaultdayTests) and the VaultdayCore package tests (VaultdayCoreTests).
+# ran tests from every bundle the run should hold: the app tests
+# (VaultdayTests), the VaultdayCore package tests (VaultdayCoreTests) and, on
+# CI (`CI` set), the window tests (VaultdayWindowTests), which local runs skip.
 #
 # A scheme that loses the package test target (a renamed target, a wrong
 # `package:` entry in project.yml) still passes `xcodebuild test` with the app
 # tests alone, and xcodegen does not complain either. CI runs the package
 # tests only through the scheme, so this keeps them from vanishing quietly.
 #
-# Usage: scripts/check-test-bundles.sh <derived-data-path>
+# Usage: scripts/check-test-bundles.sh <derived-data-path> [<bundle>...]
+# (the bundles default to those above)
 set -euo pipefail
 
-derived_data="${1:?usage: scripts/check-test-bundles.sh <derived-data-path>}"
-expected_bundles=(VaultdayTests VaultdayCoreTests)
+derived_data="${1:?usage: scripts/check-test-bundles.sh <derived-data-path> [<bundle>...]}"
+shift
+expected_bundles=("$@")
+if [[ ${#expected_bundles[@]} -eq 0 ]]; then
+	expected_bundles=(VaultdayTests VaultdayCoreTests)
+	if [[ -n "${CI:-}" ]]; then
+		expected_bundles+=(VaultdayWindowTests)
+	fi
+fi
 
 result_bundle="$(ls -td "$derived_data"/Logs/Test/*.xcresult 2>/dev/null | head -n 1 || true)"
 if [[ -z "$result_bundle" ]]; then
