@@ -246,16 +246,21 @@ final class ScreenShareTests: XCTestCase {
 		XCTAssertEqual(model.enforce(current: .workspace("ws-acme"), entries: entries), .none)
 	}
 
-	func testARelaunchWithTheModeOnAndNoWorkWorkspaceLeftTurnsTheModeOff() {
+	func testARelaunchWithTheModeOnAndNoWorkWorkspaceLeftKeepsTheModeOnWithANotice() {
 		let (model, persisted) = model()
 		model.restore(isOn: true, returnTo: "workspace:ws-home")
 		XCTAssertEqual(model.enforce(current: .workspace("ws-home"), entries: [home]), .none)
-		XCTAssertFalse(model.isOn, "the mode does not sit on a workspace it hides")
-		XCTAssertNil(model.returnTo)
+		// The person may be sharing their screen: the mode never turns itself
+		// off, so tracked time, notifications and the mini tracker stay hidden.
+		XCTAssertTrue(model.isOn, "the mode fails closed")
+		XCTAssertTrue(ScreenShareSurface.allCases.allSatisfy(model.hides))
+		XCTAssertFalse(model.postsSignalNotifications)
+		XCTAssertEqual(model.returnTo, .workspace("ws-home"), "the way back is kept")
 		XCTAssertEqual(model.notice, ScreenShareModel.noWorkWorkspaceNotice)
+		XCTAssertTrue(persisted.writes.isEmpty, "nothing changed to write")
+		XCTAssertEqual(model.setOn(false, current: .workspace("ws-home"), entries: [home]), .select(.workspace("ws-home")), "turning it off is the person's call")
+		XCTAssertFalse(model.isOn)
 		XCTAssertEqual(persisted.writes, [Write(isOn: false, returnTo: nil)])
-		XCTAssertEqual(model.enforce(current: .workspace("ws-home"), entries: [home]), .none, "off, nothing more to do")
-		XCTAssertEqual(persisted.writes.count, 1)
 
 		let (opened, untouched) = self.model(isOn: true)
 		XCTAssertEqual(opened.enforce(current: nil, entries: [home]), .none, "no workspace open yet")

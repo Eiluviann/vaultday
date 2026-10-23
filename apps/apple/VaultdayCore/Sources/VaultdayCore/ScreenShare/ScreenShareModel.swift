@@ -107,7 +107,7 @@ public final class ScreenShareModel {
 	public static let hiddenWorkspaceNotice = "That workspace is hidden while screen-share mode is on"
 	public static let startReason = "Screen-share mode starts from a work workspace"
 	public static let closeOutNotice = "The close-out shows tracked time: turn off screen-share mode to open it"
-	public static let noWorkWorkspaceNotice = "Screen-share mode is off: no work workspace is left to show"
+	public static let noWorkWorkspaceNotice = "No work workspace is left to show: screen-share mode stays on until you turn it off"
 
 	public private(set) var isOn = false
 	/// Why the last switch or selection was refused; shown until dismissed.
@@ -242,12 +242,13 @@ public final class ScreenShareModel {
 
 	/// At launch with the mode restored: a hidden selection (the app opened on
 	/// a life workspace) moves to the last work workspace. With no work
-	/// workspace left to move to, the mode turns off with
-	/// ``noWorkWorkspaceNotice`` rather than stay on over a workspace it hides.
+	/// workspace left to move to, nothing moves and the mode stays on with
+	/// ``noWorkWorkspaceNotice``: the person may be sharing their screen, so
+	/// the mode never turns itself off and reveals tracked time.
 	public func enforce(current: WorkspaceSelection?, entries: [WorkspaceEntry]) -> ScreenShareChange {
 		guard isOn, let current, isHidden(current, in: entries) else { return .none }
 		guard let target = workWorkspaceToShow(in: entries) else {
-			turnOffWithNothingToShow()
+			notice = Self.noWorkWorkspaceNotice
 			return .none
 		}
 		// An earlier move away from the same hidden selection keeps its way back.
@@ -257,13 +258,6 @@ public final class ScreenShareModel {
 	}
 
 	// MARK: Helpers
-
-	private func turnOffWithNothingToShow() {
-		isOn = false
-		returnTo = nil
-		notice = Self.noWorkWorkspaceNotice
-		persist(false, nil)
-	}
 
 	private func isHidden(_ selection: WorkspaceSelection, in entries: [WorkspaceEntry]) -> Bool {
 		switch selection {
