@@ -64,12 +64,22 @@ Group container:
 ~/Library/Group Containers/group.com.eiluviann.vaultday/API/port    # e.g. 47390
 ```
 
+A free Personal Team build writes them to its team-prefixed App Group,
+`~/Library/Group Containers/<team id>.com.eiluviann.vaultday/API/`, and a
+build signed without an App Group (ad hoc, or the Personal Team fallback; see
+[docs/signing.md](../docs/signing.md)) to
+`~/Library/Application Support/Vaultday/API/`. The CLI tries the shipped App
+Group folder first, then any team-prefixed one, then Application Support, and
+uses the first that holds both files and whose server proves it holds that
+token. A port a crashed build left behind is skipped because nothing answers
+on it.
+
 The token is random, made by the app on its first run and kept in the
 Keychain (this Mac only, never synchronised, never in `settings.json` or the
 vault); the file is rewritten from the Keychain at every launch. The port file
 is removed when the app quits. `VAULTDAY_API_DIR=<folder>` points the CLI at
-another folder holding `token` and `port` (an unsigned debug build runs on a
-temporary container; the tests use a fake app).
+another folder holding `token` and `port`, and only there (the tests use a
+fake app).
 
 macOS may ask once whether your terminal may read another app's data the
 first time the CLI reads the App Group container.

@@ -2,17 +2,22 @@ import Foundation
 
 /// Where the app keeps what is not in the vault, inside the App Group
 /// container (`~/Library/Group Containers/<group>/`), which the CLI can read
-/// too. Nothing here ever goes into a workspace folder.
+/// too, or, for a build without the App Group, under
+/// `~/Library/Application Support/Vaultday` (``local(root:folderName:)``).
+/// Nothing here ever goes into a workspace folder.
 public struct AppGroupLayout: Sendable, Equatable {
 	public let container: URL
+	/// Where the localhost API's token and port files go; `container/API` unless set.
+	public let apiFolder: URL
 
-	public init(container: URL) {
+	public init(container: URL, apiFolder: URL? = nil) {
 		self.container = container
+		self.apiFolder = apiFolder ?? container.appending(path: "API", directoryHint: .isDirectory)
 	}
 
 	/// The App Group container for `identifier`, `nil` when the app is not entitled to it.
 	public static func appGroup(_ identifier: String) -> AppGroupLayout? {
-		FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier).map(AppGroupLayout.init)
+		FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier).map { AppGroupLayout(container: $0) }
 	}
 
 	/// This device's signed, encrypted app-level snapshots.
@@ -31,9 +36,9 @@ public struct AppGroupLayout: Sendable, Equatable {
 	}
 
 	/// The localhost API's bearer token, mode 0600; `vaultday timer` and `vaultday status` read it here.
-	public var apiTokenFile: URL { container.appending(path: "API/token") }
+	public var apiTokenFile: URL { apiFolder.appending(path: "token") }
 	/// The port the localhost API listens on, written at each start and removed at the stop.
-	public var apiPortFile: URL { container.appending(path: "API/port") }
+	public var apiPortFile: URL { apiFolder.appending(path: "port") }
 
 	/// Creates the folders the app writes into.
 	public func createFolders() throws {

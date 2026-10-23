@@ -17,7 +17,10 @@ import Foundation
 ///   Mac (a reset enclave) is deleted and reads as missing, so the core mints
 ///   a new device identity rather than failing at every launch.
 ///
-/// Which kinds synchronise is the core's decision (`secretKindIsSynchronisable`).
+/// Which kinds synchronise is the core's decision (`secretKindIsSynchronisable`);
+/// a store made with `isSynchronising: false` (a build without the App
+/// Group, see `docs/signing.md`) keeps the same layout with every item
+/// device-only, so keys never leave this Mac.
 /// Nothing here logs; errors carry `OSStatus` values, never key material.
 public final class KeychainSecretStore: SecretStorePort {
 	/// The service prefix of every item.
@@ -27,28 +30,40 @@ public final class KeychainSecretStore: SecretStorePort {
 	private let accessGroup: String
 	private let servicePrefix: String
 	private let wrapper: (any KeyWrapping)?
+	/// Whether the items of synchronisable kinds go to iCloud Keychain.
+	public let isSynchronising: Bool
 
 	/// - Parameters:
 	///   - backend: `SecItemKeychainBackend` in the app, an in-memory one in tests.
 	///   - accessGroup: the Keychain access group, from the app's Info.plist.
 	///   - wrapper: the Secure Enclave wrapper; `nil` on a Mac without an
 	///     enclave, where device-only items hold the raw bytes.
+	///   - isSynchronising: `false` stores the items of synchronisable kinds
+	///     device-only, for a keychain that cannot synchronise them.
 	public init(
 		backend: any KeychainBackend,
 		accessGroup: String,
 		servicePrefix: String = KeychainSecretStore.defaultServicePrefix,
 		wrapper: (any KeyWrapping)?,
+		isSynchronising: Bool = true,
 	) {
 		self.backend = backend
 		self.accessGroup = accessGroup
 		self.servicePrefix = servicePrefix
 		self.wrapper = wrapper
+		self.isSynchronising = isSynchronising
 	}
 
-	/// The app's store: the data protection keychain, wrapped by the Secure
-	/// Enclave when this Mac has one.
-	public static func forThisMac(accessGroup: String) throws -> KeychainSecretStore {
-		let backend = SecItemKeychainBackend()
+	/// The app's store: the data protection keychain (or, signed without a
+	/// profile, the file-based one), wrapped by the Secure Enclave when this
+	/// Mac has one.
+	public static func forThisMac(
+		accessGroup: String,
+		implementation: KeychainImplementation = .dataProtection,
+		isSynchronising: Bool = true,
+	) throws -> KeychainSecretStore {
+		precondition(implementation == .dataProtection || !isSynchronising, "the file-based keychain cannot synchronise")
+		let backend = SecItemKeychainBackend(implementation: implementation)
 		let wrapper: (any KeyWrapping)? = try SecureEnclave.isAvailable
 			? ECIESKeyWrapper.secureEnclave(
 				backend: backend,
@@ -60,7 +75,7 @@ public final class KeychainSecretStore: SecretStorePort {
 				),
 			)
 			: nil
-		return KeychainSecretStore(backend: backend, accessGroup: accessGroup, wrapper: wrapper)
+		return KeychainSecretStore(backend: backend, accessGroup: accessGroup, wrapper: wrapper, isSynchronising: isSynchronising)
 	}
 
 	/// Whether at-rest copies are sealed by the Secure Enclave.
@@ -85,9 +100,9 @@ public final class KeychainSecretStore: SecretStorePort {
 		try mapFailure {
 			switch layout(of: item.id.kind) {
 			case .synchronised:
-				try backend.upsert(item.value, at: syncedAddress(item.id), accessibility: .afterFirstUnlock)
+				try backend.upsert(item.value, at: syncedAddress(item.id), accessibility: syncedAccessibility)
 			case .synchronisedWithWrappedCopy:
-				try backend.upsert(item.value, at: syncedAddress(item.id), accessibility: .afterFirstUnlock)
+				try backend.upsert(item.value, at: syncedAddress(item.id), accessibility: syncedAccessibility)
 				try storeWrappedCopy(item)
 			case .deviceOnly:
 				let address = localAddress(item.id)
@@ -100,9 +115,9 @@ public final class KeychainSecretStore: SecretStorePort {
 		try mapFailure {
 			switch layout(of: item.id.kind) {
 			case .synchronised:
-				return try backend.add(item.value, at: syncedAddress(item.id), accessibility: .afterFirstUnlock)
+				return try backend.add(item.value, at: syncedAddress(item.id), accessibility: syncedAccessibility)
 			case .synchronisedWithWrappedCopy:
-				guard try backend.add(item.value, at: syncedAddress(item.id), accessibility: .afterFirstUnlock) else {
+				guard try backend.add(item.value, at: syncedAddress(item.id), accessibility: syncedAccessibility) else {
 					return false
 				}
 				try storeWrappedCopy(item)
@@ -130,11 +145,14 @@ public final class KeychainSecretStore: SecretStorePort {
 
 	public func list(kind: SecretKind) throws -> [SecretId] {
 		try mapFailure {
-			let isSynchronizable = layout(of: kind) != .deviceOnly
-			let ids = try backend.accounts(service: service(of: kind), accessGroup: accessGroup, isSynchronizable: isSynchronizable)
+			let isDeviceOnlyKind = layout(of: kind) == .deviceOnly
+			let ids = try backend.accounts(service: service(of: kind), accessGroup: accessGroup, isSynchronizable: isSynchronising && !isDeviceOnlyKind)
 				.sorted()
 				.map { SecretId(kind: kind, name: $0) }
-			guard !isSynchronizable else { return ids }
+			// Decided by the kind, not by `isSynchronising`: a non-synchronising
+			// store keeps a data key's raw item device-only too, and that one
+			// is not sealed.
+			guard isDeviceOnlyKind else { return ids }
 			// Device-only items that no longer open are dropped, not listed.
 			return try ids.filter { try readDeviceOnly($0) != nil }
 		}
@@ -158,8 +176,14 @@ public final class KeychainSecretStore: SecretStorePort {
 		"\(servicePrefix).\(secretKindLabel(kind: kind))"
 	}
 
+	/// A synchronisable kind's item: readable after the first unlock, and
+	/// bound to this Mac when the store does not synchronise.
+	private var syncedAccessibility: KeychainAccessibility {
+		isSynchronising ? .afterFirstUnlock : .afterFirstUnlockThisDeviceOnly
+	}
+
 	private func syncedAddress(_ id: SecretId) -> KeychainItemAddress {
-		KeychainItemAddress(service: service(of: id.kind), account: id.name, accessGroup: accessGroup, isSynchronizable: true)
+		KeychainItemAddress(service: service(of: id.kind), account: id.name, accessGroup: accessGroup, isSynchronizable: isSynchronising)
 	}
 
 	private func wrappedCopyAddress(_ id: SecretId) -> KeychainItemAddress {

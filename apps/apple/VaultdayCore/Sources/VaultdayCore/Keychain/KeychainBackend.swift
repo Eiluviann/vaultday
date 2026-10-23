@@ -41,7 +41,7 @@ public struct KeychainError: Error, Sendable, CustomStringConvertible {
 }
 
 /// The generic-password operations the secret store needs. The real
-/// backend calls `SecItem*` on the data protection keychain; tests and CI
+/// backend calls `SecItem*` (``SecItemKeychainBackend``); tests and CI
 /// (where an unsigned test bundle has no Keychain entitlement) use
 /// ``InMemoryKeychainBackend``.
 public protocol KeychainBackend: Sendable {
@@ -72,12 +72,26 @@ extension KeychainBackend {
 	}
 }
 
-/// ``KeychainBackend`` over `SecItem*` on the data protection keychain.
+/// Which of the Mac's two keychain implementations the `SecItem` calls reach
+/// (TN3137). The data protection keychain needs an App ID, so a provisioning
+/// profile; the file-based login keychain works for ad-hoc signed and
+/// unsigned builds, has no access groups and never synchronises.
+public enum KeychainImplementation: Sendable, Equatable {
+	case dataProtection
+	case fileBased
+}
+
+/// ``KeychainBackend`` over `SecItem*`, on the data protection keychain or,
+/// for a build signed without a provisioning profile, the file-based one.
 public struct SecItemKeychainBackend: KeychainBackend {
-	public init() {}
+	public let implementation: KeychainImplementation
+
+	public init(implementation: KeychainImplementation = .dataProtection) {
+		self.implementation = implementation
+	}
 
 	public func data(at address: KeychainItemAddress) throws -> Data? {
-		var query = Self.query(for: address)
+		var query = Self.query(for: address, in: implementation)
 		query[kSecReturnData as String] = true
 		query[kSecMatchLimit as String] = kSecMatchLimitOne
 		var result: CFTypeRef?
@@ -93,7 +107,7 @@ public struct SecItemKeychainBackend: KeychainBackend {
 	}
 
 	public func exists(_ address: KeychainItemAddress) throws -> Bool {
-		var query = Self.query(for: address)
+		var query = Self.query(for: address, in: implementation)
 		query[kSecReturnAttributes as String] = true
 		query[kSecMatchLimit as String] = kSecMatchLimitOne
 		let status = SecItemCopyMatching(query as CFDictionary, nil)
@@ -108,7 +122,7 @@ public struct SecItemKeychainBackend: KeychainBackend {
 	}
 
 	public func modificationDate(at address: KeychainItemAddress) throws -> Date? {
-		var query = Self.query(for: address)
+		var query = Self.query(for: address, in: implementation)
 		query[kSecReturnAttributes as String] = true
 		query[kSecMatchLimit as String] = kSecMatchLimitOne
 		var result: CFTypeRef?
@@ -125,9 +139,12 @@ public struct SecItemKeychainBackend: KeychainBackend {
 	}
 
 	public func add(_ data: Data, at address: KeychainItemAddress, accessibility: KeychainAccessibility) throws -> Bool {
-		var query = Self.query(for: address)
+		var query = Self.query(for: address, in: implementation)
 		query[kSecValueData as String] = data
-		query[kSecAttrAccessible as String] = Self.accessibleValue(accessibility)
+		// The file-based keychain has no data protection classes.
+		if implementation == .dataProtection {
+			query[kSecAttrAccessible as String] = Self.accessibleValue(accessibility)
+		}
 		let status = SecItemAdd(query as CFDictionary, nil)
 		switch status {
 		case errSecSuccess:
@@ -141,7 +158,7 @@ public struct SecItemKeychainBackend: KeychainBackend {
 
 	public func update(_ data: Data, at address: KeychainItemAddress) throws -> Bool {
 		let attributes = [kSecValueData as String: data]
-		let status = SecItemUpdate(Self.query(for: address) as CFDictionary, attributes as CFDictionary)
+		let status = SecItemUpdate(Self.query(for: address, in: implementation) as CFDictionary, attributes as CFDictionary)
 		switch status {
 		case errSecSuccess:
 			return true
@@ -153,14 +170,14 @@ public struct SecItemKeychainBackend: KeychainBackend {
 	}
 
 	public func delete(_ address: KeychainItemAddress) throws {
-		let status = SecItemDelete(Self.query(for: address) as CFDictionary)
+		let status = SecItemDelete(Self.query(for: address, in: implementation) as CFDictionary)
 		guard status == errSecSuccess || status == errSecItemNotFound else {
 			throw KeychainError(operation: "SecItemDelete", status: status)
 		}
 	}
 
 	public func accounts(service: String, accessGroup: String, isSynchronizable: Bool) throws -> [String] {
-		var query = Self.serviceQuery(service: service, accessGroup: accessGroup, isSynchronizable: isSynchronizable)
+		var query = Self.serviceQuery(service: service, accessGroup: accessGroup, isSynchronizable: isSynchronizable, in: implementation)
 		query[kSecReturnAttributes as String] = true
 		query[kSecMatchLimit as String] = kSecMatchLimitAll
 		var result: CFTypeRef?
@@ -176,31 +193,65 @@ public struct SecItemKeychainBackend: KeychainBackend {
 		}
 	}
 
-	/// Whether this process may use `accessGroup` on the data protection
-	/// keychain: `false` for a build signed without a development team.
+	/// Whether this process may write into `accessGroup` on the data
+	/// protection keychain: `false` for a build without a provisioning
+	/// profile that grants it. A write, not a read: an unentitled read answers
+	/// `errSecItemNotFound` as if it were allowed. Any other failure answers
+	/// `true` and surfaces, with its status, at the first real write.
 	public static func isEntitled(accessGroup: String) -> Bool {
 		let probe = KeychainItemAddress(service: "com.eiluviann.vaultday.entitlement-probe", account: "probe", accessGroup: accessGroup, isSynchronizable: false)
-		var query = query(for: probe)
+		var item = query(for: probe)
+		item[kSecValueData as String] = Data()
+		item[kSecAttrAccessible as String] = accessibleValue(.afterFirstUnlockThisDeviceOnly)
+		let status = SecItemAdd(item as CFDictionary, nil)
+		if status == errSecSuccess {
+			SecItemDelete(query(for: probe) as CFDictionary)
+		}
+		return status != errSecMissingEntitlement
+	}
+
+	/// What a lookup on the file-based login keychain answers this process.
+	public static func fileBasedKeychainStatus() -> OSStatus {
+		let probe = KeychainItemAddress(service: "com.eiluviann.vaultday.entitlement-probe", account: "probe", accessGroup: "", isSynchronizable: false)
+		var query = query(for: probe, in: .fileBased)
 		query[kSecMatchLimit as String] = kSecMatchLimitOne
-		return SecItemCopyMatching(query as CFDictionary, nil) != errSecMissingEntitlement
+		return SecItemCopyMatching(query as CFDictionary, nil)
+	}
+
+	/// Whether `status` says there is no keychain at all (a CI runner without
+	/// a login keychain), as opposed to one that is locked or refused, which
+	/// may answer differently at the next launch.
+	public static func meansNoKeychain(_ status: OSStatus) -> Bool {
+		status == errSecNoSuchKeychain || status == errSecNotAvailable
 	}
 
 	/// The query naming exactly one item: class, service, account, access
 	/// group, synchronizable and the data protection keychain, all explicit.
-	static func query(for address: KeychainItemAddress) -> [String: Any] {
-		var query = serviceQuery(service: address.service, accessGroup: address.accessGroup, isSynchronizable: address.isSynchronizable)
+	/// On the file-based keychain only class, service and account exist.
+	static func query(for address: KeychainItemAddress, in implementation: KeychainImplementation = .dataProtection) -> [String: Any] {
+		var query = serviceQuery(service: address.service, accessGroup: address.accessGroup, isSynchronizable: address.isSynchronizable, in: implementation)
 		query[kSecAttrAccount as String] = address.account
 		return query
 	}
 
-	static func serviceQuery(service: String, accessGroup: String, isSynchronizable: Bool) -> [String: Any] {
-		[
-			kSecClass as String: kSecClassGenericPassword,
-			kSecAttrService as String: service,
-			kSecAttrAccessGroup as String: accessGroup,
-			kSecAttrSynchronizable as String: isSynchronizable ? kCFBooleanTrue as Any : kCFBooleanFalse as Any,
-			kSecUseDataProtectionKeychain as String: true,
-		]
+	static func serviceQuery(service: String, accessGroup: String, isSynchronizable: Bool, in implementation: KeychainImplementation = .dataProtection) -> [String: Any] {
+		switch implementation {
+		case .dataProtection:
+			return [
+				kSecClass as String: kSecClassGenericPassword,
+				kSecAttrService as String: service,
+				kSecAttrAccessGroup as String: accessGroup,
+				kSecAttrSynchronizable as String: isSynchronizable ? kCFBooleanTrue as Any : kCFBooleanFalse as Any,
+				kSecUseDataProtectionKeychain as String: true,
+			]
+		case .fileBased:
+			precondition(!isSynchronizable, "the file-based keychain never synchronises; the store must ask for device-only items")
+			return [
+				kSecClass as String: kSecClassGenericPassword,
+				kSecAttrService as String: service,
+				kSecUseDataProtectionKeychain as String: false,
+			]
+		}
 	}
 
 	static func accessibleValue(_ accessibility: KeychainAccessibility) -> CFString {

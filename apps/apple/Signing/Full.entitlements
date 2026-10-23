@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+The full set: a paid team with the shipped identifiers, or a free Personal
+Team with its own (Signing.personal-team.xcconfig). PersonalTeam.entitlements and AdHoc.entitlements beside this file
+are subsets of it (VaultdayTests/EntitlementVariantsTests checks it); the
+VAULTDAY_ENTITLEMENTS build setting (Signing.xcconfig) picks one. See docs/signing.md.
+-->
+<plist version="1.0">
+<dict>
+	<!-- The app runs sandboxed. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Folders picked in the open panel, kept as security-scoped bookmarks. -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- Mail accounts. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- The localhost API the CLI talks to. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- EventKit with full access: read events, keep the private calendar. -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+	<!-- Reminders with full access: the intake reads and deletes items. -->
+	<key>com.apple.security.personal-information.reminders</key>
+	<true/>
+	<!--
+	The App Group container (app state, volatile state, the API token). The
+	shipped `group.` App Group is also the Keychain access group on the data
+	protection keychain; a Personal Team's team-prefixed group is not, and its
+	items live in the keychain-access-groups entry (Signing.personal-team.xcconfig).
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(VAULTDAY_APP_GROUP)</string>
+	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	</array>
+</dict>
+</plist>

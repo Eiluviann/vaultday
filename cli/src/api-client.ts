@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { readdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -14,11 +15,21 @@ export type ApiConnection = {
 
 export type ApiMethod = 'GET' | 'POST';
 
+/**
+ * Asks the server behind `connection` to prove it holds the token, before
+ * the token is ever sent to it.
+ */
+export type ServerProver = (
+	connection: ApiConnection,
+) => Promise<Result<undefined, Failure>>;
+
 export const APP_GROUP_IDENTIFIER = 'group.com.eiluviann.vaultday';
 export const NOT_RUNNING_MESSAGE = 'Vaultday is not running';
 export const REFUSED_TOKEN_MESSAGE = 'Vaultday refused the token';
 
 const API_DIRECTORY_ENVIRONMENT_KEY = 'VAULTDAY_API_DIR';
+/** A Personal Team build's App Group: `<team id>.com.eiluviann.vaultday`. */
+const TEAM_APP_GROUP_PATTERN = /^[A-Z0-9]{10}\.com\.eiluviann\.vaultday$/;
 const TOKEN_FILE_NAME = 'token';
 const PORT_FILE_NAME = 'port';
 const REQUEST_TIMEOUT_MILLISECONDS = 5000;
@@ -41,38 +52,60 @@ const CONNECTION_REFUSED_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The folder the app writes its API files into:
- * `~/Library/Group Containers/group.com.eiluviann.vaultday/API`, or
- * `VAULTDAY_API_DIR` when set (an unsigned debug build, the tests).
+ * The folders the app may write its API files into, most trusted first:
+ * `VAULTDAY_API_DIR` alone when set (the tests); otherwise the shipped App
+ * Group's `API` folder, a Personal Team build's
+ * (`<team id>.com.eiluviann.vaultday`), then
+ * `~/Library/Application Support/Vaultday/API`, where a build signed without
+ * an App Group writes them (see `docs/signing.md`).
  */
-export function apiDirectoryFor(environment: Environment): string {
+export function apiDirectoryCandidatesFor(
+	environment: Environment,
+	homeDirectory: string = homedir(),
+	groupContainerNames: readonly string[] = groupContainerNamesIn(homeDirectory),
+): readonly string[] {
 	const override = environment[API_DIRECTORY_ENVIRONMENT_KEY]?.trim();
-	if (override) return override;
-	return path.join(
-		homedir(),
-		'Library',
-		'Group Containers',
-		APP_GROUP_IDENTIFIER,
-		'API',
-	);
+	if (override) return [override];
+	const library = path.join(homeDirectory, 'Library');
+	const teamAppGroups = groupContainerNames
+		.filter((name) => TEAM_APP_GROUP_PATTERN.test(name))
+		.toSorted();
+	return [APP_GROUP_IDENTIFIER, ...teamAppGroups]
+		.map((group) => path.join(library, 'Group Containers', group, 'API'))
+		.concat(path.join(library, 'Application Support', 'Vaultday', 'API'));
 }
 
 /**
- * Reads the token and the port the app wrote at its start. Missing files mean
- * the app has not run on this Mac, which reads as not running.
+ * Finds the running app: the first folder, in the order of
+ * {@link apiDirectoryCandidatesFor}, that holds a token and a port and whose
+ * server proves it holds that token. Trust order, not file age, decides, so
+ * port files planted in the unprotected Application Support folder never
+ * outrank a running App Group build; a port a crashed build left behind is
+ * skipped because nothing answers on it.
+ *
+ * @returns the connection, or `app-not-running` when no folder holds both
+ *   files or none answers, or the first other failure a listening server
+ *   gave (a failed proof reads as `refused-token`).
  */
 export async function readApiConnection(
 	environment: Environment,
+	homeDirectory: string = homedir(),
+	proveServer: ServerProver = verifyServerHoldsToken,
 ): Promise<Result<ApiConnection, Failure>> {
-	const directory = apiDirectoryFor(environment);
-	const token = await readTrimmedFile(path.join(directory, TOKEN_FILE_NAME));
-	const portText = await readTrimmedFile(path.join(directory, PORT_FILE_NAME));
-	const port = Number(portText);
-	const isUsablePort = Number.isInteger(port) && port > 0 && port < 65_536;
-	if (token === undefined || token === '' || !isUsablePort) {
-		return err(notRunning());
+	const candidates = apiDirectoryCandidatesFor(environment, homeDirectory);
+	const found = await Promise.all(candidates.map(readConnectionIn));
+	const connections = found.filter((connection) => connection !== undefined);
+	const failures: Failure[] = [];
+	for (const connection of connections) {
+		// Sequential on purpose: the most trusted folder that answers wins.
+		const proof = await proveServer(connection);
+		if (proof.ok) return ok(connection);
+		failures.push(proof.error);
 	}
-	return ok({ baseUrl: `http://127.0.0.1:${port}`, token });
+	return err(
+		failures.find((failure) => failure.kind !== 'app-not-running') ??
+			notRunning(),
+	);
 }
 
 /**
@@ -218,4 +251,23 @@ function refusedToken(): Failure {
 
 function notRunning(): Failure {
 	return { kind: 'app-not-running', message: NOT_RUNNING_MESSAGE };
+}
+
+async function readConnectionIn(
+	directory: string,
+): Promise<ApiConnection | undefined> {
+	const token = await readTrimmedFile(path.join(directory, TOKEN_FILE_NAME));
+	const portText = await readTrimmedFile(path.join(directory, PORT_FILE_NAME));
+	const port = Number(portText);
+	const isUsablePort = Number.isInteger(port) && port > 0 && port < 65_536;
+	if (token === undefined || token === '' || !isUsablePort) return undefined;
+	return { baseUrl: `http://127.0.0.1:${port}`, token };
+}
+
+function groupContainerNamesIn(homeDirectory: string): readonly string[] {
+	try {
+		return readdirSync(path.join(homeDirectory, 'Library', 'Group Containers'));
+	} catch {
+		return [];
+	}
 }

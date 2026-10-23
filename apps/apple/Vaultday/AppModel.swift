@@ -144,8 +144,8 @@ final class AppModel {
 	private(set) var pickableCalendars: [CalendarInfo] = []
 	/// The last `vaultday://` link received; links do nothing yet.
 	private(set) var lastLink: VaultdayLink?
-	/// Set when an unsigned Debug build runs on an in-memory Keychain.
-	private(set) var unsignedNotice: String?
+	/// Set when the build runs without the App Group or a provisioning profile (docs/signing.md).
+	private(set) var signingNotice: String?
 	/// A problem with Keymap.yaml, shown instead of silently dropping keys.
 	let keymapError: String?
 
@@ -191,7 +191,10 @@ final class AppModel {
 			#else
 				let environment = try CoreEnvironment.forThisMac()
 			#endif
-			unsignedNotice = environment.unsignedFallbackNotice
+			signingNotice = environment.signingNotice
+			Logger(subsystem: "com.eiluviann.vaultday", category: "signing").notice(
+				"signing mode \(String(describing: environment.signingMode), privacy: .public), state in \(environment.layout.container.path, privacy: .public)",
+			)
 			self.environment = environment
 			let session = try CoreSession.open(environment)
 			coreSession = session

@@ -164,6 +164,36 @@ final class KeychainSecretStoreTests: XCTestCase {
 		XCTAssertEqual(SecItemKeychainBackend.accessibleValue(.afterFirstUnlockThisDeviceOnly), kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
 	}
 
+	func testANonSynchronisingStoreKeepsEveryItemOnThisMac() throws {
+		let backend = InMemoryKeychainBackend()
+		let keychain = KeychainSecretStore(backend: backend, accessGroup: group, wrapper: ECIESKeyWrapper.software(), isSynchronising: false)
+		XCTAssertTrue(try keychain.add(item: dataKey("mock-studio")))
+		_ = try loadDeviceId(secrets: keychain)
+		try keychain.put(item: SecretItem(id: SecretId(kind: .devicePublicKey, name: "this-mac"), isSynchronisable: true, value: Data(repeating: 3, count: 32)))
+
+		XCTAssertFalse(backend.storedItems.isEmpty)
+		XCTAssertFalse(backend.storedItems.keys.contains(where: \.isSynchronizable), "nothing reaches iCloud Keychain")
+		XCTAssertTrue(backend.storedItems.values.allSatisfy { $0.accessibility == .afterFirstUnlockThisDeviceOnly }, "every item is bound to this Mac")
+		XCTAssertNil(try backend.forAnotherDevice().data(at: KeychainItemAddress(service: "com.eiluviann.vaultday.workspace-data-key", account: "mock-studio", accessGroup: group, isSynchronizable: true)))
+		XCTAssertEqual(try keychain.get(id: SecretId(kind: .workspaceDataKey, name: "mock-studio"))?.value, Data(repeating: 7, count: 32))
+		XCTAssertEqual(try keychain.list(kind: .workspaceDataKey).map(\.name), ["mock-studio"])
+		XCTAssertEqual(try keychain.list(kind: .devicePublicKey).map(\.name), ["this-mac"])
+
+		try keychain.delete(id: SecretId(kind: .workspaceDataKey, name: "mock-studio"))
+		XCTAssertNil(try keychain.get(id: SecretId(kind: .workspaceDataKey, name: "mock-studio")))
+		XCTAssertFalse(backend.storedItems.keys.contains { $0.account == "mock-studio" }, "the wrapped copy goes with it")
+	}
+
+	func testFileBasedQueriesNameOnlyClassServiceAndAccount() {
+		let query = SecItemKeychainBackend.query(for: KeychainItemAddress(service: "s", account: "a", accessGroup: "login-keychain", isSynchronizable: false), in: .fileBased)
+		XCTAssertEqual(query[kSecClass as String] as? String, kSecClassGenericPassword as String)
+		XCTAssertEqual(query[kSecAttrService as String] as? String, "s")
+		XCTAssertEqual(query[kSecAttrAccount as String] as? String, "a")
+		XCTAssertEqual(query[kSecUseDataProtectionKeychain as String] as? Bool, false)
+		XCTAssertNil(query[kSecAttrAccessGroup as String], "the file-based keychain has no access groups")
+		XCTAssertNil(query[kSecAttrSynchronizable as String])
+	}
+
 	func testTheInMemoryBackendRefusesASynchronisableDeviceOnlyItemLikeSecItemAdd() {
 		let address = KeychainItemAddress(service: "s", account: "a", accessGroup: group, isSynchronizable: true)
 		XCTAssertThrowsError(try InMemoryKeychainBackend().add(Data(), at: address, accessibility: .afterFirstUnlockThisDeviceOnly))

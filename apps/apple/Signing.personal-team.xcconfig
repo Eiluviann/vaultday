@@ -1,0 +1,19 @@
+// A build signed by a free Personal Team (an Apple ID in Xcode, no paid
+// membership). Signing.local.xcconfig includes this file after its
+// DEVELOPMENT_TEAM line; see docs/signing.md.
+//
+// Bundle ids and `group.` App Groups are unique across all teams, and Xcode
+// registers what it signs: these names stay apart from the shipped app's, so
+// the personal team never takes one the paid team will need.
+CODE_SIGN_IDENTITY = Apple Development
+VAULTDAY_ENTITLEMENTS = Signing/Full.entitlements
+VAULTDAY_BUNDLE_IDENTIFIER = com.eiluviann.vaultday.personal
+
+// A macOS-style App Group, prefixed by the team id: never registered, and
+// macOS 15 opens its container without a prompt.
+VAULTDAY_APP_GROUP = $(DEVELOPMENT_TEAM).com.eiluviann.vaultday
+REGISTER_APP_GROUPS = NO
+
+// A macOS-style group is no Keychain access group, so the items live in the
+// keychain-access-groups entry, which the team profile grants (`<team id>.*`).
+VAULTDAY_KEYCHAIN_ACCESS_GROUP = $(DEVELOPMENT_TEAM).$(VAULTDAY_BUNDLE_IDENTIFIER)

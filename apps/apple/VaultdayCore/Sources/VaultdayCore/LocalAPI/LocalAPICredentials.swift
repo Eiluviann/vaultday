@@ -3,9 +3,10 @@ import Security
 
 /// The localhost API's bearer token: random, made by the app on its first
 /// run, kept in the Keychain through the `SecretStore` port (this device
-/// only), and written mode 0600 into the App Group container where the CLI
-/// reads it: `~/Library/Group Containers/group.com.eiluviann.vaultday/API/token`,
-/// beside `API/port` with the port the server listens on.
+/// only), and written mode 0600 where the CLI reads it, the layout's
+/// ``AppGroupLayout/apiFolder``: `~/Library/Group Containers/group.com.eiluviann.vaultday/API/token`,
+/// or `~/Library/Application Support/Vaultday/API/token` for a build without
+/// the App Group, beside `port` with the port the server listens on.
 public enum LocalAPICredentials {
 	/// The Keychain item's name within ``SecretKind/localApiToken``.
 	public static let secretName = "local-api"

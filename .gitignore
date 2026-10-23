@@ -11,7 +11,6 @@ apps/apple/VaultdayCore/.build/
 apps/apple/*.xcodeproj
 apps/apple/build/
 apps/apple/Vaultday/Info.plist
-apps/apple/Vaultday/Vaultday.entitlements
 dist-node/
 
 # Local signing team for the Mac app (see apps/apple/Signing.xcconfig).

@@ -327,13 +327,13 @@ private struct BrowseRow: View {
 
 // MARK: Foot
 
-/// Development notices: an unsigned build, a keymap that did not load, the app state line.
+/// Development notices: a build signed without the App Group, a keymap that did not load, the app state line.
 private struct SidebarNotices: View {
 	let app: AppModel
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
-			if let notice = app.unsignedNotice {
+			if let notice = app.signingNotice {
 				Label(notice, systemImage: "exclamationmark.triangle")
 					.foregroundStyle(Tokens.Colors.caution)
 			}

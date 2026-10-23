@@ -2,10 +2,13 @@
 # Vaultday.xcodeproj (gitignored). Run `scripts/build-xcframework.sh` first:
 # the VaultdayCore package needs the XCFramework and the generated Swift.
 #
-# Signing: automatic, with the team of the local Xcode account. No team id is
-# committed; put `DEVELOPMENT_TEAM = <your team id>` in the gitignored
-# Signing.local.xcconfig beside this file (Signing.xcconfig includes it).
-# CI builds with signing disabled.
+# Signing: Signing.xcconfig signs ad hoc ("Sign to Run Locally") with the
+# reduced Signing/AdHoc.entitlements unless the gitignored
+# Signing.local.xcconfig beside it names a team and an entitlements variant;
+# docs/signing.md has the recipe for a free Personal Team and a paid team.
+# The bundle id, App Group and Keychain access group come from
+# Signing.xcconfig too, so a Personal Team signs with identifiers of its own
+# (Signing.personal-team.xcconfig). CI builds with signing disabled.
 name: Vaultday
 options:
   bundleIdPrefix: com.eiluviann
@@ -32,37 +35,11 @@ targets:
     platform: macOS
     sources:
       - path: Vaultday
-        excludes:
-          - "*.entitlements"
       # The single source of key bindings, read at launch by the key dispatcher.
       - path: Keymap.yaml
         buildPhase: resources
     dependencies:
       - package: VaultdayCore
-    # Written by XcodeGen into Vaultday/Vaultday.entitlements (gitignored).
-    entitlements:
-      path: Vaultday/Vaultday.entitlements
-      properties:
-        # The app runs sandboxed.
-        com.apple.security.app-sandbox: true
-        # Folders picked in the open panel, kept as security-scoped bookmarks.
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
-        # The localhost API the CLI talks to (PR 11).
-        com.apple.security.network.server: true
-        # Mail accounts (PR 12).
-        com.apple.security.network.client: true
-        # EventKit with full access: read events, keep the private calendar.
-        com.apple.security.personal-information.calendars: true
-        # Reminders with full access: the intake reads and deletes items.
-        com.apple.security.personal-information.reminders: true
-        # The App Group container (app state, volatile state, the API token).
-        # An application group is also a Keychain access group on the data
-        # protection keychain; Vaultday's items live in this one.
-        com.apple.security.application-groups:
-          - group.com.eiluviann.vaultday
-        keychain-access-groups:
-          - $(AppIdentifierPrefix)com.eiluviann.vaultday
     info:
       path: Vaultday/Info.plist
       properties:
@@ -83,14 +60,17 @@ targets:
             CFBundleURLSchemes: [vaultday]
         # The App Group container holds app state, the volatile index and
         # caches, window state and (PR 11) the CLI's API token.
-        VaultdayAppGroup: group.com.eiluviann.vaultday
+        VaultdayAppGroup: $(VAULTDAY_APP_GROUP)
         # The Keychain access group is the App Group itself, which the
-        # application-groups entitlement grants on the data protection keychain.
-        VaultdayKeychainAccessGroup: group.com.eiluviann.vaultday
+        # application-groups entitlement grants on the data protection keychain
+        # (a Personal Team build uses its keychain-access-groups entry instead).
+        VaultdayKeychainAccessGroup: $(VAULTDAY_KEYCHAIN_ACCESS_GROUP)
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.vaultday
+        PRODUCT_BUNDLE_IDENTIFIER: $(VAULTDAY_BUNDLE_IDENTIFIER)
         GENERATE_INFOPLIST_FILE: NO
+        # One of Signing/*.entitlements, picked in Signing.xcconfig.
+        CODE_SIGN_ENTITLEMENTS: $(VAULTDAY_ENTITLEMENTS)
   VaultdayTests:
     type: bundle.unit-test
     platform: macOS
