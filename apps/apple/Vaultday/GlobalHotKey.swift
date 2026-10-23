@@ -23,4 +23,14 @@ final class GlobalHotKey {
 		let id = EventHotKeyID(signature: OSType(0x5644_4159), id: 1)
 		guard RegisterEventHotKey(keyCode, modifiers, id, GetApplicationEventTarget(), 0, &hotKeyRef) == noErr else { return nil }
 	}
+
+	/// Frees the keys and the event handler, so a new hotkey (after a
+	/// scheme change) can take their place.
+	func unregister() {
+		if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+		if let handlerRef { RemoveEventHandler(handlerRef) }
+		hotKeyRef = nil
+		handlerRef = nil
+		Self.action = nil
+	}
 }

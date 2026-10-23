@@ -65,6 +65,8 @@ struct InboxColumn: View {
 struct SignalList: View {
 	let app: AppModel
 	let cards: [SignalCard]
+	/// The cards there at first render; the rest arrived while on screen.
+	@State private var arrivals = ArrivalLedger()
 
 	var body: some View {
 		ScrollView {
@@ -74,12 +76,15 @@ struct SignalList: View {
 						app: app,
 						card: card,
 						isSelected: app.focus.focusedPane == .inbox && app.focus.selection(in: .inbox) == index,
+						isArrival: arrivals.isArrival(card.id),
 					)
 				}
 			}
 			.padding(.vertical, Tokens.Spacing.space4)
 		}
 		.scrollIndicators(.automatic)
+		.onAppear { arrivals.settle(cards.map(\.id)) }
+		.onChange(of: cards.map(\.id)) { _, ids in arrivals.record(ids) }
 	}
 }
 

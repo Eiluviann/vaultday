@@ -33,6 +33,8 @@ struct Script {
     throttle_first_delta: bool,
     refuse_refresh: bool,
     refuse_every_token: bool,
+    /// A message whose body fetch answers 404, as if deleted mid-fetch.
+    gone_message: Option<&'static str>,
     base: Mutex<String>,
 }
 
@@ -126,6 +128,9 @@ fn respond(script: &Script, request: &Received) -> Canned {
     }
     if let Some(rest) = path.strip_prefix("/me/messages/") {
         let id = rest.split('?').next().unwrap_or_default();
+        if script.gone_message == Some(id) {
+            return Canned::json(404, r#"{"error":{"code":"ErrorItemNotFound"}}"#);
+        }
         assert_eq!(
             request.headers.get("prefer").map(String::as_str),
             Some("outlook.body-content-type=\"text\"")
@@ -322,6 +327,29 @@ fn first_and_incremental_fetches_follow_the_delta_links() {
         .unwrap();
     assert_eq!((summary.added.len(), summary.duplicates), (0, 2));
     assert_eq!(sync.state().signals().len(), 3);
+}
+
+#[test]
+fn a_message_gone_before_its_body_is_fetched_is_skipped_not_fatal() {
+    let (server, _) = mock(Script {
+        gone_message: Some("m1"),
+        ..Script::default()
+    });
+    let secrets = signed_in();
+    let mut source = source(&server, &secrets);
+    let first = fetch(source.as_mut(), &BTreeMap::new()).unwrap();
+    let page = &first.folders[0];
+    let ids: Vec<&str> = page
+        .messages
+        .iter()
+        .map(|message| message.provider_ref.as_str())
+        .collect();
+    assert_eq!(ids, ["m2"]);
+    assert!(page.cursor.ends_with("deltatoken=d1"));
+    assert_eq!(
+        page.messages[0].full_text_bytes,
+        "The whole synthetic body of m2.".len()
+    );
 }
 
 #[test]

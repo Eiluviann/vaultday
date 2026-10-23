@@ -233,6 +233,7 @@ private struct NowButton: View {
 		Button(action: action) {
 			Image(systemName: symbol)
 				.font(.system(size: 9))
+				.iconReplace(value: symbol)
 				.foregroundStyle(Tokens.Colors.onWs)
 				.frame(width: 26, height: 26)
 				.background(Tokens.Colors.onWs.opacity(0.22), in: RoundedRectangle(cornerRadius: 7))
@@ -351,6 +352,7 @@ private struct TrackedRing: View {
 					.trim(from: 0, to: fraction)
 					.stroke(accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
 					.rotationEffect(.degrees(-90))
+					.progressDraw(value: Double(fraction))
 			}
 			.frame(width: 18, height: 18)
 			.padding(2)

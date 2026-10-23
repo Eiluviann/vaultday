@@ -627,7 +627,7 @@ fn offered_folders(folders: Vec<MailFolder>) -> Vec<MailFolderView> {
 fn outcome_view(error: &MailError) -> MailOutcomeView {
     match error {
         MailError::Auth(_) => MailOutcomeView::AuthFailed,
-        MailError::Network { .. } => MailOutcomeView::Unreachable,
+        MailError::Network { .. } | MailError::DeadlineExceeded(_) => MailOutcomeView::Unreachable,
         MailError::MissingCredential(_) | MailError::SecretStore(_) => {
             MailOutcomeView::MissingCredential
         }

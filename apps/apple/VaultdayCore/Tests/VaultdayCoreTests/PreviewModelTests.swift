@@ -55,6 +55,7 @@ final class PreviewModelTests: XCTestCase {
 	func testTheObsidianLinkOpensTheNoteHoldingTheTask() throws {
 		let content = try preview("task-2")
 		let link = try XCTUnwrap(content.obsidianLink)
+		XCTAssertNil(content.obsidianLinkNotice, "the mock workspace sits inside its vault")
 
 		XCTAssertEqual(link.scheme, "obsidian")
 		let query = URLComponents(url: link, resolvingAgainstBaseURL: false)?.queryItems ?? []

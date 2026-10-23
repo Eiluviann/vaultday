@@ -18,6 +18,8 @@ public enum Pane: Int, CaseIterable, Sendable, Codable {
 	case sidePanel
 	/// The story screen's panel: the Story block and its tabs (PR 15).
 	case storyPanel
+	/// The menu-bar extra's popover: its own keys, outside the Home window.
+	case menuBar
 
 	/// The panes of the Home window, in the order `h` and `l` step through.
 	public static let homeOrder: [Pane] = [.sidebar, .today, .inbox, .sidePanel]
@@ -32,6 +34,7 @@ public enum Pane: Int, CaseIterable, Sendable, Codable {
 		case "inbox": self = .inbox
 		case "side-panel": self = .sidePanel
 		case "story-panel": self = .storyPanel
+		case "menu-bar": self = .menuBar
 		default: return nil
 		}
 	}
@@ -148,6 +151,14 @@ public enum KeyAction: Hashable, Sendable {
 	case showStoryPanelTab(Int)
 	/// ⌥⌘T: shows the mini tracker, or toggles its expanded form.
 	case toggleMiniTracker
+	/// The menu-bar extra's keys, inside its popover only: the previous and
+	/// next row, start on the row or the typed entry, a new typed entry, and
+	/// leaving the typed entry.
+	case menuBarPrevious
+	case menuBarNext
+	case menuBarStart
+	case menuBarNewEntry
+	case menuBarCancel
 
 	/// The action named `name` in Keymap.yaml.
 	init?(name: String) {
@@ -170,6 +181,12 @@ public enum KeyAction: Hashable, Sendable {
 	/// Whether this acts on the selected signal rather than a task.
 	public var isSignalAction: Bool {
 		[.signalTask, .signalWaitFor, .signalAttach, .signalDismiss, .signalSnooze, .signalReply, .signalNotASignal].contains(self)
+	}
+
+	/// Whether this acts inside the menu-bar extra only, so the Home window's
+	/// palette leaves it out.
+	public var isMenuBarAction: Bool {
+		[.menuBarPrevious, .menuBarNext, .menuBarStart, .menuBarNewEntry, .menuBarCancel].contains(self)
 	}
 
 	/// Whether this is one of the four directional moves bare `h` `j` `k` `l` are kept for.
@@ -246,6 +263,11 @@ public enum KeyAction: Hashable, Sendable {
 		"item.open-link": .openLink,
 		"item.claude-code": .openInClaudeCode,
 		"tracker.toggle": .toggleMiniTracker,
+		"menu-bar.previous": .menuBarPrevious,
+		"menu-bar.next": .menuBarNext,
+		"menu-bar.start": .menuBarStart,
+		"menu-bar.new-entry": .menuBarNewEntry,
+		"menu-bar.cancel": .menuBarCancel,
 		"signal.task": .signalTask,
 		"signal.wait-for": .signalWaitFor,
 		"signal.attach": .signalAttach,
@@ -494,6 +516,18 @@ public struct Keymap: Sendable {
 		}
 	}
 
+	/// The first single-stroke binding of `action` under `scheme`, such as
+	/// the global hotkey of the mini tracker; `nil` when there is none.
+	public func singleStroke(for action: KeyAction, scheme: KeyScheme) -> KeyStroke? {
+		sequences(for: scheme).first { $0.action == action && $0.sequence.count == 1 }?.sequence.first
+	}
+
+	/// The action a stroke runs inside `pane` alone: only bindings scoped to
+	/// that pane count (the menu-bar extra has no unscoped keys).
+	public func action(for stroke: KeyStroke, onlyIn pane: Pane, scheme: KeyScheme) -> KeyAction? {
+		sequences(for: scheme).first { $0.pane == pane && $0.sequence == [stroke] }?.action
+	}
+
 	/// The footer's tips in file order: the short name and the action.
 	public var tips: [(name: String, action: KeyAction)] {
 		bindings.compactMap { binding in binding.tip.map { ($0, binding.action) } }
@@ -583,8 +617,9 @@ public struct Keymap: Sendable {
 
 	/// Whether two bindings of one sequence clash: both need no pane, both
 	/// the same pane, or one needs none and the other a pane of the Home
-	/// window. A binding scoped to a pane outside Home (the story panel)
-	/// shadows an unscoped one there, so the two never act at once.
+	/// window. A binding scoped to a pane outside Home (the story panel, the
+	/// menu-bar extra) shadows an unscoped one there, so the two never act
+	/// at once.
 	private static func clashes(_ left: Pane?, _ right: Pane?) -> Bool {
 		if left == right { return true }
 		guard left == nil || right == nil, let scoped = left ?? right else { return false }

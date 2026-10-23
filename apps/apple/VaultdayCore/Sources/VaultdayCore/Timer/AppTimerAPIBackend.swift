@@ -60,10 +60,18 @@ public final class AppTimerAPIBackend: TimerAPIBackend {
 		}
 	}
 
-	public func stopTimer() -> Result<TimerAPIStatus, TimerAPIFailure> {
+	public func stopTimer() async -> Result<TimerAPIStatus, TimerAPIFailure> {
 		guard sessions.isAvailable else { return .failure(Self.noWorkspace) }
 		guard sessions.openSession != nil else { return .failure(TimerAPIFailure(.conflict, "No timer is running")) }
-		return act(status: { self.status(logLine: self.sessions.lastLogLine) }) { sessions.stop() }
+		guard sessions.stop() else {
+			onChange()
+			let failure = sessions.lastFailure
+			return .failure(TimerAPIFailure(Self.kind(of: failure?.kind), failure?.message ?? "The timer refused"))
+		}
+		// The line is written off the main actor; the answer carries it.
+		await sessions.waitForDayLog()
+		onChange()
+		return .success(status(logLine: sessions.lastLogLine))
 	}
 
 	public func continueTimer() -> Result<TimerAPIStatus, TimerAPIFailure> {

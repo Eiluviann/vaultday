@@ -458,6 +458,7 @@ mod tests {
                     excerpt: text(entry, "excerpt"),
                     link: text(entry, "link"),
                     raw_text: text(entry, "raw_text"),
+                    full_text_bytes: 0,
                 },
                 headline: text(&entry["expected"], "headline"),
                 sender: text(&entry["expected"], "sender"),

@@ -34,6 +34,10 @@ pub enum MailError {
     /// Sign-in cannot start: the Microsoft client id is still the placeholder.
     #[error("{0}")]
     NotConfigured(String),
+    /// The account's fetch ran past its overall deadline; the next fetch
+    /// starts again from the stored cursors.
+    #[error("the mail fetch took longer than {} s", .0.as_secs())]
+    DeadlineExceeded(Duration),
     /// The secret store failed.
     #[error(transparent)]
     SecretStore(#[from] SecretStoreError),

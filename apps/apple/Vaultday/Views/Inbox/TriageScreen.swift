@@ -105,7 +105,7 @@ private struct SnoozedRow: View {
 
 	var body: some View {
 		HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
-			Image(systemName: card.sourceSymbol)
+			Image(systemName: card.source.mark.symbol)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.accessibilityLabel(card.sourceName)
 			VStack(alignment: .leading, spacing: 2) {
@@ -153,6 +153,9 @@ private struct TriageAside: View {
 				}
 				.disabled(scheduler.isFetching || !app.hasMailAccount)
 			}
+			HomeEyebrow(text: "Lanes")
+			PlannedLane(symbol: "figure.run", title: "Chasers", detail: "Replies you wait on resurface here from Sent Items") // custom symbol pending: running figure
+			PlannedLane(symbol: "line.3.horizontal.decrease.circle", title: "Screener", detail: "First mail from a new sender waits here before the Inbox")
 			Text("Notifications are quiet: one per fetch that brings new mail, never one per message")
 				.font(Tokens.Typography.caption.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
@@ -163,5 +166,35 @@ private struct TriageAside: View {
 		.frame(maxHeight: .infinity, alignment: .topLeading)
 		.background(Tokens.Colors.surfaceSunken)
 		.overlay(alignment: .leading) { Rectangle().fill(Tokens.Colors.line).frame(width: 1) }
+	}
+}
+
+/// A lane of the triage screen the base version does not run yet: named,
+/// tagged Planned, never empty space.
+private struct PlannedLane: View {
+	let symbol: String
+	let title: String
+	let detail: String
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space2) {
+			HStack(spacing: Tokens.Spacing.space6) {
+				Image(systemName: symbol)
+					.frame(width: 16)
+					.foregroundStyle(Tokens.Colors.inkMuted)
+					.accessibilityHidden(true)
+				Text(title)
+					.fontWeight(.semibold)
+					.foregroundStyle(Tokens.Colors.ink)
+				PlannedTag()
+			}
+			Text(detail)
+				.font(Tokens.Typography.caption.font)
+				.foregroundStyle(Tokens.Colors.inkMuted)
+				.fixedSize(horizontal: false, vertical: true)
+				.padding(.leading, 22)
+		}
+		.accessibilityElement(children: .combine)
+		.accessibilityLabel("\(title), planned")
 	}
 }

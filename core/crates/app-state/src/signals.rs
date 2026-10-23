@@ -15,6 +15,7 @@ use jiff::Timestamp;
 use sha2::{Digest, Sha256};
 
 use crate::app_doc::ConnectionId;
+use crate::workspace_state::MAX_RAW_TEXT_BYTES;
 
 /// Identifies a signal: `sig-` and 16 hex digits.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,14 +50,17 @@ pub struct Signal {
     pub excerpt: String,
     /// The link that opens the message in the account's mail app.
     pub link: String,
-    /// SHA-256 of the raw source text, hex. Reserved for the compacted
-    /// record: when a model compacts the raw text, the hash says which text
-    /// the summary was made from. v1 has no model and compacts nothing.
+    /// SHA-256 of the raw text as stored (cut to [`MAX_RAW_TEXT_BYTES`]),
+    /// hex. Reserved for the compacted record: when a model compacts the raw
+    /// text, the hash says which text the summary was made from. v1 has no
+    /// model and compacts nothing.
     pub source_hash: String,
 }
 
-/// A fetched message about to become a signal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A fetched message about to become a signal. Its `Debug` output leaves
+/// out the subject, the excerpt and the text, so a log line never carries
+/// mail content.
+#[derive(Clone, PartialEq, Eq)]
 pub struct IncomingSignal {
     /// The mail account it came from.
     pub account: ConnectionId,
@@ -82,6 +86,9 @@ pub struct IncomingSignal {
     pub link: String,
     /// The message text as fetched, kept only in the encrypted store.
     pub raw_text: String,
+    /// How long the message text was, in bytes, before the source cut it to
+    /// what it fetched; `raw_text.len()` when nothing was cut.
+    pub full_text_bytes: usize,
 }
 
 /// Where a signal stands.
@@ -217,8 +224,48 @@ impl IncomingSignal {
             subject: self.subject.clone(),
             excerpt: self.excerpt.clone(),
             link: self.link.clone(),
-            source_hash: source_hash(&self.raw_text),
+            source_hash: source_hash(self.stored_text()),
         }
+    }
+
+    /// The text the store keeps: the raw text cut to [`MAX_RAW_TEXT_BYTES`]
+    /// at a character boundary.
+    #[must_use]
+    pub fn stored_text(&self) -> &str {
+        cut_at_char_boundary(&self.raw_text, MAX_RAW_TEXT_BYTES)
+    }
+
+    /// How long the text was before any cut: the larger of what the source
+    /// reported and what arrived.
+    #[must_use]
+    pub fn full_length(&self) -> usize {
+        self.full_text_bytes.max(self.raw_text.len())
+    }
+}
+
+impl fmt::Debug for IncomingSignal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IncomingSignal")
+            .field("account", &self.account)
+            .field("folder", &self.folder)
+            .field("provider_ref", &self.provider_ref)
+            .field("message_id", &self.message_id)
+            .field("thread_id", &self.thread_id)
+            .field("received_at", &self.received_at)
+            .field("subject", &Redacted(self.subject.len()))
+            .field("excerpt", &Redacted(self.excerpt.len()))
+            .field("raw_text", &Redacted(self.raw_text.len()))
+            .field("full_text_bytes", &self.full_text_bytes)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Stands in for mail text in `Debug` output: only its length shows.
+pub struct Redacted(pub usize);
+
+impl fmt::Debug for Redacted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<redacted, {} bytes>", self.0)
     }
 }
 
@@ -351,6 +398,18 @@ impl fmt::Display for SignalTransitionRefused {
 #[must_use]
 pub fn source_hash(text: &str) -> String {
     hex(&Sha256::digest(text.as_bytes()))
+}
+
+/// `text` cut to at most `max` bytes at a character boundary.
+pub(crate) fn cut_at_char_boundary(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
 }
 
 fn hex(bytes: &[u8]) -> String {

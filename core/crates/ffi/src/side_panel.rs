@@ -426,13 +426,129 @@ impl WorkspaceStateHandle {
                 reason: reason.to_owned(),
             });
         }
+        let mut batch = ReminderBatch::open(workspace, today.as_deref())?;
+        self.import_into(&mut batch, workspace, &item, story.as_deref())
+    }
+
+    /// Files a batch of Reminders items as [`Self::import_reminder`] files
+    /// one, reading the vault once for the whole batch rather than once per
+    /// item. Each item gets its own outcome, in order; one item's failure
+    /// (an unknown story, a refused write) does not stop the rest.
+    ///
+    /// # Errors
+    /// [`CoreError::FileAccess`] when the vault cannot be read, or
+    /// [`CoreError::InvalidDate`] for a malformed `today`.
+    #[uniffi::method(default(today = None))]
+    pub fn import_reminders(
+        &self,
+        workspace: &WorkspaceHandle,
+        batch: Vec<ReminderImport>,
+        today: Option<String>,
+    ) -> Result<Vec<ReminderImportOutcome>, CoreError> {
+        let mut opened = ReminderBatch::open(workspace, today.as_deref())?;
+        Ok(batch
+            .into_iter()
+            .map(|entry| {
+                let external_id = entry.item.external_id.clone();
+                let result = match left_in_reminders(&entry.item) {
+                    Some(reason) => Ok(ReminderIntake::Left {
+                        reason: reason.to_owned(),
+                    }),
+                    None => self.import_into(
+                        &mut opened,
+                        workspace,
+                        &entry.item,
+                        entry.story.as_deref(),
+                    ),
+                };
+                match result {
+                    Ok(intake) => ReminderImportOutcome {
+                        external_id,
+                        intake: Some(intake),
+                        error: None,
+                    },
+                    Err(error) => ReminderImportOutcome {
+                        external_id,
+                        intake: None,
+                        error: Some(error.to_string()),
+                    },
+                }
+            })
+            .collect())
+    }
+}
+
+/// One item of a Reminders batch and the story its list files into.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ReminderImport {
+    /// The item.
+    pub item: ReminderItemView,
+    /// The story whose Next Steps take it; `None` for the intake note.
+    pub story: Option<String>,
+}
+
+/// What filing one item of a batch did.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ReminderImportOutcome {
+    /// The item's external id.
+    pub external_id: String,
+    /// What happened to it; `None` when it failed.
+    pub intake: Option<ReminderIntake>,
+    /// Why it failed, in words for the user; the item is tried again next run.
+    pub error: Option<String>,
+}
+
+/// The vault as read once for a batch, with what the batch wrote since.
+struct ReminderBatch {
+    vault: Vault,
+    created: vault_base::Date,
+    /// Task ids in the vault or minted by this batch.
+    taken_ids: std::collections::HashSet<String>,
+    /// External ids filed by this batch, with their task ids.
+    filed: HashMap<String, String>,
+}
+
+impl ReminderBatch {
+    fn open(workspace: &WorkspaceHandle, today: Option<&str>) -> Result<ReminderBatch, CoreError> {
         let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
-        if let Some(task_id) = line_of_reminder(&vault, &item.external_id) {
+        let created = match today {
+            Some(text) => ops::parse_date(text)?,
+            None => vault_today()?,
+        };
+        let taken_ids = vault
+            .tasks()
+            .filter_map(|found| found.task.id().map(str::to_owned))
+            .collect();
+        Ok(ReminderBatch {
+            vault,
+            created,
+            taken_ids,
+            filed: HashMap::new(),
+        })
+    }
+}
+
+impl WorkspaceStateHandle {
+    /// Files one item that is not left in Reminders into the batch's vault.
+    fn import_into(
+        &self,
+        batch: &mut ReminderBatch,
+        workspace: &WorkspaceHandle,
+        item: &ReminderItemView,
+        story: Option<&str>,
+    ) -> Result<ReminderIntake, CoreError> {
+        let already = batch
+            .filed
+            .get(&item.external_id)
+            .cloned()
+            .or_else(|| line_of_reminder(&batch.vault, &item.external_id));
+        if let Some(task_id) = already {
             return Ok(ReminderIntake::AlreadyImported { task_id });
         }
         let writer = VaultWriter::new(&PlainFileAccess, &workspace.workspace);
-        let note = match story.as_deref() {
-            Some(number) => vault
+        let note = match story {
+            Some(number) => batch
+                .vault
                 .story_by_number(number)
                 .map(|entry| entry.path.to_path_buf())
                 .ok_or_else(|| {
@@ -446,16 +562,19 @@ impl WorkspaceStateHandle {
                 path.to_path_buf()
             }
         };
-        let created = match today.as_deref() {
-            Some(text) => ops::parse_date(text)?,
-            None => vault_today()?,
-        };
         let due = item.due_date.as_deref().map(ops::parse_date).transpose()?;
-        let task_id = self.mint_task_id(workspace)?;
+        let taken = &batch.taken_ids;
+        let task_id = lock(&self.sync)
+            .edit(Instant::now(), |state| {
+                state.mint_task_id(&|id| taken.contains(id))
+            })?
+            .as_str()
+            .to_owned();
+        batch.taken_ids.insert(task_id.clone());
         let task = NewTask {
             text: reminder_text(&item.title),
             id: task_id.clone(),
-            created,
+            created: batch.created,
             assigned_to: None,
             scheduled: due.filter(|_| item.has_due_time),
             estimate: None,
@@ -466,6 +585,9 @@ impl WorkspaceStateHandle {
         writer
             .add_task(&note, TaskSection::NextSteps, &task)
             .map_err(OpError::from)?;
+        batch
+            .filed
+            .insert(item.external_id.clone(), task_id.clone());
         Ok(ReminderIntake::Imported {
             task_id,
             note: note.to_string_lossy().into_owned(),
@@ -1545,6 +1667,65 @@ mod tests {
             None,
         );
         assert!(matches!(unknown, Err(CoreError::NotFound(_))));
+    }
+
+    #[test]
+    fn a_batch_files_every_item_from_one_read_of_the_vault() {
+        let sandbox = sandbox();
+        let (workspace, state) = open(sandbox.path());
+        let batch = vec![
+            ReminderImport {
+                item: reminder("rem-10", "First"),
+                story: None,
+            },
+            ReminderImport {
+                item: reminder("rem-11", "Second"),
+                story: Some("WEB-157".to_owned()),
+            },
+            ReminderImport {
+                item: reminder("rem-10", "First again"),
+                story: None,
+            },
+            ReminderImport {
+                item: ReminderItemView {
+                    is_recurring: true,
+                    ..reminder("rem-12", "Water the plants")
+                },
+                story: None,
+            },
+            ReminderImport {
+                item: reminder("rem-13", "Lost"),
+                story: Some("WEB-999".to_owned()),
+            },
+        ];
+        let outcomes = state
+            .import_reminders(&workspace, batch, Some(DAY.to_owned()))
+            .unwrap();
+        let ids: Vec<&str> = outcomes.iter().map(|o| o.external_id.as_str()).collect();
+        assert_eq!(ids, ["rem-10", "rem-11", "rem-10", "rem-12", "rem-13"]);
+        let Some(ReminderIntake::Imported { task_id: first, .. }) = &outcomes[0].intake else {
+            panic!("{:?}", outcomes[0]);
+        };
+        let Some(ReminderIntake::Imported {
+            task_id: second, ..
+        }) = &outcomes[1].intake
+        else {
+            panic!("{:?}", outcomes[1]);
+        };
+        assert_ne!(first, second, "two ids minted from one read stay apart");
+        assert_eq!(
+            outcomes[2].intake,
+            Some(ReminderIntake::AlreadyImported {
+                task_id: first.clone()
+            })
+        );
+        assert!(matches!(
+            outcomes[3].intake,
+            Some(ReminderIntake::Left { .. })
+        ));
+        assert!(outcomes[4].error.is_some() && outcomes[4].intake.is_none());
+        let intake = fs::read_to_string(sandbox.path().join(REMINDERS_INTAKE_NOTE)).unwrap();
+        assert_eq!(intake.matches("rem-10").count(), 1);
     }
 
     #[test]

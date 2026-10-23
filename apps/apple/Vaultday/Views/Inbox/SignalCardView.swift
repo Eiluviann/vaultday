@@ -9,8 +9,11 @@ struct SignalCardView: View {
 	let app: AppModel
 	let card: SignalCard
 	let isSelected: Bool
+	/// The card arrived while the Inbox was on screen: its mark draws on.
+	var isArrival = false
 
 	@State private var isHovered = false
+	@State private var hasAppeared = false
 	@Environment(\.workspaceAccent) private var accent
 
 	private var draft: SignalDraft? {
@@ -65,11 +68,13 @@ struct SignalCardView: View {
 
 	private var senderLine: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
-			Image(systemName: card.sourceSymbol)
-				.font(.system(size: 13))
-				.foregroundStyle(Tokens.Colors.inkSecondary)
-				.frame(width: 16, height: 16)
-				.accessibilityLabel(card.sourceName)
+			// A signal that arrives while the Inbox is on screen draws its
+			// mark on; the cards there at first render show theirs at once.
+			IconPresence(isShown: !isArrival || hasAppeared) {
+				MarkIcon(mark: card.source.mark)
+			}
+			.frame(width: 16, height: 16)
+			.onAppear { hasAppeared = true }
 			Text(card.sender)
 				.fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.ink)

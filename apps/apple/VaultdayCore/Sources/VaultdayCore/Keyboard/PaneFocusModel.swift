@@ -115,9 +115,9 @@ public final class PaneFocusModel {
 		switch action {
 		case let .focusPane(pane):
 			focus(pane)
-		case .moveDown, .nextMatch:
+		case .moveDown:
 			moveSelection(by: 1)
-		case .moveUp, .previousMatch:
+		case .moveUp:
 			moveSelection(by: -1)
 		case .moveHalfPageDown:
 			moveSelection(by: halfPage)

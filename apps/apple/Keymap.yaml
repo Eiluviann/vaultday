@@ -15,10 +15,10 @@
 # footer shows the key) and `menu: true` (the action is also a row of the
 # selected item's more-actions menu, which a pending stroke then opens) and
 # `pane` (the keys act only while that pane holds focus: `sidebar`, `today`,
-# `inbox`, `side-panel` or `story-panel`; bare `1` to `7` reach the rail only
+# `inbox`, `side-panel`, `story-panel` or `menu-bar`; bare `1` to `7` reach the rail only
 # from the side panel, so the Inbox keeps its digit keys for the signal outcomes). Only a binding
-# scoped to the story panel, a pane outside the Home window, may reuse keys
-# bound everywhere: it wins while that pane holds focus.
+# scoped to a pane outside the Home window (the story panel, the menu-bar
+# extra) may reuse keys bound everywhere: it wins while that pane holds focus.
 # An action bound twice carries its label once, on its first entry.
 #
 # Rules from the design note, enforced when the file loads: bare `h` `j` `k`
@@ -63,9 +63,6 @@ bindings:
     menu: true
     vim: "m"
     standard: "alt+cmd+l"
-  - action: task.pin
-    vim: "shift+x"
-    standard: ""
   # Push to tomorrow acts on Today's selection; the same keys snooze the
   # Inbox's selected signal, so both are "later" for what is selected.
   - action: task.push-tomorrow
@@ -552,17 +549,53 @@ bindings:
     group: "Browse"
     vim: "shift+{"
     standard: "alt+up"
+  # `za` folds the Browse group under the selection, and in Today the
+  # selected card's subtasks. `}` `{` stay Browse keys: Today's selectable
+  # lines are its cards, and a card's subtasks sit inside it rather than as
+  # lines of their own, so a group jump there would only repeat `j` and `k`.
+  # `n` `N` jump to the next and previous row holding the query's text.
   - action: browse.fold
-    label: "Fold or open the story group"
+    label: "Fold or open the story group, or the card's subtasks"
     group: "Browse"
     vim: "z a"
     standard: ""
   # Timer surfaces (PR 11). Space (`timer.toggle`) pauses and resumes the
-  # running session. ⌥⌘T toggles the mini tracker; the app also registers it
-  # as a global hotkey, so it works while another app is frontmost. ⌘N, the
-  # arrows and Return in the menu-bar extra act inside its popover only.
+  # running session. ⌥⌘T toggles the mini tracker; the app also registers
+  # its first single-stroke binding as a global hotkey, so it works while
+  # another app is frontmost. The `menu-bar` bindings act inside the
+  # menu-bar extra's popover only.
   - action: tracker.toggle
     label: "Show or hide the mini tracker"
     group: "Panes and tabs"
     vim: "alt+cmd+t"
     standard: "alt+cmd+t"
+  - action: menu-bar.previous
+    label: "Previous row of the timer menu"
+    group: "Menu bar"
+    pane: "menu-bar"
+    vim: "up"
+    standard: "up"
+  - action: menu-bar.next
+    label: "Next row of the timer menu"
+    group: "Menu bar"
+    pane: "menu-bar"
+    vim: "down"
+    standard: "down"
+  - action: menu-bar.start
+    label: "Start the timer on the row or the typed entry"
+    group: "Menu bar"
+    pane: "menu-bar"
+    vim: "return"
+    standard: "return"
+  - action: menu-bar.new-entry
+    label: "Type a new timer entry"
+    group: "Menu bar"
+    pane: "menu-bar"
+    vim: "cmd+n"
+    standard: "cmd+n"
+  - action: menu-bar.cancel
+    label: "Leave the typed entry"
+    group: "Menu bar"
+    pane: "menu-bar"
+    vim: "escape"
+    standard: "escape"

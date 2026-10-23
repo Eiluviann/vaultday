@@ -24,10 +24,13 @@ public enum SignalCardState: Equatable, Sendable {
 /// Nothing on it is guessed.
 public struct SignalCard: Identifiable, Equatable, Sendable {
 	public let id: String
-	/// The SF Symbol of the source; mail is the only source in the base version.
-	public let sourceSymbol: String
+	/// Where the signal came from: one icon shape and one colour per source;
+	/// mail is the only source in the base version.
+	public let source: SourceMark
+	/// The SF Symbol of the source.
+	public var sourceSymbol: String { source.mark.symbol }
 	/// What the source icon is called, for VoiceOver.
-	public let sourceName: String
+	public var sourceName: String { source.mark.name }
 	/// The sender's name, else the address.
 	public let sender: String
 	public let senderAddress: String
@@ -48,8 +51,7 @@ public struct SignalCard: Identifiable, Equatable, Sendable {
 
 	public init(
 		id: String,
-		sourceSymbol: String = "envelope",
-		sourceName: String = "Mail",
+		source: SourceMark = .mail,
 		sender: String,
 		senderAddress: String,
 		receivedAt: Date?,
@@ -62,8 +64,7 @@ public struct SignalCard: Identifiable, Equatable, Sendable {
 		state: SignalCardState,
 	) {
 		self.id = id
-		self.sourceSymbol = sourceSymbol
-		self.sourceName = sourceName
+		self.source = source
 		self.sender = sender
 		self.senderAddress = senderAddress
 		self.receivedAt = receivedAt

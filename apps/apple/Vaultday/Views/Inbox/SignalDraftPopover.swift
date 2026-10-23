@@ -19,7 +19,7 @@ struct SignalDraftPopover: View {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 				HStack(spacing: Tokens.Spacing.space8) {
 					Text(draft.title).fontWeight(.semibold)
-					Text("· from \(draft.signalId)")
+					Text("· from \(draft.sourceLabel)")
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.lineLimit(1)
 				}

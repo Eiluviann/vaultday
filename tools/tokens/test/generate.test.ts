@@ -82,6 +82,25 @@ describe('generateTokensSwift', () => {
 		expect(swift.endsWith('}\n')).toBe(true);
 	});
 
+	it('renders motion durations in seconds when the file has them', () => {
+		const result = generateTokensSwift({
+			...minimalTokenFile(),
+			motion: {
+				tokens: [{ name: 'motion-lift', value: '180ms', usage: 'Lift.' }],
+			},
+		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value).toContain(
+			'\tenum Motion {\n\t\t/// Lift.\n\t\tstatic let motionLift: TimeInterval = 0.18',
+		);
+		const bad = generateTokensSwift({
+			...minimalTokenFile(),
+			motion: { tokens: [{ name: 'motion-x', value: '1s', usage: 'X.' }] },
+		});
+		expect(bad.ok).toBe(false);
+	});
+
 	it('fails with a Result for a token name that is not a valid Swift identifier', () => {
 		const tokenFile = minimalTokenFile();
 		const result = generateTokensSwift({

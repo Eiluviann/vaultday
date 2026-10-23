@@ -1,6 +1,7 @@
 import { err, ok, type Result, withErrorContext } from './result.ts';
 import {
 	buildColorConstants,
+	buildDurationConstants,
 	buildLengthConstants,
 	buildShadowConstants,
 	buildTypographyConstants,
@@ -50,6 +51,10 @@ function buildSections(tokenFile: TokenFile): Result<SwiftEnumSection[]> {
 		['Typography', () => buildTypographyConstants(tokenFile.type)],
 		['Shadows', () => buildShadowConstants(tokenFile.shadow.tokens)],
 	];
+	const motion = tokenFile.motion;
+	if (motion !== undefined) {
+		builders.push(['Motion', () => buildDurationConstants(motion.tokens)]);
+	}
 	const sections: SwiftEnumSection[] = [];
 	for (const [name, build] of builders) {
 		const constants = build();

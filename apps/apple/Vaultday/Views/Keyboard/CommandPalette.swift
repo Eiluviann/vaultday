@@ -77,6 +77,7 @@ private struct PaletteRowView: View {
 	var body: some View {
 		Button(action: action) {
 			HStack(spacing: Tokens.Spacing.space8) {
+				MarkIcon(mark: TypeMark(paletteChoice: row.choice).mark, size: 12)
 				Text(row.title)
 					.frame(maxWidth: .infinity, alignment: .leading)
 					.lineLimit(1)
@@ -88,6 +89,14 @@ private struct PaletteRowView: View {
 				ForEach(Array(row.caps.enumerated()), id: \.offset) { _, caps in
 					SequenceCaps(caps: caps)
 				}
+				// ⏎ draws on beside the highlighted row as the highlight moves.
+				IconPresence(isShown: isSelected) {
+					Image(systemName: "return")
+						.font(.system(size: 10, weight: .semibold))
+						.foregroundStyle(Tokens.Colors.inkMuted)
+				}
+				.frame(width: 14)
+				.accessibilityHidden(true)
 			}
 			.font(Tokens.Typography.body.font)
 			.foregroundStyle(Tokens.Colors.ink)

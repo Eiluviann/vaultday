@@ -29,6 +29,9 @@ struct TaskCard: View {
 					if item.subtasks.isEmpty {
 						subtaskFoot
 							.padding(EdgeInsets(top: 1, leading: 34, bottom: 6, trailing: 10))
+					} else if app.dayPlan.isSubtaskListFolded(item.taskId) {
+						foldedSubtasks
+							.padding(EdgeInsets(top: 1, leading: 34, bottom: 6, trailing: 10))
 					} else {
 						subtaskBlock
 					}
@@ -63,7 +66,7 @@ struct TaskCard: View {
 	private var titleLine: some View {
 		HStack(alignment: .firstTextBaseline, spacing: 10) {
 			if let readOnlyColor {
-				Circle().fill(readOnlyColor).frame(width: 8, height: 8)
+				Circle().fill(readOnlyColor).frame(width: WorkspaceWash.dotSize, height: WorkspaceWash.dotSize)
 			} else {
 				Text("⋮⋮")
 					.font(.system(size: 14))
@@ -140,6 +143,23 @@ struct TaskCard: View {
 				.help("Readable id")
 		}
 		.frame(minHeight: 20)
+	}
+
+	/// `za` folded the subtasks: one line saying how many, with the id.
+	private var foldedSubtasks: some View {
+		HStack(spacing: Tokens.Spacing.space4) {
+			Image(systemName: "chevron.right")
+				.font(.system(size: 9, weight: .semibold))
+				.accessibilityHidden(true)
+			Text(item.subtasks.count == 1 ? "1 subtask · folded" : "\(item.subtasks.count) subtasks · folded")
+			Spacer()
+			MonoChip(text: item.taskId, isRounded: false)
+				.help("Readable id")
+		}
+		.font(Tokens.Typography.caption.font)
+		.foregroundStyle(Tokens.Colors.inkMuted)
+		.frame(minHeight: 20)
+		.help(app.keyLabel(.toggleFold).map { "Open the subtasks (\($0))" } ?? "Open the subtasks")
 	}
 
 	private var subtaskBlock: some View {
@@ -222,7 +242,7 @@ private struct SubtaskRow: View {
 					.transition(.move(edge: .trailing).combined(with: .opacity))
 			}
 		}
-		.animation(.easeOut(duration: 0.15), value: isHovered)
+		.animation(.easeOut(duration: Tokens.Motion.motionWash), value: isHovered)
 		.onHover { isHovered = $0 }
 	}
 
@@ -299,9 +319,16 @@ private struct TaskCheckbox: View {
 
 	var body: some View {
 		Button(action: action) {
-			Image(systemName: isDone ? "checkmark.square.fill" : "square")
-				.font(.system(size: size))
-				.foregroundStyle(isDone ? tint : Tokens.Colors.lineControl)
+			// The tick draws on when the task is done, never on first render.
+			ZStack {
+				Image(systemName: "square")
+					.foregroundStyle(isDone ? .clear : Tokens.Colors.lineControl)
+				IconPresence(isShown: isDone) {
+					Image(systemName: "checkmark.square.fill")
+						.foregroundStyle(tint)
+				}
+			}
+			.font(.system(size: size))
 		}
 		.buttonStyle(.plain)
 		.disabled(!isEnabled)

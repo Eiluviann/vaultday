@@ -152,12 +152,12 @@ private struct LogRow: View {
 				.monospacedDigit()
 				.frame(width: 40, alignment: .leading)
 				.padding(.top, 2)
-			Image(systemName: symbol)
+			Image(systemName: mark.symbol)
 				.font(.system(size: 13))
-				.foregroundStyle(color)
+				.foregroundStyle(mark.tone.color)
 				.frame(width: 16)
 				.padding(.top, 1)
-				.accessibilityLabel(line.kind ?? "Entry")
+				.accessibilityLabel(mark.name)
 			VStack(alignment: .leading, spacing: 1) {
 				Text(line.text)
 					.font(Tokens.Typography.body.font)
@@ -171,7 +171,7 @@ private struct LogRow: View {
 		}
 		.padding(.vertical, 8)
 		.padding(.horizontal, 4)
-		.background(isSelected ? accent.opacity(0.10) : .clear)
+		.background(isSelected ? accent.opacity(WorkspaceWash.selectionOpacity) : .clear)
 		.overlay(alignment: .bottom) { Rectangle().fill(Tokens.Colors.line).frame(height: 1) }
 		.contentShape(Rectangle())
 		.onTapGesture { app.focus.select(index, in: .sidePanel) }
@@ -184,23 +184,8 @@ private struct LogRow: View {
 		[line.kind, line.agent, line.story, line.task].compactMap(\.self).joined(separator: " · ")
 	}
 
-	private var symbol: String {
-		switch line.kind {
-		case "done": "checkmark.circle"
-		case "session": "clock"
-		case "decision": line.agent == nil ? "lightbulb" : "sparkles"
-		case "blocker": "nosign"
-		case "status": "arrow.right"
-		default: "bookmark"
-		}
-	}
-
-	private var color: Color {
-		switch line.kind {
-		case "done", "session", "status": Tokens.Colors.wsGreen
-		case "decision": Tokens.Colors.ai
-		case "blocker": Tokens.Colors.caution
-		default: Tokens.Colors.inkMuted
-		}
+	/// The line's kind as its one icon and colour.
+	private var mark: IconMark {
+		TypeMark(dayLogKind: line.kind, isByModel: line.agent != nil).mark
 	}
 }

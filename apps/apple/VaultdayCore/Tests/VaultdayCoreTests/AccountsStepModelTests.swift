@@ -115,6 +115,26 @@ final class AccountsStepModelTests: XCTestCase {
 		XCTAssertTrue(relaunched.accounts.first?.hasCredential ?? false)
 	}
 
+	func testNotificationsAreAskedForOnceWhenAnAccountIsSaved() async throws {
+		let harness = try OnboardingHarness(self)
+		let entry = try workspace(harness)
+		let permission = CountingPermission()
+		let accounts = AccountsStepModel(session: harness.session, connecting: ScriptedMail(answer: Self.connected), notificationPermission: permission)
+		XCTAssertFalse(accounts.hasAskedForNotifications, "nothing is asked before an account exists")
+		for address in ["one@example.test", "two@example.test"] {
+			accounts.beginAdding(workspace: entry.id)
+			accounts.draft?.address = address
+			accounts.draft?.host = "imap.example.test"
+			accounts.draft?.password = "synthetic-app-password"
+			await accounts.testConnection()
+			accounts.saveDraft()
+		}
+		await accounts.notificationRequest?.value
+		XCTAssertEqual(accounts.accounts.count, 2)
+		let asked = await permission.count
+		XCTAssertEqual(asked, 1, "asked once, from the Accounts step")
+	}
+
 	func testRemovingAnAccountDeletesItsPassword() async throws {
 		let harness = try OnboardingHarness(self)
 		let entry = try workspace(harness)
@@ -221,5 +241,15 @@ final class AccountsStepModelTests: XCTestCase {
 		accounts.setFetchInterval(minutes: 15)
 		XCTAssertEqual(accounts.fetchIntervalMinutes, 15)
 		XCTAssertEqual(harness.session.appState.mailFetchIntervalSeconds(), 900)
+	}
+}
+
+/// Counts the permission requests instead of showing the system's.
+private actor CountingPermission: NotificationPermissionAsking {
+	private(set) var count = 0
+
+	func requestAlerts() async -> Bool {
+		count += 1
+		return true
 	}
 }

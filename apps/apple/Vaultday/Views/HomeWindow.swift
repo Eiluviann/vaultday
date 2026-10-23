@@ -48,8 +48,8 @@ struct HomeWindow: View {
 					.transition(.move(edge: .trailing))
 			}
 		}
-		.animation(.easeOut(duration: 0.18), value: app.preview.isOpen)
-		.animation(.easeOut(duration: 0.18), value: app.inbox.previewId)
+		.animation(.easeOut(duration: Tokens.Motion.motionTransition), value: app.preview.isOpen)
+		.animation(.easeOut(duration: Tokens.Motion.motionTransition), value: app.inbox.previewId)
 		.ignoresSafeArea(.container, edges: .top)
 		.focusable()
 		.focusEffectDisabled()
@@ -166,7 +166,7 @@ struct PaneGround: ViewModifier {
 					accent.opacity(0.09)
 				}
 			}
-			.animation(.easeOut(duration: 0.15), value: isFocused)
+			.animation(.easeOut(duration: Tokens.Motion.motionWash), value: isFocused)
 		}
 	}
 }

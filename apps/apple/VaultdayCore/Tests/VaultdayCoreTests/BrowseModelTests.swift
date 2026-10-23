@@ -251,6 +251,27 @@ final class BrowseModelTests: XCTestCase {
 		XCTAssertEqual(model.nextGroupStart(after: 0), 1)
 	}
 
+	func testNAndShiftNJumpBetweenTheRowsHoldingTheQueryText() {
+		XCTAssertEqual(BrowseModel.matchTerms(in: "status:open mail \"order summary\" text:Copy https://x.test/a"), ["mail", "order summary", "copy", "https://x.test/a"])
+		XCTAssertEqual(BrowseModel.matchTerms(in: "status:open source:braindump group:none"), [])
+
+		let model = model()
+		XCTAssertEqual(model.matchTerms, [], "no query text")
+		XCTAssertNil(model.matchIndex(from: 0, isForward: true), "with no query n stays put")
+		XCTAssertNil(model.matchIndex(from: 3, isForward: false), "with no query N stays put")
+		XCTAssertNil(model.matchIndex(from: nil, isForward: true))
+
+		model.queryText = "mail"
+		model.submitQuery()
+		XCTAssertEqual(model.matchTerms, ["mail"])
+		let matched = model.items.indices.filter { model.matchIndex(from: $0 - 1, isForward: true) == $0 }
+		XCTAssertFalse(matched.isEmpty)
+		for index in matched {
+			guard case let .row(row) = model.items[index] else { return XCTFail("a header matched") }
+			XCTAssertTrue(row.text.lowercased().contains("mail"), row.text)
+		}
+	}
+
 	func testAFolderWithoutAManifestReportsAnError() {
 		let model = BrowseModel(now: Self.today)
 		model.load(workspacePath: TestFixtures.repoRoot.path)

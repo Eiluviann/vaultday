@@ -1,7 +1,8 @@
 //! Just enough MIME to show a message: RFC 2047 encoded words in subjects
 //! and names, quoted-printable and base64 bodies, a few charsets, and a
-//! plain-text excerpt from text or HTML. Charsets other than UTF-8, ASCII and
-//! Latin-1 / Windows-1252 decode lossily as UTF-8.
+//! plain-text excerpt from text or HTML. Latin-1, Windows-1252 and
+//! ISO-8859-15 decode through small tables; charsets other than those, UTF-8
+//! and ASCII decode lossily as UTF-8.
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -130,13 +131,80 @@ fn encoded_word(candidate: &str) -> Option<(String, usize)> {
 fn decode_charset(bytes: &[u8], charset: &str) -> String {
     let charset = charset.to_ascii_lowercase();
     let charset = charset.split('*').next().unwrap_or_default();
-    if matches!(
-        charset,
-        "iso-8859-1" | "latin1" | "windows-1252" | "cp1252" | "iso-8859-15"
-    ) {
-        return bytes.iter().map(|&byte| char::from(byte)).collect();
+    match charset {
+        // Mail labelled Latin-1 is nearly always Windows-1252 in practice
+        // (curly quotes, dashes, the euro sign in 0x80–0x9F), and the
+        // WHATWG encoding standard maps the label to it for that reason.
+        "iso-8859-1" | "latin1" | "windows-1252" | "cp1252" => {
+            bytes.iter().map(|&byte| windows_1252_char(byte)).collect()
+        }
+        "iso-8859-15" | "latin9" => bytes.iter().map(|&byte| latin9_char(byte)).collect(),
+        _ => String::from_utf8_lossy(bytes).into_owned(),
     }
-    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// What Windows-1252 assigns to 0x80–0x9F; `None` for its five holes.
+const WINDOWS_1252_HIGH: [Option<char>; 32] = [
+    Some('\u{20AC}'),
+    None,
+    Some('\u{201A}'),
+    Some('\u{0192}'),
+    Some('\u{201E}'),
+    Some('\u{2026}'),
+    Some('\u{2020}'),
+    Some('\u{2021}'),
+    Some('\u{02C6}'),
+    Some('\u{2030}'),
+    Some('\u{0160}'),
+    Some('\u{2039}'),
+    Some('\u{0152}'),
+    None,
+    Some('\u{017D}'),
+    None,
+    None,
+    Some('\u{2018}'),
+    Some('\u{2019}'),
+    Some('\u{201C}'),
+    Some('\u{201D}'),
+    Some('\u{2022}'),
+    Some('\u{2013}'),
+    Some('\u{2014}'),
+    Some('\u{02DC}'),
+    Some('\u{2122}'),
+    Some('\u{0161}'),
+    Some('\u{203A}'),
+    Some('\u{0153}'),
+    None,
+    Some('\u{017E}'),
+    Some('\u{0178}'),
+];
+
+/// One Windows-1252 byte as a character; its holes keep the C1 control the
+/// byte names in Latin-1, as the WHATWG decoder does.
+fn windows_1252_char(byte: u8) -> char {
+    match byte {
+        0x80..=0x9F => WINDOWS_1252_HIGH
+            .get(usize::from(byte - 0x80))
+            .copied()
+            .flatten()
+            .unwrap_or(char::from(byte)),
+        _ => char::from(byte),
+    }
+}
+
+/// One ISO-8859-15 byte as a character: Latin-1 with eight places changed.
+fn latin9_char(byte: u8) -> char {
+    match byte {
+        0xA4 => '\u{20AC}',
+        0xA6 => '\u{0160}',
+        0xA8 => '\u{0161}',
+        0xB4 => '\u{017D}',
+        0xB8 => '\u{017E}',
+        0xBC => '\u{0152}',
+        0xBD => '\u{0153}',
+        0xBE => '\u{0178}',
+        _ => char::from(byte),
+    }
 }
 
 /// Base64 that may be cut mid-quantum by a partial fetch: whitespace is
@@ -236,6 +304,30 @@ mod tests {
             "Synthetic bo",
             "a partial fetch cut mid-quantum keeps what decodes"
         );
+    }
+
+    #[test]
+    fn windows_1252_and_latin9_decode_through_their_tables() {
+        let bytes = [
+            0x93, b'H', b'i', 0x94, b' ', 0x96, b' ', 0x80, b'5', b' ', 0xE9,
+        ];
+        assert_eq!(
+            decode_charset(&bytes, "windows-1252"),
+            "\u{201C}Hi\u{201D} \u{2013} \u{20AC}5 \u{e9}"
+        );
+        assert_eq!(
+            decode_charset(&bytes, "ISO-8859-1"),
+            decode_charset(&bytes, "cp1252")
+        );
+        assert_eq!(
+            decode_charset(&[0x81, 0x8D], "windows-1252"),
+            "\u{81}\u{8D}"
+        );
+        assert_eq!(
+            decode_charset(&[0xA4, 0xBD, 0xE9], "iso-8859-15"),
+            "\u{20AC}\u{153}\u{e9}"
+        );
+        assert_eq!(decode_charset("caf\u{e9}".as_bytes(), "utf-8"), "caf\u{e9}");
     }
 
     #[test]

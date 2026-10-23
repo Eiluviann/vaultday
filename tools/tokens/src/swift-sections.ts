@@ -3,6 +3,7 @@ import type { ShadowLayerValue } from './css-values.ts';
 import {
 	parseEm,
 	parseFirstFontFamily,
+	parseMilliseconds,
 	parsePixels,
 	parseShadowList,
 	toSwiftFontWeight,
@@ -67,6 +68,19 @@ export function buildLengthConstants(
 		const pixels = parsePixels(token.value);
 		const expression = pixels.ok ? ok(formatNumber(pixels.value)) : pixels;
 		return defineConstant(token.name, token.usage, 'CGFloat', expression);
+	});
+}
+
+/** Builds `TimeInterval` constants, in seconds, from `NNms` duration tokens. */
+export function buildDurationConstants(
+	tokens: readonly LengthToken[],
+): Result<SwiftConstant[]> {
+	return collectConstants('motion', tokens, (token) => {
+		const milliseconds = parseMilliseconds(token.value);
+		const expression = milliseconds.ok
+			? ok(formatNumber(milliseconds.value / 1000))
+			: milliseconds;
+		return defineConstant(token.name, token.usage, 'TimeInterval', expression);
 	});
 }
 

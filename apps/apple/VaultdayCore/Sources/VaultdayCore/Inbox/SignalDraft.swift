@@ -18,6 +18,8 @@ public enum SignalDraftKind: Equatable, Sendable {
 /// Save writes, Esc cancels.
 public struct SignalDraft: Equatable, Sendable {
 	public let signalId: String
+	/// The mail's subject, which the popover's header names; never the raw id.
+	public let subject: String
 	public let kind: SignalDraftKind
 	public var text: String
 	/// The story number; empty files the line into the mail intake note.
@@ -40,8 +42,10 @@ public struct SignalDraft: Equatable, Sendable {
 		day: String,
 		estimate: String,
 		snoozeUntil: Date,
+		subject: String = "",
 	) {
 		self.signalId = signalId
+		self.subject = subject
 		self.kind = kind
 		self.text = text
 		self.story = story
@@ -63,7 +67,15 @@ public struct SignalDraft: Equatable, Sendable {
 			day: "",
 			estimate: "",
 			snoozeUntil: defaultSnooze(after: now, calendar: calendar),
+			subject: card.subject,
 		)
+	}
+
+	/// What the popover's header says the draft comes from: the subject, or
+	/// "the mail" when the message had none.
+	public var sourceLabel: String {
+		let trimmed = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+		return trimmed.isEmpty ? "the mail" : trimmed
 	}
 
 	/// The section heading the line goes under, for the popover's fixed row.

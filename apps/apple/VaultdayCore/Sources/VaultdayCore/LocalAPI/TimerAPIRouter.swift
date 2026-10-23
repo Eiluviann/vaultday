@@ -132,7 +132,8 @@ public protocol TimerAPIBackend: AnyObject {
 	func today() -> TimerAPIToday
 	/// Starts the timer on `target`: a task id, a story number, or text of an open task of today.
 	func startTimer(target: String, minutesAgo: Int?) -> Result<TimerAPIStatus, TimerAPIFailure>
-	func stopTimer() -> Result<TimerAPIStatus, TimerAPIFailure>
+	/// Stops the timer; the answer waits for the day-log line, which is written off the main actor.
+	func stopTimer() async -> Result<TimerAPIStatus, TimerAPIFailure>
 	func continueTimer() -> Result<TimerAPIStatus, TimerAPIFailure>
 	func completeTask(id: String) -> Result<TimerAPIDone, TimerAPIFailure>
 }
@@ -168,14 +169,14 @@ public final class TimerAPIRouter {
 	}
 
 	/// The response to `request` from a peer at `peerIsLoopback`.
-	public func respond(to request: HTTPRequest, peerIsLoopback: Bool) -> HTTPResponse {
+	public func respond(to request: HTTPRequest, peerIsLoopback: Bool) async -> HTTPResponse {
 		guard peerIsLoopback else { return .error(403, "Only this Mac may call Vaultday") }
 		if request.path == ServerProof.route { return hello(request) }
 		guard let presented = TokenComparison.bearerToken(request.headers["authorization"]),
 		      TokenComparison.isEqual(presented, token)
 		else { return .error(401, "Unauthorized") }
 		guard let backend else { return .error(503, "Vaultday is starting") }
-		return route(request, backend: backend)
+		return await route(request, backend: backend)
 	}
 
 	/// Proves this server holds the token without the caller sending it.
@@ -189,7 +190,7 @@ public final class TimerAPIRouter {
 
 	private static let knownPaths: Set<String> = ["/v1/status", "/v1/today", "/v1/timer/start", "/v1/timer/stop", "/v1/timer/continue"]
 
-	private func route(_ request: HTTPRequest, backend: any TimerAPIBackend) -> HTTPResponse {
+	private func route(_ request: HTTPRequest, backend: any TimerAPIBackend) async -> HTTPResponse {
 		switch (request.method, request.path) {
 		case ("GET", "/v1/status"):
 			return json(200, backend.status())
@@ -201,7 +202,7 @@ public final class TimerAPIRouter {
 			else { return .error(400, "Send {\"target\": \"<task id or text>\"}") }
 			return answer(backend.startTimer(target: body.target, minutesAgo: body.minutesAgo), status: 201)
 		case ("POST", "/v1/timer/stop"):
-			return answer(backend.stopTimer(), status: 200)
+			return answer(await backend.stopTimer(), status: 200)
 		case ("POST", "/v1/timer/continue"):
 			return answer(backend.continueTimer(), status: 201)
 		default:

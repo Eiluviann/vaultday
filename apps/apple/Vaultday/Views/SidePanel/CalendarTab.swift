@@ -30,16 +30,16 @@ private struct CalendarLegend: View {
 
 	var body: some View {
 		HStack(spacing: 10) {
-			swatch("Event") { Rectangle().fill(accent.opacity(0.12)) }
+			swatch("Event") { Rectangle().fill(accent.opacity(WorkspaceWash.eventOpacity)) }
 			swatch("Locked") {
 				Rectangle().fill(Tokens.Colors.surfaceRaised).overlay(Rectangle().strokeBorder(accent, lineWidth: 1))
 			}
 			swatch("Unlocked") {
-				Rectangle().fill(accent.opacity(0.10))
+				Rectangle().fill(accent.opacity(WorkspaceWash.unlockedBoxOpacity))
 					.overlay(Rectangle().strokeBorder(accent, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
 					.opacity(0.7)
 			}
-			swatch("Tracked") { Rectangle().fill(accent.opacity(0.22)) }
+			swatch("Tracked") { Rectangle().fill(accent.opacity(WorkspaceWash.trackedOpacity)) }
 		}
 		.font(Tokens.Typography.caption.font)
 		.foregroundStyle(Tokens.Colors.inkMuted)
@@ -237,17 +237,17 @@ private struct BlockTile: View {
 		let shape = RoundedRectangle(cornerRadius: block.isTask ? Tokens.Radius.radiusSm : Tokens.Radius.radiusXs)
 		switch block.kind {
 		case .event:
-			shape.fill(accent.opacity(0.12))
+			shape.fill(accent.opacity(WorkspaceWash.eventOpacity))
 		case .locked:
 			shape.fill(Tokens.Colors.surfaceRaised)
 				.overlay(alignment: .top) {
-					Rectangle().fill(accent.opacity(0.18)).frame(height: height * block.trackedShare)
+					Rectangle().fill(accent.opacity(WorkspaceWash.trackedOpacity)).frame(height: height * block.trackedShare)
 				}
 				.overlay(shape.strokeBorder(accent, lineWidth: 1))
 		case .unlocked:
-			shape.fill(accent.opacity(0.10))
+			shape.fill(accent.opacity(WorkspaceWash.unlockedBoxOpacity))
 				.overlay(alignment: .top) {
-					Rectangle().fill(accent.opacity(0.18)).frame(height: height * block.trackedShare)
+					Rectangle().fill(accent.opacity(WorkspaceWash.trackedOpacity)).frame(height: height * block.trackedShare)
 				}
 				.overlay(shape.strokeBorder(accent, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
 		}
@@ -278,10 +278,11 @@ private struct BlockTile: View {
 	}
 
 	private var icon: some View {
-		Image(systemName: block.isTask ? "checkmark.circle" : "calendar")
+		let mark = block.isTask ? TypeMark.task.mark : SourceMark.calendar.mark
+		return Image(systemName: mark.symbol)
 			.font(.system(size: 10))
-			.foregroundStyle(block.isTask ? Tokens.Colors.ink : Tokens.Colors.inkMuted)
-			.accessibilityLabel(block.isTask ? "Task" : "Calendar event")
+			.foregroundStyle(mark.tone.color)
+			.accessibilityLabel(mark.name)
 	}
 
 	private var titleFont: Font {
@@ -308,7 +309,7 @@ private struct Padlock: View {
 			Image(systemName: isLocked ? "lock" : "lock.open")
 				.font(.system(size: 10))
 				.foregroundStyle(isLocked ? accent : Tokens.Colors.inkMuted)
-				.contentTransition(.symbolEffect(.replace))
+				.iconReplace(value: isLocked)
 				.frame(width: 18, height: 18)
 		}
 		.buttonStyle(.plain)

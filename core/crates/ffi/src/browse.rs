@@ -221,6 +221,9 @@ pub struct StoryPreviewView {
     pub activity: Vec<ActivityEntryView>,
     /// The `obsidian://` link to the note.
     pub obsidian_link: String,
+    /// One line to show beside the link when it had to fall back (the
+    /// workspace lies outside its Obsidian vault); `None` otherwise.
+    pub obsidian_link_notice: Option<String>,
 }
 
 /// A task with its story and subtasks.
@@ -236,6 +239,9 @@ pub struct TaskPreviewView {
     pub task_activity: Vec<ActivityEntryView>,
     /// The `obsidian://` link to the note holding the task.
     pub obsidian_link: String,
+    /// One line to show beside the link when it had to fall back (the
+    /// workspace lies outside its Obsidian vault); `None` otherwise.
+    pub obsidian_link_notice: Option<String>,
 }
 
 /// One line of a day log.
@@ -307,6 +313,7 @@ pub fn browse_snapshot(
             task: line.task,
             story_title: line.story_title,
             story_status: line.story_status,
+            source: line.source,
         })
         .collect();
     Ok(Arc::new(BrowseSnapshot { rows, today }))
@@ -420,6 +427,7 @@ pub fn task_preview(
             .map(activity_view)
             .collect(),
         obsidian_link,
+        obsidian_link_notice: obsidian_link_notice(workspace),
     })
 }
 
@@ -574,7 +582,15 @@ fn story_preview_view(story: StoryPreview, workspace: &WorkspaceHandle) -> Story
         waiting: story.waiting.into_iter().map(waiting_view).collect(),
         activity: story.activity.into_iter().map(activity_view).collect(),
         obsidian_link,
+        obsidian_link_notice: obsidian_link_notice(workspace),
     }
+}
+
+fn obsidian_link_notice(workspace: &WorkspaceHandle) -> Option<String> {
+    workspace
+        .workspace
+        .obsidian_link_notice()
+        .map(str::to_owned)
 }
 
 fn block_view(block: NoteBlock) -> NoteBlockView {
@@ -832,6 +848,15 @@ mod tests {
                 .ends_with("&file=Projects%2FWebsite%2FWEB-142%20Checkout%20redesign%2FWEB-142%20Checkout%20redesign")
         );
         assert_eq!(preview.task_activity.len(), 1);
+        assert_eq!(preview.obsidian_link_notice, None, "inside its vault");
+
+        let mut outside = workspace.workspace.clone();
+        outside.vault_root = std::env::temp_dir().join("another-vault");
+        let outside = WorkspaceHandle { workspace: outside };
+        let preview = task_preview(&outside, "task-2".to_owned(), Some(TODAY.to_owned())).unwrap();
+        let notice = preview.obsidian_link_notice.unwrap();
+        assert!(!notice.ends_with('.'), "one line, no period");
+        assert_eq!(preview.story.unwrap().obsidian_link_notice, Some(notice));
     }
 
     #[test]

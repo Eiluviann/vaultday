@@ -202,69 +202,75 @@ final class SidePanelModelTests: XCTestCase {
 	}
 
 	func testEndedEventsBecomeMeetingSessionsOnceAndCountInHours() throws {
+		// The meetings sit on the day before the injected clock, which the
+		// panel records alongside today: they have ended whatever the hour.
 		let now = Date()
-		let minutesToday = Calendar.current.dateComponents([.hour, .minute], from: now).hour.map { $0 * 60 } ?? 0
-		try XCTSkipIf(minutesToday < 70, "needs an hour of today behind the clock")
+		let day = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: now))
+		let minutesToday = 14 * 60
 		let store = FakeEventStore(sources: [iCloud, exchange])
 		store.calendarList = [CalendarInfo(id: "ex-work", title: "Work", source: exchange, allowsModifications: true)]
-		store.events = ["sync": workEvent("sync", "WEB-142 sync", from: minutesToday - 65, to: minutesToday - 5, on: now)]
+		store.events = ["sync": workEvent("sync", "WEB-142 sync", from: minutesToday - 65, to: minutesToday - 5, on: day)]
 		let harness = try OnboardingHarness(self)
 		let workspace = try openWorkspace(harness)
 		workspace.setCalendar(id: "ex-work", title: "Work", isPicked: true)
-		let panel = CalendarPanelModel()
+		let panel = CalendarPanelModel(now: { now })
 		panel.attach(calendar: EventKitCalendarSource(store: store, pickedCalendarIds: workspace.pickedCalendarIds))
-		panel.load(from: workspace, date: DayText.string(now))
+		panel.load(from: workspace, date: DayText.string(day))
 
 		XCTAssertEqual(panel.recordEndedMeetings(), 1)
 		XCTAssertEqual(panel.recordEndedMeetings(), 0, "a meeting is recorded once")
 
 		let hours = HoursModel()
-		hours.load(from: workspace, date: DayText.string(now))
+		hours.load(from: workspace, date: DayText.string(day))
 		let row = try XCTUnwrap(hours.rows.first { $0.number == "WEB-142" })
 		XCTAssertEqual(row.trackedMinutes, 60, "the ticket number in the title files the meeting under its story")
 		XCTAssertEqual(hours.trackedMinutes, 60)
 	}
 
 	func testDeclinedAndFreeEventsAreNoMeetingAndOverlapsCountOnce() throws {
+		// The meetings sit on the day before the injected clock, which the
+		// panel records alongside today: they have ended whatever the hour.
 		let now = Date()
-		let minutesToday = Calendar.current.dateComponents([.hour, .minute], from: now).hour.map { $0 * 60 } ?? 0
-		try XCTSkipIf(minutesToday < 130, "needs two hours of today behind the clock")
+		let day = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: now))
+		let minutesToday = 14 * 60
 		let store = FakeEventStore(sources: [iCloud, exchange])
 		store.calendarList = [CalendarInfo(id: "ex-work", title: "Work", source: exchange, allowsModifications: true)]
 		store.events = [
-			"declined": workEvent("declined", "WEB-142 planning", from: minutesToday - 125, to: minutesToday - 65, on: now, isAttended: false),
-			"sync": workEvent("sync", "WEB-142 sync", from: minutesToday - 125, to: minutesToday - 65, on: now),
-			"review": workEvent("review", "WEB-142 review", from: minutesToday - 95, to: minutesToday - 35, on: now),
+			"declined": workEvent("declined", "WEB-142 planning", from: minutesToday - 125, to: minutesToday - 65, on: day, isAttended: false),
+			"sync": workEvent("sync", "WEB-142 sync", from: minutesToday - 125, to: minutesToday - 65, on: day),
+			"review": workEvent("review", "WEB-142 review", from: minutesToday - 95, to: minutesToday - 35, on: day),
 		]
 		let harness = try OnboardingHarness(self)
 		let workspace = try openWorkspace(harness)
 		workspace.setCalendar(id: "ex-work", title: "Work", isPicked: true)
-		let panel = CalendarPanelModel()
+		let panel = CalendarPanelModel(now: { now })
 		panel.attach(calendar: EventKitCalendarSource(store: store, pickedCalendarIds: workspace.pickedCalendarIds))
-		panel.load(from: workspace, date: DayText.string(now))
+		panel.load(from: workspace, date: DayText.string(day))
 
 		XCTAssertEqual(panel.recordEndedMeetings(), 2, "the declined invitation is no meeting")
 		let hours = HoursModel()
-		hours.load(from: workspace, date: DayText.string(now))
+		hours.load(from: workspace, date: DayText.string(day))
 		XCTAssertEqual(hours.trackedMinutes, 90, "the half hour both meetings share counts once")
 	}
 
 	func testARenamedAndMovedMeetingKeepsItsOneSession() throws {
+		// The meetings sit on the day before the injected clock, which the
+		// panel records alongside today: they have ended whatever the hour.
 		let now = Date()
-		let minutesToday = Calendar.current.dateComponents([.hour, .minute], from: now).hour.map { $0 * 60 } ?? 0
-		try XCTSkipIf(minutesToday < 130, "needs two hours of today behind the clock")
+		let day = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: now))
+		let minutesToday = 14 * 60
 		let store = FakeEventStore(sources: [iCloud, exchange])
 		store.calendarList = [CalendarInfo(id: "ex-work", title: "Work", source: exchange, allowsModifications: true)]
-		store.events = ["review": workEvent("review", "Design review", from: minutesToday - 125, to: minutesToday - 65, on: now)]
+		store.events = ["review": workEvent("review", "Design review", from: minutesToday - 125, to: minutesToday - 65, on: day)]
 		let harness = try OnboardingHarness(self)
 		let workspace = try openWorkspace(harness)
 		workspace.setCalendar(id: "ex-work", title: "Work", isPicked: true)
-		let panel = CalendarPanelModel()
+		let panel = CalendarPanelModel(now: { now })
 		panel.attach(calendar: EventKitCalendarSource(store: store, pickedCalendarIds: workspace.pickedCalendarIds))
-		panel.load(from: workspace, date: DayText.string(now))
+		panel.load(from: workspace, date: DayText.string(day))
 		XCTAssertEqual(panel.recordEndedMeetings(), 1)
 
-		store.events = ["review": workEvent("review", "Design review, moved", from: minutesToday - 70, to: minutesToday - 10, on: now)]
+		store.events = ["review": workEvent("review", "Design review, moved", from: minutesToday - 70, to: minutesToday - 10, on: day)]
 		XCTAssertEqual(panel.recordEndedMeetings(), 0, "the same store key is the same meeting")
 		XCTAssertEqual(workspace.state?.sessions().count, 1)
 	}
@@ -329,7 +335,8 @@ final class SidePanelModelTests: XCTestCase {
 		XCTAssertEqual(run.left, ["Water the plants: Repeats in Reminders; repeat rules are not imported yet"])
 		XCTAssertEqual(reminders.removed.map(\.id).sorted(), ["r1", "r2"])
 		XCTAssertTrue(reminders.removed.allSatisfy(\.lineWasWritten), "no item is deleted before its line exists")
-		XCTAssertEqual(intake.message, "Filed 2 reminders · 1 left in Reminders")
+		XCTAssertEqual(intake.message, "Filed 2 reminders · Left in Reminders: Water the plants")
+		XCTAssertEqual(run.leftTitles, ["Water the plants"])
 		let catchAll = try String(contentsOf: root.appending(path: "Inbox/Reminders.md"), encoding: .utf8)
 		XCTAssertTrue(catchAll.contains("Call the bank [id:: "))
 		XCTAssertTrue(catchAll.contains("[scheduled:: 2026-10-24] [reminder:: ext-2]"))
@@ -407,12 +414,12 @@ final class SidePanelModelTests: XCTestCase {
 		XCTAssertEqual(CalendarGridScale.label(hour: 8), "08:00")
 	}
 
-	func testMAndShiftXPinUnderVimMotionsAndTheCapShowsM() throws {
+	func testMPinsUnderVimMotionsAndTheCapShowsM() throws {
 		let text = try String(contentsOf: TestFixtures.repoRoot.appending(path: "apps/apple/Keymap.yaml"), encoding: .utf8)
 		let keymap = try Keymap.parse(text).get()
 		let dispatcher = KeyDispatcher(keymap: keymap, scheme: .vim)
 		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "m")), .action(.togglePin))
-		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "x", modifiers: .shift)), .action(.togglePin))
+		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "x", modifiers: .shift)), .unbound, "the extra X binding is gone; lock stays on m")
 		XCTAssertEqual(dispatcher.handle(KeyStroke(key: "x")), .action(.completeTask), "bare x still ticks")
 		XCTAssertEqual(dispatcher.label(for: .togglePin), "m")
 		dispatcher.setScheme(.standard)

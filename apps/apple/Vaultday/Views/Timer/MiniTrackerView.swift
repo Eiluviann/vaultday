@@ -56,6 +56,7 @@ struct MiniTrackerView: View {
 				app.isMiniTrackerExpanded.toggle()
 			} label: {
 				Image(systemName: app.isMiniTrackerExpanded ? "chevron.up" : "chevron.down")
+					.iconReplace(value: app.isMiniTrackerExpanded)
 					.font(.system(size: 10))
 					.foregroundStyle(Tokens.Colors.inkMuted)
 					.frame(width: 22, height: 24)
@@ -77,11 +78,13 @@ private struct ExpandedTracker: View {
 			if let estimate = app.runningItem?.estimateMinutes, estimate > 0 {
 				ProgressView(value: min(1, Double(session.elapsed(at: app.timerClock)) / Double(estimate * 60)))
 					.tint(app.accentColor)
+					.progressDraw(value: min(1, Double(session.elapsed(at: app.timerClock)) / Double(estimate * 60)))
 					.accessibilityLabel("Progress against \(DurationText.minutes(estimate)) planned")
 			}
 			ForEach(app.runningItem?.subtasks ?? []) { subtask in
 				HStack(spacing: Tokens.Spacing.space8) {
 					Image(systemName: subtask.isDone ? "checkmark.square" : "square")
+						.iconReplace(value: subtask.isDone)
 						.foregroundStyle(subtask.isDone ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
 					Text(subtask.text)
 						.strikethrough(subtask.isDone)
@@ -128,6 +131,7 @@ private struct TrackerButton: View {
 		Button(action: action) {
 			Image(systemName: symbol)
 				.font(.system(size: 9))
+				.iconReplace(value: symbol)
 				.foregroundStyle(isPrimary ? Tokens.Colors.onPrimary : Tokens.Colors.ink)
 				.frame(width: 28, height: 24)
 				.background(isPrimary ? Tokens.Colors.primary : Tokens.Colors.fillControl, in: RoundedRectangle(cornerRadius: 8))

@@ -113,6 +113,7 @@ struct CardIconButton: View {
 		Button(action: action) {
 			Image(systemName: symbol)
 				.font(.system(size: size - 3))
+				.iconReplace(value: symbol)
 				.frame(minWidth: 24, minHeight: 20)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
@@ -152,7 +153,7 @@ struct LiftModifier: ViewModifier {
 			.shadow(color: .black.opacity(isLifted ? 0.10 : 0), radius: isLifted ? 8 : 0, y: isLifted ? 6 : 0)
 			.shadow(color: .black.opacity(isLifted ? 0.06 : 0), radius: isLifted ? 1 : 0, y: isLifted ? 1 : 0)
 			.offset(y: isLifted ? -1 : 0)
-			.animation(.easeOut(duration: 0.18), value: isLifted)
+			.animation(.easeOut(duration: Tokens.Motion.motionLift), value: isLifted)
 	}
 }
 
@@ -160,6 +161,49 @@ extension View {
 	func lift(_ isLifted: Bool) -> some View {
 		modifier(LiftModifier(isLifted: isLifted))
 	}
+}
+
+/// A source or type mark's colour from its token.
+extension MarkTone {
+	var color: Color {
+		switch self {
+		case .inkSecondary: Tokens.Colors.inkSecondary
+		case .inkMuted: Tokens.Colors.inkMuted
+		case .info: Tokens.Colors.info
+		case .positive: Tokens.Colors.positive
+		case .caution: Tokens.Colors.caution
+		case .ai: Tokens.Colors.ai
+		}
+	}
+}
+
+/// A source or type mark: its one icon, in its one colour.
+struct MarkIcon: View {
+	let mark: IconMark
+	var size: CGFloat = 13
+
+	var body: some View {
+		Image(systemName: mark.symbol)
+			.font(.system(size: size))
+			.foregroundStyle(mark.tone.color)
+			.frame(width: 16, height: 16)
+			.accessibilityLabel(mark.name)
+	}
+}
+
+/// Where a workspace's colour shows, and how strongly: the dot on a card in
+/// All, the checkbox tint, the calendar's washes. Nowhere else.
+enum WorkspaceWash {
+	/// The dot beside a card's title in the All view.
+	static let dotSize: CGFloat = 8
+	/// A calendar event.
+	static let eventOpacity = 0.12
+	/// An unlocked (floating) task box on the calendar.
+	static let unlockedBoxOpacity = 0.10
+	/// The tracked share of a task box, and its legend swatch.
+	static let trackedOpacity = 0.18
+	/// The selected row of a list.
+	static let selectionOpacity = 0.10
 }
 
 /// A workspace's identity color, from its sidebar entry.

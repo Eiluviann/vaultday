@@ -9,6 +9,7 @@ struct MenuBarLabel: View {
 		if let clock = app.menuBarClock {
 			Label(clock, systemImage: app.runningSession?.isPaused == true ? "pause.circle" : "timer")
 				.labelStyle(.titleAndIcon)
+				.iconReplace(value: app.runningSession?.isPaused == true)
 				.monospacedDigit()
 		} else {
 			Image(systemName: "timer")
@@ -74,30 +75,32 @@ struct MenuBarContent: View {
 			app.refreshTimerPicker()
 			isListFocused = true
 		}
-		.onKeyPress(.upArrow) {
+		// The keys come from Keymap.yaml's `menu-bar` bindings.
+		.onKeyPress(phases: .down) { press in
+			guard let action = app.menuBarAction(for: KeyStroke(press)) else { return .ignored }
+			return perform(action) ? .handled : .ignored
+		}
+	}
+
+	private func perform(_ action: KeyAction) -> Bool {
+		switch action {
+		case .menuBarPrevious:
 			app.timerPicker.moveSelection(by: -1)
-			return .handled
-		}
-		.onKeyPress(.downArrow) {
+		case .menuBarNext:
 			app.timerPicker.moveSelection(by: 1)
-			return .handled
-		}
-		.onKeyPress(.return) {
+		case .menuBarStart:
 			app.startPickedTimer()
-			return .handled
-		}
-		.onKeyPress(keys: ["n"]) { press in
-			guard press.modifiers.contains(.command) else { return .ignored }
+		case .menuBarNewEntry:
 			app.timerPicker.beginNewEntry()
 			isDraftFocused = true
-			return .handled
-		}
-		.onKeyPress(.escape) {
-			guard app.timerPicker.isComposing else { return .ignored }
+		case .menuBarCancel:
+			guard app.timerPicker.isComposing else { return false }
 			app.timerPicker.endNewEntry()
 			isListFocused = true
-			return .handled
+		default:
+			return false
 		}
+		return true
 	}
 
 	private var idleActions: some View {
@@ -163,6 +166,7 @@ private struct LoggedHeader: View {
 					.trim(from: 0, to: app.loggedFraction)
 					.stroke(app.accentColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
 					.rotationEffect(.degrees(-90))
+					.progressDraw(value: app.loggedFraction)
 			}
 			.frame(width: 36, height: 36)
 			.padding(4)

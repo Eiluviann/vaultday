@@ -40,6 +40,7 @@ const SWIFT_FONT_WEIGHT_BY_CSS_WEIGHT = new Map<number, SwiftFontWeight>([
 
 const PIXELS_PATTERN = /^(-?\d+(?:\.\d+)?)px$/;
 const EM_PATTERN = /^(-?\d+(?:\.\d+)?)em$/;
+const MILLISECONDS_PATTERN = /^(\d+(?:\.\d+)?)ms$/;
 const SHADOW_LENGTH_PATTERN = /^(-?\d+(?:\.\d+)?)(?:px)?$/;
 const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/;
 const FUNCTION_COLOR_PATTERN =
@@ -49,6 +50,11 @@ const QUOTED_FAMILY_PATTERN = /["']([^"']+)["']/;
 /** Parses a CSS length such as `20px`. */
 export function parsePixels(text: string): Result<number> {
 	return parseMeasure(text, PIXELS_PATTERN, 'a length like "20px"');
+}
+
+/** Parses a CSS duration in milliseconds such as `150ms`. */
+export function parseMilliseconds(text: string): Result<number> {
+	return parseMeasure(text, MILLISECONDS_PATTERN, 'a duration like "150ms"');
 }
 
 /** Parses a CSS letter spacing such as `-0.01em`. */

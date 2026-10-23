@@ -15,6 +15,7 @@
 //! | `waiting` (or `assigned`) | `any` (assigned to someone but me), `none`, or a name |
 //! | `text` | text that must appear in the task's text or id |
 //! | `created` | as `scheduled`, against the task's `[created:: ]` day |
+//! | `source` | the task's `[source:: ]` field, whole and ignoring case: `braindump`, a signal id `sig-…` |
 //! | `story-status` | the story note's status: `draft`, `ready`, `in-progress`, `on-hold`, `done`, `cancelled` or the word as written |
 //! | `group` | `story,section` (default), `story`, `section` or `none` |
 //! | `sort` | `manual` (default, the note's order), `scheduled`, `due`, `estimate`, `text`, `id` |
@@ -40,15 +41,15 @@ use crate::quick_add::parse_estimate;
 use crate::task::{Section, TaskStatus, VaultTask};
 
 /// The saved queries every workspace starts with: a name and its query line.
-/// Braindump is what was captured since yesterday: an evening's brain dump
-/// and today's.
+/// Braindump is what was captured as a brain dump: the open tasks carrying
+/// `[source:: braindump]`, however long ago.
 pub const PRESETS: [(&str, &str); 6] = [
     ("All open", "status:open"),
     ("Backlog", "status:open section:next scheduled:none"),
     ("Chasers", "status:open waiting:any"),
     ("Active stories", "status:open story-status:in-progress"),
     ("Due this week", "status:open due:<=week"),
-    ("Braindump", "status:open created:>=yesterday"),
+    ("Braindump", "status:open source:braindump"),
 ];
 
 /// One task of a story with the story's title, as Browse lists it.
@@ -60,6 +61,8 @@ pub struct BrowseTask {
     pub story_title: Option<String>,
     /// The story note's status token, lower case.
     pub story_status: Option<String>,
+    /// The line's `[source:: ]` field: where the task came from.
+    pub source: Option<String>,
 }
 
 /// Why a query line was refused. The message is meant to be shown as typed.
@@ -67,7 +70,7 @@ pub struct BrowseTask {
 pub enum QueryError {
     /// The key before the colon is not a filter.
     #[error(
-        "{0} is not a filter; use status, story, story-status, section, due, scheduled, created, estimate, waiting, text, group or sort"
+        "{0} is not a filter; use status, story, story-status, section, due, scheduled, created, source, estimate, waiting, text, group or sort"
     )]
     UnknownFilter(String),
     /// The value after the colon does not suit the filter.
@@ -95,6 +98,7 @@ pub struct BrowseQuery {
     due: Option<DateFilter>,
     scheduled: Option<DateFilter>,
     created: Option<DateFilter>,
+    sources: Vec<String>,
     estimate: Option<EstimateFilter>,
     waiting: Option<WaitingFilter>,
     text: Vec<String>,
@@ -217,6 +221,7 @@ impl BrowseQuery {
             due: None,
             scheduled: None,
             created: None,
+            sources: Vec::new(),
             estimate: None,
             waiting: None,
             text: Vec::new(),
@@ -261,6 +266,7 @@ impl BrowseQuery {
             && self
                 .created
                 .is_none_or(|filter| filter.accepts(task.created, today))
+            && self.matches_source(row)
             && self
                 .estimate
                 .is_none_or(|filter| filter.accepts(task.estimate))
@@ -374,6 +380,16 @@ impl BrowseQuery {
                     bad("use none, any, today, yesterday, week, a day or <, <=, >, >= with one")
                 })?);
             }
+            "source" => {
+                self.sources = value
+                    .split(',')
+                    .map(|part| part.trim().to_lowercase())
+                    .filter(|part| !part.is_empty())
+                    .collect();
+                if self.sources.is_empty() {
+                    return Err(bad("name a source such as braindump"));
+                }
+            }
             "group" => {
                 self.group = parse_grouping(value)
                     .ok_or_else(|| bad("use story,section, story, section or none"))?;
@@ -449,6 +465,14 @@ impl BrowseQuery {
             (!number.is_empty() && number.contains(wanted.as_str()))
                 || title.contains(wanted.as_str())
         })
+    }
+
+    fn matches_source(&self, row: &BrowseTask) -> bool {
+        self.sources.is_empty()
+            || row.source.as_deref().is_some_and(|source| {
+                let source = source.trim().to_lowercase();
+                self.sources.contains(&source)
+            })
     }
 
     fn matches_story_status(&self, row: &BrowseTask) -> bool {
@@ -587,7 +611,7 @@ impl WaitingFilter {
     }
 }
 
-const FILTER_KEYS: [&str; 12] = [
+const FILTER_KEYS: [&str; 13] = [
     "status",
     "story",
     "story-status",
@@ -595,6 +619,7 @@ const FILTER_KEYS: [&str; 12] = [
     "due",
     "scheduled",
     "created",
+    "source",
     "estimate",
     "waiting",
     "assigned",
@@ -754,6 +779,7 @@ mod tests {
             task,
             story_title: Some(format!("{story} title")),
             story_status: Some(story_status.to_owned()),
+            source: None,
         }
     }
 
@@ -793,6 +819,8 @@ mod tests {
         );
         mail.task.due = Some(day("2026-10-20"));
         mail.task.created = Some(today());
+        mail.source = Some("braindump".to_owned());
+        copy.source = Some("Braindump".to_owned());
         let mut provider = row(
             "task-9",
             "WEB-157",
@@ -1112,7 +1140,13 @@ mod tests {
             preset("Active stories"),
             vec!["task-2", "task-4", "task-5", "task-6"]
         );
-        assert_eq!(preset("Braindump"), vec!["task-2", "task-8"]);
+        assert_eq!(preset("Braindump"), vec!["task-6", "task-8"]);
+        assert_eq!(ids("source:sig-1"), Vec::<String>::new());
+        assert_eq!(ids("source:braindump,sig-1 story:157"), vec!["task-8"]);
+        assert!(matches!(
+            BrowseQuery::parse("source:"),
+            Err(QueryError::BadValue { .. })
+        ));
     }
 
     #[test]

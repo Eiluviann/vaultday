@@ -65,6 +65,8 @@ const TokenFileSchema = z.object({
 	radius: z.object({ tokens: z.array(LengthTokenSchema) }),
 	size: z.object({ tokens: z.array(LengthTokenSchema) }),
 	shadow: z.object({ tokens: z.array(ShadowTokenSchema) }),
+	/** Durations (`150ms`); optional so an export from before motion tokens still reads. */
+	motion: z.object({ tokens: z.array(LengthTokenSchema) }).optional(),
 });
 
 export type ColorToken = z.infer<typeof ColorTokenSchema>;

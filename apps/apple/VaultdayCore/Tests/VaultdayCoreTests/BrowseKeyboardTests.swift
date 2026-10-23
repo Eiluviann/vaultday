@@ -69,10 +69,9 @@ final class BrowseKeyboardTests: XCTestCase {
 		focus.apply(.showDayLog)
 		XCTAssertEqual(focus.focusedPane, .sidePanel)
 		focus.apply(.focusPane(.today))
+		focus.select(1, in: .today)
 		focus.apply(.nextMatch)
-		XCTAssertEqual(focus.selection(in: .today), 1)
-		focus.apply(.previousMatch)
-		XCTAssertEqual(focus.selection(in: .today), 0)
+		XCTAssertEqual(focus.selection(in: .today), 1, "n jumps by the query's matches, which the app knows, not by a line")
 		focus.apply(.showSidePanelTab(4))
 		XCTAssertEqual(focus.focusedPane, .sidePanel)
 	}

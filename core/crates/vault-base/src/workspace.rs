@@ -30,6 +30,10 @@ const SKIPPED_DIRECTORY_NAMES: [&str; 6] = [
     ".vaultday",
 ];
 
+/// The one-line notice for a workspace outside its Obsidian vault.
+pub const OBSIDIAN_LINK_FALLBACK_NOTICE: &str =
+    "This workspace sits outside its Obsidian vault, so Open in Obsidian may not find the note";
+
 /// An opened workspace.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Workspace {
@@ -126,6 +130,17 @@ impl Workspace {
     #[must_use]
     pub fn contains(&self, path: &Path) -> bool {
         normalize_path(path).starts_with(&self.root)
+    }
+
+    /// What a preview says when [`Workspace::obsidian_link`] has to fall
+    /// back: the workspace root lies outside the folder holding `.obsidian/`,
+    /// so the link names the note from the vault folder's name and the path
+    /// below the workspace only, and Obsidian may not find it. `None` when
+    /// the root is inside the vault, the usual case.
+    #[must_use]
+    pub fn obsidian_link_notice(&self) -> Option<&'static str> {
+        (!normalize_path(&self.root).starts_with(normalize_path(&self.vault_root)))
+            .then_some(OBSIDIAN_LINK_FALLBACK_NOTICE)
     }
 
     /// The `obsidian://open` link for the note at `relative_path` (relative to

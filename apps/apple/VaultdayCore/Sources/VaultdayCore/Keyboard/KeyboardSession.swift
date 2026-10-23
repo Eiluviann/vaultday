@@ -25,6 +25,9 @@ public final class KeyboardSession {
 		.completeTask, .cut, .pasteAfter, .pasteBefore, .pushToTomorrow, .pullToToday,
 		.moveTaskUp, .moveTaskDown, .togglePin,
 	]
+	/// The repeatable changes that act on the selected task: without one,
+	/// they do nothing, so `.` records nothing (paste has its own anchor rule).
+	static let selectionChanges: Set<KeyAction> = repeatableActions.subtracting([.pasteAfter, .pasteBefore])
 
 	public let dispatcher: KeyDispatcher
 	public let focus: PaneFocusModel
@@ -95,12 +98,14 @@ public final class KeyboardSession {
 			repeatLastChange()
 			return
 		}
+		let isRecordable = Self.repeatableActions.contains(action)
+			&& (!Self.selectionChanges.contains(action) || selectedTaskId() != nil)
 		if runOwnAction(action) {
-			if Self.repeatableActions.contains(action) { lastChange = action }
+			if isRecordable { lastChange = action }
 			onOwnAction(action)
 			return
 		}
-		if Self.repeatableActions.contains(action) { lastChange = action }
+		if isRecordable { lastChange = action }
 		onAction(action)
 	}
 
@@ -179,6 +184,7 @@ public final class KeyboardSession {
 
 	private func repeatLastChange() {
 		guard let lastChange else { return }
+		if Self.selectionChanges.contains(lastChange), selectedTaskId() == nil { return }
 		focus.apply(lastChange)
 		if runOwnAction(lastChange) {
 			onOwnAction(lastChange)

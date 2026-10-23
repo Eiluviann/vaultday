@@ -74,6 +74,21 @@ final class HomeModelTests: XCTestCase {
 		XCTAssertEqual(plan(reopened, position: .bottom).items.last?.taskId, third.id)
 	}
 
+	func testZaFoldsTheSelectedCardsSubtasksAndOnlyACardThatHasThem() throws {
+		let harness = try OnboardingHarness(self)
+		let workspace = openWorkspace(harness, vault: try TestFixtures.copyOfMockVault(self))
+		let first = try XCTUnwrap(quickAdd("Draft the coupon copy today 30m WEB-142", in: workspace))
+		let today = plan(workspace)
+		let withSubtasks = try XCTUnwrap(today.items.first { !$0.subtasks.isEmpty }, "task-2 has subtasks")
+		XCTAssertFalse(today.isSubtaskListFolded(withSubtasks.taskId))
+		XCTAssertTrue(today.toggleSubtaskFold(taskId: withSubtasks.taskId))
+		XCTAssertTrue(today.isSubtaskListFolded(withSubtasks.taskId))
+		XCTAssertTrue(today.toggleSubtaskFold(taskId: withSubtasks.taskId))
+		XCTAssertFalse(today.isSubtaskListFolded(withSubtasks.taskId), "za again opens them")
+		XCTAssertFalse(today.toggleSubtaskFold(taskId: first.id), "a card without subtasks has nothing to fold")
+		XCTAssertFalse(today.isSubtaskListFolded(first.id))
+	}
+
 	func testTheOrderingRulesMoveOnlyUnfinishedTasks() {
 		let items = ["a", "b", "c"].map { item($0, state: .open) } + [item("d", state: .done)]
 		XCTAssertEqual(PlanOrder.moving("c", to: 0, in: items), ["c", "a", "b", "d"])

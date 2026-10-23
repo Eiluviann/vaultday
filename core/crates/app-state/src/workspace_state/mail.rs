@@ -45,7 +45,8 @@ impl WorkspaceState {
             encode_signal(&signal).to_string(),
         )?;
         let raw = json!({
-            "text": truncate(&incoming.raw_text, MAX_RAW_TEXT_BYTES),
+            "text": incoming.stored_text(),
+            "full_length": incoming.full_length(),
             "source_hash": signal.source_hash,
             "compacted": Value::Null,
         });
@@ -135,6 +136,15 @@ impl WorkspaceState {
         value.get("text")?.as_str().map(str::to_owned)
     }
 
+    /// How long a signal's text was before it was cut, in bytes; `None` for
+    /// an unknown signal or a record written before the length was kept.
+    #[must_use]
+    pub fn signal_text_full_length(&self, id: &SignalId) -> Option<usize> {
+        let stored = get_str(&self.doc, &self.objects.signal_texts, id.as_str())?;
+        let value: Value = serde_json::from_str(&stored).ok()?;
+        usize::try_from(value.get("full_length")?.as_u64()?).ok()
+    }
+
     /// This device's cursor for one folder of an account.
     #[must_use]
     pub fn mail_cursor(&self, account: &ConnectionId, folder: &str) -> Option<String> {
@@ -203,18 +213,6 @@ fn decode_signal(id: &SignalId, stored: &str) -> Option<Signal> {
     })
 }
 
-/// `text` cut to at most `max` bytes at a character boundary.
-fn truncate(text: &str, max: usize) -> &str {
-    if text.len() <= max {
-        return text;
-    }
-    let mut end = max;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    &text[..end]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,6 +241,7 @@ mod tests {
             excerpt: "A synthetic excerpt".to_owned(),
             link: "message:%3Cm1@example.test%3E".to_owned(),
             raw_text: "A synthetic excerpt and the rest of the synthetic body".to_owned(),
+            full_text_bytes: 0,
         }
     }
 
@@ -339,8 +338,39 @@ mod tests {
     #[test]
     fn long_raw_text_is_cut_at_a_character_boundary() {
         let text = "é".repeat(MAX_RAW_TEXT_BYTES);
-        let cut = truncate(&text, MAX_RAW_TEXT_BYTES);
+        let cut = crate::signals::cut_at_char_boundary(&text, MAX_RAW_TEXT_BYTES);
         assert!(cut.len() <= MAX_RAW_TEXT_BYTES);
         assert!(cut.chars().all(|c| c == 'é'));
+    }
+
+    #[test]
+    fn the_hash_covers_the_stored_text_and_the_full_length_is_kept() {
+        let mut state = state("mac-a");
+        let mut message = incoming("long");
+        message.raw_text = "a".repeat(MAX_RAW_TEXT_BYTES + 100);
+        message.full_text_bytes = MAX_RAW_TEXT_BYTES + 5000;
+        let SignalInsert::Added(id) = state.record_signal(&message).unwrap() else {
+            panic!("the first record adds");
+        };
+        let stored = state.signal_raw_text(&id).unwrap();
+        assert_eq!(stored.len(), MAX_RAW_TEXT_BYTES);
+        let record = state.signal(&id).unwrap();
+        assert_eq!(
+            record.signal.source_hash,
+            crate::signals::source_hash(&stored)
+        );
+        assert_eq!(
+            state.signal_text_full_length(&id),
+            Some(MAX_RAW_TEXT_BYTES + 5000)
+        );
+    }
+
+    #[test]
+    fn debug_output_carries_no_mail_text() {
+        let message = incoming("m1");
+        let printed = format!("{message:?}");
+        assert!(!printed.contains("synthetic body"));
+        assert!(!printed.contains("Synthetic subject"));
+        assert!(printed.contains("redacted"));
     }
 }

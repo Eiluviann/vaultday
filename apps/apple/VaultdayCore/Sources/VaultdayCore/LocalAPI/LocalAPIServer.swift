@@ -4,17 +4,23 @@ import Network
 /// The app's localhost HTTP API: a small Network-framework server bound to
 /// 127.0.0.1 only. Every connection's peer is checked to be loopback again
 /// before a byte is read, and each request goes to the ``TimerAPIRouter`` on
-/// the main actor, where the app's models live. One request per connection.
+/// the main actor, where the app's models live. One request per connection;
+/// at most ``maxConcurrentConnections`` at once, and a connection beyond them
+/// is answered 503 without being read.
 public final class LocalAPIServer: @unchecked Sendable {
 	/// The port the app prefers, so a CLI on a stale port file still finds it.
 	public static let preferredPort: UInt16 = 47390
 	/// A connection that has not sent a whole request by then is dropped.
 	static let requestTimeout: TimeInterval = 10
+	/// The most connections served at once.
+	public static let maxConcurrentConnections = 16
 
 	private let router: TimerAPIRouter
 	private let queue = DispatchQueue(label: "com.eiluviann.vaultday.local-api")
 	// Touched only on `queue`.
 	private var listener: NWListener?
+	// Touched only on `queue`.
+	private var gate = ConnectionGate(limit: LocalAPIServer.maxConcurrentConnections)
 
 	public init(router: TimerAPIRouter) {
 		self.router = router
@@ -105,6 +111,20 @@ public final class LocalAPIServer: @unchecked Sendable {
 			send(.error(403, "Only this Mac may call Vaultday"), on: connection)
 			return
 		}
+		let id = ObjectIdentifier(connection)
+		guard gate.admit(id) else {
+			send(.error(503, "Vaultday is busy; try again"), on: connection)
+			return
+		}
+		connection.stateUpdateHandler = { [weak self] state in
+			switch state {
+			case .cancelled, .failed:
+				// Runs on `queue`, where the gate lives.
+				self?.gate.release(id)
+			default:
+				break
+			}
+		}
 		queue.asyncAfter(deadline: .now() + Self.requestTimeout) { [weak connection] in
 			connection?.cancel()
 		}
@@ -128,7 +148,7 @@ public final class LocalAPIServer: @unchecked Sendable {
 			case let .complete(request):
 				let router = self.router
 				Task { @MainActor in
-					let response = router.respond(to: request, peerIsLoopback: true)
+					let response = await router.respond(to: request, peerIsLoopback: true)
 					self.send(response, on: connection)
 				}
 			}
@@ -139,6 +159,29 @@ public final class LocalAPIServer: @unchecked Sendable {
 		connection.send(content: response.serialized(), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in
 			connection.cancel()
 		})
+	}
+}
+
+/// Counts the connections being served and refuses one past the limit. A
+/// connection is released once, however many times its end is reported.
+struct ConnectionGate {
+	let limit: Int
+	private(set) var open: Set<ObjectIdentifier> = []
+
+	init(limit: Int) {
+		precondition(limit > 0, "a connection limit must be positive")
+		self.limit = limit
+	}
+
+	/// Admits `id` when fewer than `limit` connections are open.
+	mutating func admit(_ id: ObjectIdentifier) -> Bool {
+		guard open.count < limit else { return false }
+		open.insert(id)
+		return true
+	}
+
+	mutating func release(_ id: ObjectIdentifier) {
+		open.remove(id)
 	}
 }
 

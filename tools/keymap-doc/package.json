@@ -1,0 +1,22 @@
+{
+	"name": "@vaultday/keymap-doc",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Renders the key table (apps/apple/KEYMAP.md) from apps/apple/Keymap.yaml.",
+	"engines": {
+		"node": ">=22.15"
+	},
+	"scripts": {
+		"generate": "tsx src/main.ts",
+		"check": "tsx src/main.ts --check",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^22.20.5",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.4"
+	}
+}

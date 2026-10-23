@@ -246,10 +246,21 @@ public final class PlanRegister {
 	private func apply(_ step: PlanChange.Step, isForward: Bool) -> String? {
 		switch step {
 		case let .line(taskId, before, after):
-			isForward ? plan.restore(taskId, line: after, expecting: before) : plan.restore(taskId, line: before, expecting: after)
+			return isForward ? plan.restore(taskId, line: after, expecting: before) : plan.restore(taskId, line: before, expecting: after)
 		case let .order(date, before, after):
-			plan.storeOrder(isForward ? after : before, on: date)
+			// The order must read as the change left it: a list reordered
+			// since (a drag, another device) is not put back over.
+			let expected = isForward ? before : after
+			guard Self.keepsRelativeOrder(plan.listOrder(on: date), expected) else { return "the order changed since" }
+			return plan.storeOrder(isForward ? after : before, on: date)
 		}
+	}
+
+	/// Whether the tasks `current` and `expected` share stand in the same
+	/// order in both; tasks added or gone since do not count.
+	static func keepsRelativeOrder(_ current: [String], _ expected: [String]) -> Bool {
+		let shared = Set(current).intersection(expected)
+		return current.filter(shared.contains) == expected.filter(shared.contains)
 	}
 
 	private func fail(_ text: String) {

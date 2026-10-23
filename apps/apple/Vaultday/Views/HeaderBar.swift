@@ -13,8 +13,9 @@ struct HeaderBar: View {
 			Button {
 				app.perform(.toggleSidebar)
 			} label: {
-				Image(systemName: "sidebar.left")
+				Image(systemName: app.focus.isSidebarCollapsed ? "sidebar.squares.left" : "sidebar.left")
 					.font(.system(size: 14))
+					.iconReplace(value: app.focus.isSidebarCollapsed)
 					.frame(width: 24, height: 24)
 			}
 			.buttonStyle(.plain)
@@ -37,6 +38,7 @@ struct HeaderBar: View {
 /// Screen-share mode's place in the header; the mode itself is a later version.
 private struct ScreenShareToggle: View {
 	var body: some View {
+		// custom symbol pending: screen-share
 		Image(systemName: "rectangle.on.rectangle")
 			.font(.system(size: 13))
 			.foregroundStyle(Tokens.Colors.inkDisabled)

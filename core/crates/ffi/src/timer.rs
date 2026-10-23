@@ -54,6 +54,16 @@ pub struct StoppedSessionView {
     pub log_error: Option<String>,
 }
 
+/// What writing a stopped session's day-log line did.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct SessionLogView {
+    /// The `session` line appended to the day log; `None` when the day log
+    /// held the session already or the line could not be written.
+    pub log_line: Option<String>,
+    /// Why the line could not be written; the session stays stopped.
+    pub log_error: Option<String>,
+}
+
 #[uniffi::export]
 impl WorkspaceStateHandle {
     /// "Start minutes ago": starts the timer on a task or a story as if it had
@@ -91,6 +101,28 @@ impl WorkspaceStateHandle {
         self.start_with(|book, id, now| book.continue_latest(id, now).map(Session::to_record))
     }
 
+    /// Appends the day-log line of the stopped session `session_id`, once:
+    /// a day that holds the session's id already is left alone. The vault
+    /// IO this does is why it is apart from the stop itself, so the app can
+    /// stop on the main thread and write the line off it.
+    ///
+    /// # Errors
+    /// [`CoreError::NotFound`] when no stopped session has that id. A failed
+    /// write is reported in [`SessionLogView::log_error`], not as an error.
+    pub fn log_stopped_session(
+        &self,
+        workspace: &WorkspaceHandle,
+        session_id: String,
+    ) -> Result<SessionLogView, CoreError> {
+        let record = lock(&self.sync)
+            .state()
+            .sessions()
+            .into_iter()
+            .find(|record| record.id.as_str() == session_id && record.stopped_at.is_some())
+            .ok_or_else(|| CoreError::NotFound(format!("no stopped session {session_id}")))?;
+        Ok(log_session(workspace, &record))
+    }
+
     /// Stops the running or paused session and appends its `session` line to
     /// the day log of its local start day, through the core's day-log
     /// writer. A session is logged once: a day log that already holds its id
@@ -111,16 +143,10 @@ impl WorkspaceStateHandle {
             sync.edit(Instant::now(), |state| state.put_session(&record))?;
             record
         };
-        let (log_line, log_error) = match session_log_request(&record).and_then(|request| {
-            Ok(ops::append_session_log(
-                &workspace.workspace,
-                &PlainFileAccess,
-                &request,
-            )?)
-        }) {
-            Ok(change) => (change.map(|change| change.new_line), None),
-            Err(error) => (None, Some(error.to_string())),
-        };
+        let SessionLogView {
+            log_line,
+            log_error,
+        } = log_session(workspace, &record);
         Ok(StoppedSessionView {
             session: session_view(record),
             log_line,
@@ -216,6 +242,25 @@ fn forward(notifier: &dyn Notifier, notification: &Notification) {
 
 /// The day-log request for a stopped session: its local start day and time,
 /// and the minutes it counted.
+fn log_session(workspace: &WorkspaceHandle, record: &SessionRecord) -> SessionLogView {
+    match session_log_request(record).and_then(|request| {
+        Ok(ops::append_session_log(
+            &workspace.workspace,
+            &PlainFileAccess,
+            &request,
+        )?)
+    }) {
+        Ok(change) => SessionLogView {
+            log_line: change.map(|change| change.new_line),
+            log_error: None,
+        },
+        Err(error) => SessionLogView {
+            log_line: None,
+            log_error: Some(error.to_string()),
+        },
+    }
+}
+
 fn session_log_request(record: &SessionRecord) -> Result<SessionLogRequest, CoreError> {
     let session = Session::from_record(record.clone())?;
     let stopped_at = record.stopped_at.unwrap_or_else(Timestamp::now);
@@ -321,6 +366,31 @@ mod tests {
             matches!(again, CoreError::Conflict(_)),
             "nothing left to stop"
         );
+    }
+
+    #[test]
+    fn a_stop_then_a_separate_log_write_logs_once() {
+        let sandbox = sandbox();
+        let workspace = open(sandbox.path());
+        let state = state(sandbox.path());
+        let started = state
+            .start_session(Some("task-5".to_owned()), None)
+            .unwrap();
+        assert!(matches!(
+            state
+                .log_stopped_session(&workspace, started.id.clone())
+                .unwrap_err(),
+            CoreError::NotFound(_)
+        ));
+        state.stop_session().unwrap();
+        let logged = state
+            .log_stopped_session(&workspace, started.id.clone())
+            .unwrap();
+        let line = logged.log_line.unwrap();
+        assert!(line.contains(&format!("[id:: {}]", started.id)), "{line}");
+        let again = state.log_stopped_session(&workspace, started.id).unwrap();
+        assert_eq!(again.log_line, None, "the day holds the session already");
+        assert_eq!(again.log_error, None);
     }
 
     #[test]

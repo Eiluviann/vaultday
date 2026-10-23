@@ -59,8 +59,9 @@ public protocol LongTimerAlerting: AnyObject {
 /// The workspace's timer sessions from its synced app state, and the timer
 /// controls every surface shares: the Now card, the menu-bar extra, the mini
 /// tracker and the localhost API all call these, so one running session is
-/// the one state they show. Stop writes the session's day-log line through
-/// the core's writer, once per session.
+/// the one state they show. Stop ends the session on the main actor and
+/// writes its day-log line through the core's writer off it, once per
+/// session; ``waitForDayLog()`` waits for that write.
 @MainActor
 @Observable
 public final class SessionModel {
@@ -78,6 +79,8 @@ public final class SessionModel {
 	private var vault: WorkspaceHandle?
 	private weak var workspace: WorkspaceModel?
 	private let now: () -> Date
+	/// The day-log write the last stop started, chained after any before it.
+	private var pendingDayLog: Task<Void, Never>?
 
 	public init(now: @escaping () -> Date = Date.init) {
 		self.now = now
@@ -156,11 +159,18 @@ public final class SessionModel {
 		}
 	}
 
-	/// Stops the open session and appends its `session` line to the day log.
+	/// Stops the open session; its `session` line is appended to the day log
+	/// off the main actor (``waitForDayLog()`` waits for it).
 	@discardableResult
 	public func stop() -> Bool {
 		guard let state, openSession != nil else { return refuseWithoutSession() }
 		return run { try stopAndLog(state) }
+	}
+
+	/// Waits until the day-log lines of every stop so far are written;
+	/// ``lastLogLine`` and ``errorMessage`` then say how the last one went.
+	public func waitForDayLog() async {
+		await pendingDayLog?.value
 	}
 
 	/// The timer time inside the host's local `date` (`YYYY-MM-DD`), up to now.
@@ -192,17 +202,35 @@ public final class SessionModel {
 	}
 
 	private func stopAndLog(_ state: WorkspaceStateHandle) throws {
-		guard let vault else {
-			let stopped = try state.stopSession()
-			lastLogLine = nil
-			sendToTimeSinks(sessionId: stopped.id)
-			return
+		let stopped = try state.stopSession()
+		lastLogLine = nil
+		sendToTimeSinks(sessionId: stopped.id)
+		guard let vault else { return }
+		let previous = pendingDayLog
+		pendingDayLog = Task { [weak self] in
+			await previous?.value
+			let outcome = await Self.writeDayLog(state: state, vault: vault, sessionId: stopped.id)
+			self?.finishDayLog(outcome)
 		}
-		let stopped = try state.stopAndLogSession(workspace: vault)
-		lastLogLine = stopped.logLine
-		sendToTimeSinks(sessionId: stopped.session.id)
-		if let logError = stopped.logError {
-			throw SessionLogError(message: "The session stopped, but its day-log line was not written: \(logError)")
+	}
+
+	/// Writes a stopped session's day-log line on a background thread: the
+	/// write reads and rewrites a vault file.
+	private nonisolated static func writeDayLog(state: WorkspaceStateHandle, vault: WorkspaceHandle, sessionId: String) async -> Result<SessionLogView, any Error> {
+		await Task.detached(priority: .userInitiated) {
+			Result { try state.logStoppedSession(workspace: vault, sessionId: sessionId) }
+		}.value
+	}
+
+	private func finishDayLog(_ outcome: Result<SessionLogView, any Error>) {
+		switch outcome {
+		case let .success(logged):
+			lastLogLine = logged.logLine
+			if let logError = logged.logError {
+				fail(SessionFailure(kind: .other, message: "The session stopped, but its day-log line was not written: \(logError)"))
+			}
+		case let .failure(error):
+			fail(SessionFailure(kind: .other, message: coreErrorMessage(error)))
 		}
 	}
 
@@ -266,11 +294,6 @@ public final class SessionModel {
 }
 
 /// A stop whose day-log line failed; the session itself is stopped.
-private struct SessionLogError: LocalizedError {
-	let message: String
-	var errorDescription: String? { message }
-}
-
 private func failureKind(of error: any Error) -> SessionFailureKind {
 	guard let error = error as? CoreError else { return .other }
 	switch error {

@@ -65,12 +65,14 @@ final class LocalAPITests: XCTestCase {
 		XCTAssertFalse(LocalAPIServer.isLoopback(.service(name: "x", type: "_http._tcp", domain: "local", interface: nil)))
 	}
 
-	func testANonLoopbackPeerIsRefusedEvenWithTheToken() {
+	func testANonLoopbackPeerIsRefusedEvenWithTheToken() async {
 		let backend = FakeTimerBackend()
 		let router = TimerAPIRouter(token: Self.token, backend: backend)
 		let request = HTTPRequest(method: "GET", path: "/v1/status", headers: ["Authorization": "Bearer \(Self.token)"])
-		XCTAssertEqual(router.respond(to: request, peerIsLoopback: false).status, 403)
-		XCTAssertEqual(router.respond(to: request, peerIsLoopback: true).status, 200)
+		let refused = await router.respond(to: request, peerIsLoopback: false)
+		XCTAssertEqual(refused.status, 403)
+		let served = await router.respond(to: request, peerIsLoopback: true)
+		XCTAssertEqual(served.status, 200)
 		XCTAssertEqual(backend.calls, ["status"], "the refused request never reached the backend")
 	}
 
@@ -138,6 +140,35 @@ final class LocalAPITests: XCTestCase {
 		XCTAssertEqual(response.status, 413, "refused as soon as the length is known")
 	}
 
+	func testTheConnectionGateAdmitsUpToItsLimitAndReleasesOnce() {
+		var gate = ConnectionGate(limit: 2)
+		let first = NSObject(), second = NSObject(), third = NSObject()
+		XCTAssertTrue(gate.admit(ObjectIdentifier(first)))
+		XCTAssertTrue(gate.admit(ObjectIdentifier(second)))
+		XCTAssertFalse(gate.admit(ObjectIdentifier(third)))
+		gate.release(ObjectIdentifier(first))
+		gate.release(ObjectIdentifier(first))
+		XCTAssertEqual(gate.open.count, 1)
+		XCTAssertTrue(gate.admit(ObjectIdentifier(third)))
+		XCTAssertFalse(gate.admit(ObjectIdentifier(first)))
+		XCTAssertEqual(LocalAPIServer.maxConcurrentConnections, 16)
+	}
+
+	func testAConnectionPastTheSixteenthIsAnswered503() async throws {
+		let backend = FakeTimerBackend()
+		let (server, port) = try await startServer(backend: backend)
+		defer { server.stop() }
+		let idle = (0..<LocalAPIServer.maxConcurrentConnections).compactMap { _ in openIdleSocket(port: port) }
+		XCTAssertEqual(idle.count, LocalAPIServer.maxConcurrentConnections)
+		try await Task.sleep(nanoseconds: 400_000_000)
+		let busy = try await curl(port: port, path: "/v1/status", token: Self.token)
+		XCTAssertEqual(busy.status, 503)
+		idle.forEach { Darwin.close($0) }
+		try await Task.sleep(nanoseconds: 400_000_000)
+		let served = try await curl(port: port, path: "/v1/status", token: Self.token)
+		XCTAssertEqual(served.status, 200, "closed connections give their places back")
+	}
+
 	// MARK: Routes
 
 	func testEveryRouteAnswersJSONFromTheBackend() async throws {
@@ -198,6 +229,26 @@ final class LocalAPITests: XCTestCase {
 		let port = try await server.start(port: 0)
 		XCTAssertNotEqual(port, 0)
 		return (server, port)
+	}
+
+	/// A TCP connection to the server that never sends a byte.
+	private func openIdleSocket(port: UInt16) -> Int32? {
+		let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+		guard descriptor >= 0 else { return nil }
+		var address = sockaddr_in()
+		address.sin_family = sa_family_t(AF_INET)
+		address.sin_port = port.bigEndian
+		address.sin_addr.s_addr = inet_addr("127.0.0.1")
+		let connected = withUnsafePointer(to: &address) {
+			$0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+				connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+			}
+		}
+		guard connected == 0 else {
+			Darwin.close(descriptor)
+			return nil
+		}
+		return descriptor
 	}
 
 	private func permissions(of url: URL) throws -> Int {

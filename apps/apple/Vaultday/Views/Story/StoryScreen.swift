@@ -57,12 +57,12 @@ private struct StoryHeader: View {
 				Button {
 					app.leaveStory()
 				} label: {
-					Label("Planner", systemImage: "chevron.left")
+					Label(app.screenBeforeStory == .browse ? "Browse" : "Planner", systemImage: "chevron.left")
 						.font(Tokens.Typography.callout.font.weight(.medium))
 						.foregroundStyle(Tokens.Colors.inkSecondary)
 				}
 				.buttonStyle(.plain)
-				.help("Back to the planner (Esc)")
+				.help(app.screenBeforeStory == .browse ? "Back to Browse (Esc)" : "Back to the planner (Esc)")
 				Spacer(minLength: Tokens.Spacing.space12)
 				StoryOpenButton(title: "Obsidian", symbol: "arrow.up.forward.square", help: "Open the note in Obsidian at the section") {
 					if let link = story.obsidianLink { NSWorkspace.shared.open(link) }

@@ -75,9 +75,12 @@ pub fn sender_label(signal: &Signal) -> String {
 }
 
 /// `text` as one plain line of a note: control characters and line breaks
-/// become single spaces, runs of whitespace collapse, and a run of `%` is cut
+/// become single spaces, runs of whitespace collapse, a run of `%` is cut
 /// to one, so no `%%` comment or provenance marker can open inside a task
-/// line. Brackets are kept: the writer refuses inline fields itself.
+/// line, a backtick becomes `'` so no code span swallows the fields after
+/// it, and `<!--` / `-->` are broken apart (`< !--`, `-- >`) so no HTML
+/// comment hides the rest of the note. Brackets are kept: the writer
+/// refuses inline fields itself.
 #[must_use]
 pub fn line_text(text: &str) -> String {
     let spaced: String = text
@@ -85,6 +88,8 @@ pub fn line_text(text: &str) -> String {
         .map(|character| {
             if character.is_control() {
                 ' '
+            } else if character == '`' {
+                '\''
             } else {
                 character
             }
@@ -98,7 +103,7 @@ pub fn line_text(text: &str) -> String {
         }
         cleaned.push(character);
     }
-    cleaned
+    cleaned.replace("<!--", "< !--").replace("-->", "-- >")
 }
 
 /// The first ticket number in the subject, else in the excerpt; `None`
@@ -185,6 +190,11 @@ mod tests {
         );
         assert_eq!(line_text("a\u{2028}b %% c\td"), "a b % c d");
         assert_eq!(line_text("keeps [[links]]"), "keeps [[links]]");
+        assert_eq!(
+            line_text("Run `rm` <!-- hidden --> now"),
+            "Run 'rm' < !-- hidden -- > now"
+        );
+        assert_eq!(clean_headline("Re: <!--x-->`y`"), "< !--x-- >'y'");
     }
 
     #[test]

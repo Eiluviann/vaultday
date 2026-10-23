@@ -23,6 +23,8 @@ public struct IntakeRun: Equatable, Sendable {
 	public var filed = 0
 	/// Items that stay in Reminders, with why: "Buy milk: alerts at a place".
 	public var left: [String] = []
+	/// The titles of the items that stay in Reminders, in the order met.
+	public var leftTitles: [String] = []
 	/// Items that could not be filed or deleted, with why; they are tried again next run.
 	public var failed: [String] = []
 }
@@ -79,11 +81,13 @@ public final class RemindersIntakeModel {
 		isRunning = true
 		defer { isRunning = false }
 		var run = IntakeRun()
+		var items: [(item: ReminderItem, story: String?)] = []
 		for list in intake {
 			for item in await store.incompleteReminders(inList: list.listId) {
-				file(item, story: list.story, vault: vault, state: state, into: &run)
+				items.append((item, list.story))
 			}
 		}
+		file(items, vault: vault, state: state, into: &run)
 		if run.filed > 0 {
 			_ = try? state.flush()
 		}
@@ -96,15 +100,29 @@ public final class RemindersIntakeModel {
 
 	static let accessMessage = "Vaultday needs full access to Reminders to file the items of your intake lists. Allow it in System Settings › Privacy & Security › Reminders."
 
-	private func file(_ item: ReminderItem, story: String?, vault: WorkspaceHandle, state: WorkspaceStateHandle, into run: inout IntakeRun) {
-		let outcome: ReminderIntake
+	/// Files the whole batch in one core call, which reads the vault once;
+	/// then deletes from Reminders each item whose line the core confirmed.
+	private func file(_ items: [(item: ReminderItem, story: String?)], vault: WorkspaceHandle, state: WorkspaceStateHandle, into run: inout IntakeRun) {
+		guard !items.isEmpty else { return }
+		let outcomes: [ReminderImportOutcome]
 		do {
-			outcome = try state.importReminder(workspace: vault, item: ReminderItemView(item), story: story, today: DayText.string(now()))
+			outcomes = try state.importReminders(
+				workspace: vault,
+				batch: items.map { ReminderImport(item: ReminderItemView($0.item), story: $0.story) },
+				today: DayText.string(now()),
+			)
 		} catch {
-			run.failed.append("\(item.title): \(coreErrorMessage(error))")
+			let message = coreErrorMessage(error)
+			run.failed += items.map { "\($0.item.title): \(message)" }
 			return
 		}
-		switch outcome {
+		for (entry, outcome) in zip(items, outcomes) {
+			record(outcome, for: entry.item, into: &run)
+		}
+	}
+
+	private func record(_ outcome: ReminderImportOutcome, for item: ReminderItem, into run: inout IntakeRun) {
+		switch outcome.intake {
 		case .imported, .alreadyImported:
 			do {
 				try store.removeReminder(id: item.id)
@@ -114,13 +132,16 @@ public final class RemindersIntakeModel {
 			}
 		case let .left(reason):
 			run.left.append("\(item.title): \(reason)")
+			run.leftTitles.append(item.title)
+		case nil:
+			run.failed.append("\(item.title): \(outcome.error ?? "not filed")")
 		}
 	}
 
 	private static func summary(of run: IntakeRun) -> String? {
 		var parts: [String] = []
 		if run.filed > 0 { parts.append(run.filed == 1 ? "Filed 1 reminder" : "Filed \(run.filed) reminders") }
-		if !run.left.isEmpty { parts.append("\(run.left.count) left in Reminders") }
+		if !run.leftTitles.isEmpty { parts.append("Left in Reminders: \(run.leftTitles.joined(separator: ", "))") }
 		if !run.failed.isEmpty { parts.append("\(run.failed.count) not filed") }
 		return parts.isEmpty ? nil : parts.joined(separator: " · ")
 	}

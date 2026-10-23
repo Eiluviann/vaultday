@@ -24,7 +24,7 @@ struct SignalPreviewPanel: View {
 				}
 				.buttonStyle(.plain)
 				.accessibilityLabel("Close preview")
-				Image(systemName: card.sourceSymbol)
+				Image(systemName: card.source.mark.symbol)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.accessibilityLabel(card.sourceName)
 				Text("\(card.sender) · \(card.timeLabel)")

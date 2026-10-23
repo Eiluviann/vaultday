@@ -19,4 +19,4 @@ Footer signup box with double opt-in.
 - [ ] Draft the confirmation mail  [id:: task-8] [created:: 2026-10-19]
 
 ## Pending Input
-- [ ] Mailing-list provider decision  [id:: task-9] [created:: 2026-10-15] [assigned_to:: Lee]
+- [ ] Mailing-list provider decision  [id:: task-9] [created:: 2026-10-15] [assigned_to:: Lee] [source:: braindump]

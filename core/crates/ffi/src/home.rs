@@ -294,6 +294,8 @@ pub(crate) struct StoryLine {
     pub(crate) story_title: Option<String>,
     /// The story note's status token, lower case: the vocabulary's word, else the word as written.
     pub(crate) story_status: Option<String>,
+    /// The line's `[source:: ]` field.
+    pub(crate) source: Option<String>,
     is_in_progress: bool,
     created: Option<Date>,
     subtasks: Vec<SubtaskView>,
@@ -871,6 +873,7 @@ fn story_line(
             .status
             .map(|status| status.as_str().to_owned())
             .or_else(|| story.raw_status.as_deref().map(str::to_lowercase)),
+        source: task.field("source").map(str::to_owned),
         is_in_progress: status == TaskStatus::InProgress,
         created: field_date(task, "created"),
         subtasks: document

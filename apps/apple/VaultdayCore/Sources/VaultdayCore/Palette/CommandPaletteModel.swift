@@ -80,7 +80,8 @@ public final class CommandPaletteModel {
 	public static func commandSections(_ table: [KeyTableRow]) -> [PaletteSection] {
 		var titles: [String] = []
 		var rowsByGroup: [String: [PaletteRow]] = [:]
-		for row in table {
+		// The menu-bar extra's keys act in its popover only, never from here.
+		for row in table where !row.action.isMenuBarAction {
 			if rowsByGroup[row.group] == nil { titles.append(row.group) }
 			rowsByGroup[row.group, default: []].append(
 				PaletteRow(id: "action:\(row.action)", title: row.label, caps: row.caps, detail: nil, choice: .action(row.action)),

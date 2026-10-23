@@ -68,6 +68,8 @@ private struct TabRail: View {
 					app.showSidePanelTab(tab)
 				} label: {
 					Image(systemName: tab.symbol)
+						.symbolVariant(selection == tab ? .fill : .none)
+						.iconReplace(value: selection == tab)
 						.frame(width: 32, height: 28)
 						.background(selection == tab ? Tokens.Colors.surfaceRaised : .clear, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
 				}

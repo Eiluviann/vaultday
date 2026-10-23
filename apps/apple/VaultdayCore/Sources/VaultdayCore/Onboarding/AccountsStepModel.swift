@@ -235,6 +235,9 @@ public final class AccountsStepModel {
 
 	private let session: CoreSession
 	private let connecting: any MailConnecting
+	private let notificationPermission: any NotificationPermissionAsking
+	/// Whether this run asked for notifications already.
+	public private(set) var hasAskedForNotifications = false
 	/// The connection id of the draft; its secrets are stored under it.
 	private var draftConnection: String?
 	private var signInTask: Task<Void, Never>?
@@ -243,9 +246,10 @@ public final class AccountsStepModel {
 		self.init(session: session, connecting: CoreMailConnecting(appState: session.appState))
 	}
 
-	init(session: CoreSession, connecting: any MailConnecting) {
+	init(session: CoreSession, connecting: any MailConnecting, notificationPermission: any NotificationPermissionAsking = SystemNotificationPermission()) {
 		self.session = session
 		self.connecting = connecting
+		self.notificationPermission = notificationPermission
 		reloadAccounts()
 	}
 
@@ -365,11 +369,25 @@ public final class AccountsStepModel {
 			errorMessage = nil
 			resetDraft()
 			reloadAccounts()
+			askForNotificationsOnce()
 			onAccountsChange?()
 		} catch {
 			errorMessage = coreErrorMessage(error)
 		}
 	}
+
+	/// The quiet new-mail notification needs permission; it is asked here,
+	/// right after an account is saved, so a background fetch never shows
+	/// the system's request out of context. Once per run.
+	private func askForNotificationsOnce() {
+		guard !hasAskedForNotifications else { return }
+		hasAskedForNotifications = true
+		let permission = notificationPermission
+		notificationRequest = Task { _ = await permission.requestAlerts() }
+	}
+
+	/// The permission request in flight, for tests to wait on.
+	@ObservationIgnored private(set) var notificationRequest: Task<Void, Never>?
 
 	/// Removes an account, its folders and this Mac's password or sign-in for it.
 	public func removeAccount(_ id: String) {

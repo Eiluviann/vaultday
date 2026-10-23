@@ -197,6 +197,15 @@ enum Tokens {
 		/// Keyboard focus on every control: a 2px gap in the ground, then 2px focus.
 		static let shadowFocus = ShadowStyle(light: [ShadowLayer(x: 0, y: 0, blur: 0, spread: 2, color: RGBA(255, 255, 255, 1.0)), ShadowLayer(x: 0, y: 0, blur: 0, spread: 4, color: RGBA(194, 94, 0, 1.0))], dark: [ShadowLayer(x: 0, y: 0, blur: 0, spread: 2, color: RGBA(24, 33, 43, 1.0)), ShadowLayer(x: 0, y: 0, blur: 0, spread: 4, color: RGBA(255, 166, 70, 1.0))])
 	}
+
+	enum Motion {
+		/// Card lift on hover and selection: the shadow grows and the card rises 1px, ease-out.
+		static let motionLift: TimeInterval = 0.18
+		/// Hover and pressed wash on rows and menu items, a pane's focus ground, controls sliding in on hover; ease-out.
+		static let motionWash: TimeInterval = 0.15
+		/// UI transitions and the Reduce Motion crossfade that replaces a symbol draw effect; ease-out.
+		static let motionTransition: TimeInterval = 0.15
+	}
 }
 
 /// An sRGB color given as 0...255 channels and a 0...1 alpha.

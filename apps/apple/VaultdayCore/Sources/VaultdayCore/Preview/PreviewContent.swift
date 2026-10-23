@@ -65,6 +65,9 @@ public struct TaskPreviewContent: Hashable, Sendable {
 	public let waiting: [PreviewWaiting]
 	public let activity: [PreviewActivity]
 	public let obsidianLink: URL?
+	/// One line shown under the header when the link had to fall back (the
+	/// workspace sits outside its Obsidian vault); `nil` otherwise.
+	public let obsidianLinkNotice: String?
 
 	/// "task-118 · WEB-142 · Website relaunch".
 	public var headerLine: String {
@@ -160,6 +163,7 @@ enum PreviewMapping {
 			},
 			activity: recent,
 			obsidianLink: URL(string: view.obsidianLink),
+			obsidianLinkNotice: view.obsidianLinkNotice,
 		)
 	}
 

@@ -84,7 +84,7 @@ private struct TodayPlan: View {
 					.transition(.move(edge: .bottom).combined(with: .opacity))
 			}
 		}
-		.animation(.easeOut(duration: 0.15), value: plan.toast)
+		.animation(.easeOut(duration: Tokens.Motion.motionTransition), value: plan.toast)
 		.task(id: plan.toast) {
 			// A toast that only reports dismisses itself; the over-free-time one stays until Esc or Re-plan.
 			guard let toast = plan.toast, !toast.offersReplan else { return }

@@ -6,7 +6,7 @@
 //! document only for [`ingest`], which does no IO.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use app_state::{
     AppStateError, ConnectionId, IncomingSignal, SignalId, SignalInsert, WorkspaceState,
@@ -27,6 +27,10 @@ pub struct FetchLimits {
     pub max_raw_bytes: usize,
     /// How far back the first fetch of a folder reaches.
     pub first_fetch_window: Duration,
+    /// The longest one account's fetch may run, retries and their waits
+    /// included. It is checked before each folder and each attempt; a call
+    /// already on the wire is bounded by the transport's own timeouts.
+    pub overall_deadline: Duration,
 }
 
 /// What one folder brought.
@@ -64,6 +68,7 @@ impl Default for FetchLimits {
             max_messages: 50,
             max_raw_bytes: app_state::MAX_RAW_TEXT_BYTES,
             first_fetch_window: Duration::from_secs(14 * 24 * 60 * 60),
+            overall_deadline: Duration::from_secs(120),
         }
     }
 }
@@ -72,8 +77,10 @@ impl Default for FetchLimits {
 /// to cursor), retrying transient failures per folder under `policy`.
 ///
 /// # Errors
-/// The first folder's error that retries did not fix; folders fetched before
-/// it are lost with it, and their cursors are not advanced.
+/// The first folder's error that retries did not fix, or
+/// [`MailError::DeadlineExceeded`] once [`FetchLimits::overall_deadline`]
+/// has passed; folders fetched before it are lost with it, and their cursors
+/// are not advanced.
 pub fn fetch_account(
     source: &mut dyn MailSource,
     account: &ConnectionId,
@@ -86,10 +93,21 @@ pub fn fetch_account(
     let window =
         SignedDuration::try_from(limits.first_fetch_window).unwrap_or(SignedDuration::ZERO);
     let since = now.checked_sub(window).unwrap_or(now);
+    let started = Instant::now();
+    let check_deadline = || {
+        if started.elapsed() >= limits.overall_deadline {
+            Err(MailError::DeadlineExceeded(limits.overall_deadline))
+        } else {
+            Ok(())
+        }
+    };
     let mut fetched = Vec::with_capacity(folders.len());
     for folder in folders {
         let cursor = cursors.get(folder).map(String::as_str);
-        let page = policy.run(|| source.fetch_new(folder, cursor, since))?;
+        let page = policy.run(|| {
+            check_deadline()?;
+            source.fetch_new(folder, cursor, since)
+        })?;
         fetched.push(FolderFetch {
             folder: folder.clone(),
             messages: page.messages,
@@ -151,5 +169,83 @@ fn incoming(account: &ConnectionId, folder: &str, message: &FetchedMessage) -> I
         excerpt: message.excerpt.clone(),
         link: message.link.clone(),
         raw_text: message.raw_text.clone(),
+        full_text_bytes: message.full_text_bytes,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::{FetchPage, MailFolder};
+
+    struct CountingSource {
+        calls: usize,
+    }
+
+    impl MailSource for CountingSource {
+        fn list_folders(&mut self) -> Result<Vec<MailFolder>, MailError> {
+            Ok(Vec::new())
+        }
+
+        fn fetch_new(
+            &mut self,
+            _folder: &str,
+            _cursor: Option<&str>,
+            _since: Timestamp,
+        ) -> Result<FetchPage, MailError> {
+            self.calls += 1;
+            Ok(FetchPage {
+                messages: Vec::new(),
+                cursor: "7:1".to_owned(),
+            })
+        }
+
+        fn fetch_body(&mut self, _folder: &str, _provider_ref: &str) -> Result<String, MailError> {
+            Ok(String::new())
+        }
+
+        fn message_link(&self, message_id: &str, _web_link: Option<&str>) -> String {
+            message_id.to_owned()
+        }
+    }
+
+    #[test]
+    fn a_fetch_past_its_deadline_stops_before_the_next_call() {
+        let mut source = CountingSource { calls: 0 };
+        let limits = FetchLimits {
+            overall_deadline: Duration::ZERO,
+            ..FetchLimits::default()
+        };
+        let outcome = fetch_account(
+            &mut source,
+            &ConnectionId::new("con-mail-1"),
+            &["INBOX".to_owned()],
+            &BTreeMap::new(),
+            &limits,
+            &RetryPolicy::default(),
+            Timestamp::UNIX_EPOCH,
+        );
+        assert!(matches!(outcome, Err(MailError::DeadlineExceeded(_))));
+        assert_eq!(source.calls, 0);
+    }
+
+    #[test]
+    fn the_default_deadline_is_two_minutes() {
+        assert_eq!(
+            FetchLimits::default().overall_deadline,
+            Duration::from_secs(120)
+        );
+        let mut source = CountingSource { calls: 0 };
+        let fetched = fetch_account(
+            &mut source,
+            &ConnectionId::new("con-mail-1"),
+            &["INBOX".to_owned(), "Sent".to_owned()],
+            &BTreeMap::new(),
+            &FetchLimits::default(),
+            &RetryPolicy::default(),
+            Timestamp::UNIX_EPOCH,
+        )
+        .unwrap();
+        assert_eq!(fetched.folders.len(), 2);
     }
 }

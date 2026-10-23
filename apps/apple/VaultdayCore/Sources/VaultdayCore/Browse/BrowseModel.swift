@@ -184,6 +184,72 @@ public final class BrowseModel {
 		groupStarts.last { $0 < index } ?? 0
 	}
 
+	// MARK: Matches
+
+	/// The words `n` and `N` look for: the applied query's free text and its
+	/// `text:` values, lower case. Empty when there is no query or it only
+	/// filters, and then `n` and `N` stay put.
+	public var matchTerms: [String] { Self.matchTerms(in: appliedQuery) }
+
+	/// The line `n` (`isForward`) or `N` goes to from `index`: the next or
+	/// previous row whose text or id holds every match term, wrapping past
+	/// the end; `nil` when no row matches or there is no text to match.
+	public func matchIndex(from index: Int?, isForward: Bool) -> Int? {
+		let terms = matchTerms
+		guard !terms.isEmpty else { return nil }
+		let matching = items.indices.filter { position in
+			guard case let .row(row) = items[position] else { return false }
+			let haystack = (row.text + " " + row.id).lowercased()
+			return terms.allSatisfy(haystack.contains)
+		}
+		guard !matching.isEmpty else { return nil }
+		guard let index else { return isForward ? matching.first : matching.last }
+		if isForward {
+			return matching.first { $0 > index } ?? matching.first
+		}
+		return matching.last { $0 < index } ?? matching.last
+	}
+
+	/// The free-text terms of a query line, as the core reads them: a term
+	/// without a filter key is text, `text:` adds its value, quotes keep spaces.
+	static func matchTerms(in query: String) -> [String] {
+		splitTerms(query).compactMap { term in
+			guard let colon = term.firstIndex(of: ":") else { return unquoted(term).lowercased() }
+			let key = term[..<colon].lowercased()
+			let value = unquoted(String(term[term.index(after: colon)...]))
+			if key == "text" { return value.isEmpty ? nil : value.lowercased() }
+			return filterKeys.contains(key) ? nil : unquoted(term).lowercased()
+		}
+		.filter { !$0.isEmpty }
+	}
+
+	/// The core's filter keys (`domain::browse`); any other `word:` is text.
+	static let filterKeys: Set<String> = [
+		"status", "story", "story-status", "section", "due", "scheduled", "created", "source",
+		"estimate", "waiting", "assigned", "group", "sort",
+	]
+
+	private static func splitTerms(_ line: String) -> [String] {
+		var terms: [String] = []
+		var current = ""
+		var isQuoted = false
+		for character in line {
+			if character == "\"" { isQuoted.toggle() }
+			if character.isWhitespace, !isQuoted {
+				if !current.isEmpty { terms.append(current) }
+				current = ""
+			} else {
+				current.append(character)
+			}
+		}
+		if !current.isEmpty { terms.append(current) }
+		return terms
+	}
+
+	private static func unquoted(_ text: String) -> String {
+		text.replacingOccurrences(of: "\"", with: "")
+	}
+
 	/// The line holding task `taskId`, if shown.
 	public func index(ofTask taskId: String) -> Int? {
 		items.firstIndex { item in

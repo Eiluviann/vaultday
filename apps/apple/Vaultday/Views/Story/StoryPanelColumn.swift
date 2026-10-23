@@ -75,7 +75,7 @@ private struct StoryFactsBlock: View {
 								.fontWeight(fact.value == "Not set" ? .regular : .semibold)
 								.foregroundStyle(fact.value == "Not set" ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
 						}
-						.help(fact.isModelText ? "Note authorship from the provenance markers" : "")
+						.help(fact.isModelText ? "Note authorship from the provenance markers" : "\(fact.label) as the story note holds it")
 					}
 				}
 			}
@@ -103,6 +103,7 @@ private struct StoryHoursTab: View {
 					if let share = hours.loggedShare {
 						ProgressView(value: share)
 							.tint(hours.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
+							.progressDraw(value: share)
 							.accessibilityLabel("Logged against the estimate")
 					}
 					Rectangle().fill(Tokens.Colors.lineFaint).frame(height: 1)

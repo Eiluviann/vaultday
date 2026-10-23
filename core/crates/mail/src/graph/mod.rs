@@ -182,7 +182,12 @@ impl GraphSource {
             .is_some_and(|rest| rest.is_empty() || rest.starts_with('/') || rest.starts_with('?'))
     }
 
-    fn body_text(&mut self, message_id: &str, max_bytes: usize) -> Result<String, MailError> {
+    /// The message's text cut to `max_bytes`, and how long it was before.
+    fn body_text(
+        &mut self,
+        message_id: &str,
+        max_bytes: usize,
+    ) -> Result<(String, usize), MailError> {
         let url = format!(
             "{}/me/messages/{}?$select=body",
             self.base,
@@ -194,11 +199,12 @@ impl GraphSource {
         } else {
             body.body.content
         };
-        Ok(truncate(text, max_bytes))
+        let full_bytes = text.len();
+        Ok((truncate(text, max_bytes), full_bytes))
     }
 
     fn message(&mut self, message: Message) -> Result<FetchedMessage, MailError> {
-        let raw_text = self.body_text(&message.id, self.limits.max_raw_bytes)?;
+        let (raw_text, full_text_bytes) = self.body_text(&message.id, self.limits.max_raw_bytes)?;
         let message_id = message
             .internet_message_id
             .clone()
@@ -227,6 +233,7 @@ impl GraphSource {
             subject: message.subject.unwrap_or_default(),
             excerpt,
             raw_text,
+            full_text_bytes,
         })
     }
 }
@@ -313,7 +320,13 @@ impl MailSource for GraphSource {
         collected.sort_by(|a, b| a.received_date_time.cmp(&b.received_date_time));
         let mut messages = Vec::with_capacity(collected.len());
         for message in collected {
-            messages.push(self.message(message)?);
+            match self.message(message) {
+                Ok(fetched) => messages.push(fetched),
+                // The message went between the delta and its body fetch
+                // (moved or deleted): skip it rather than fail the account.
+                Err(MailError::FolderNotFound(_)) => {}
+                Err(error) => return Err(error),
+            }
         }
         Ok(FetchPage {
             messages,
@@ -323,6 +336,7 @@ impl MailSource for GraphSource {
 
     fn fetch_body(&mut self, _folder: &str, provider_ref: &str) -> Result<String, MailError> {
         self.body_text(provider_ref, 1024 * 1024)
+            .map(|(text, _)| text)
     }
 
     fn message_link(&self, message_id: &str, web_link: Option<&str>) -> String {

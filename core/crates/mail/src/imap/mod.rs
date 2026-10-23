@@ -94,6 +94,8 @@ struct TextPart {
     encoding: String,
     charset: String,
     is_html: bool,
+    /// The part's size in octets as the body structure gives it.
+    size: usize,
 }
 
 impl TlsConnector {
@@ -375,6 +377,11 @@ fn fetch_messages(
             received_at,
             subject: header.subject,
             excerpt: mime::excerpt(&raw_text),
+            full_text_bytes: header
+                .text_part
+                .as_ref()
+                .map_or(0, |part| part.size)
+                .max(raw_text.len()),
             raw_text,
         });
     }
@@ -527,6 +534,11 @@ fn find_text(parts: &[Item], prefix: &str, subtype: &str) -> Option<TextPart> {
             encoding: parts.get(5).and_then(Item::text).unwrap_or_default(),
             charset,
             is_html: subtype == "HTML",
+            size: parts
+                .get(6)
+                .and_then(Item::text)
+                .and_then(|size| size.parse().ok())
+                .unwrap_or_default(),
         });
     }
     parts
@@ -617,6 +629,7 @@ mod tests {
                 encoding: "QUOTED-PRINTABLE".to_owned(),
                 charset: "utf-8".to_owned(),
                 is_html: false,
+                size: 120,
             })
         );
         let nested = structure(

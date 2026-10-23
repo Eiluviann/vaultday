@@ -48,7 +48,7 @@ struct PrivateTracked: View {
 				.font(.system(size: 10))
 		}
 		.labelStyle(.titleAndIcon)
-		.help("Tracked by the timer; private to you, never in a report")
+		.help("Tracked by the timer and your meetings; private to you, never in a report")
 	}
 }
 

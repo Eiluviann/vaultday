@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use app_state::signals::Redacted;
 use app_state::{MailAccount, MailAuth, MailProvider, SecretStore};
 use jiff::Timestamp;
 
@@ -35,8 +36,9 @@ pub struct MailFolder {
     pub role: FolderRole,
 }
 
-/// One fetched message, before it becomes a signal.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One fetched message, before it becomes a signal. Its `Debug` output
+/// leaves out the subject, the excerpt and the text.
+#[derive(Clone, PartialEq, Eq)]
 pub struct FetchedMessage {
     /// How the provider names it: `<uidvalidity>:<uid>` on IMAP, the message id on Graph.
     pub provider_ref: String,
@@ -57,8 +59,27 @@ pub struct FetchedMessage {
     pub excerpt: String,
     /// The text fetched with it, at most [`FetchLimits::max_raw_bytes`].
     pub raw_text: String,
+    /// How long the text was before it was cut, in bytes, as far as the
+    /// source knows: Graph's whole decoded body, or the size IMAP's body
+    /// structure gives for the text part (before transfer decoding).
+    pub full_text_bytes: usize,
     /// The link that opens it in the account's mail app.
     pub link: String,
+}
+
+impl std::fmt::Debug for FetchedMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FetchedMessage")
+            .field("provider_ref", &self.provider_ref)
+            .field("message_id", &self.message_id)
+            .field("thread_id", &self.thread_id)
+            .field("received_at", &self.received_at)
+            .field("subject", &Redacted(self.subject.len()))
+            .field("excerpt", &Redacted(self.excerpt.len()))
+            .field("raw_text", &Redacted(self.raw_text.len()))
+            .field("full_text_bytes", &self.full_text_bytes)
+            .finish_non_exhaustive()
+    }
 }
 
 /// What one fetch of a folder brought.

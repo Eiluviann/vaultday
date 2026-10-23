@@ -25,6 +25,27 @@ final class KeyboardTests: XCTestCase {
 		XCTAssertEqual(paneJumps.map { $0.0.map(\.key).joined() }.sorted(), ["g0", "g1", "g2", "g3"])
 	}
 
+	func testTheMenuBarKeysAndTheTrackerHotKeyComeFromTheKeymap() throws {
+		let keymap = try repoKeymap()
+		for scheme in KeyScheme.allCases {
+			XCTAssertEqual(keymap.action(for: stroke("cmd+n"), onlyIn: .menuBar, scheme: scheme), .menuBarNewEntry)
+			XCTAssertEqual(keymap.action(for: stroke("up"), onlyIn: .menuBar, scheme: scheme), .menuBarPrevious)
+			XCTAssertEqual(keymap.action(for: stroke("down"), onlyIn: .menuBar, scheme: scheme), .menuBarNext)
+			XCTAssertEqual(keymap.action(for: stroke("return"), onlyIn: .menuBar, scheme: scheme), .menuBarStart)
+			XCTAssertEqual(keymap.action(for: stroke("escape"), onlyIn: .menuBar, scheme: scheme), .menuBarCancel)
+			XCTAssertNil(keymap.action(for: stroke("space"), onlyIn: .menuBar, scheme: scheme), "unscoped keys stay out of the popover")
+			let hotKey = try XCTUnwrap(keymap.singleStroke(for: .toggleMiniTracker, scheme: scheme))
+			XCTAssertEqual(HotKeyChord(hotKey), HotKeyChord(stroke("alt+cmd+t")))
+		}
+		let chord = try XCTUnwrap(HotKeyChord(stroke("alt+cmd+t")))
+		XCTAssertEqual(chord.keyCode, 0x11, "kVK_ANSI_T")
+		XCTAssertEqual(chord.carbonModifiers, 0x0900, "cmdKey | optionKey")
+		XCTAssertNil(HotKeyChord(stroke("t")), "a bare key is never global")
+		let dispatcher = KeyDispatcher(keymap: keymap, scheme: .standard)
+		XCTAssertEqual(dispatcher.handle(stroke("cmd+n")), .action(.addTask), "the Home window keeps ⌘N for quick add")
+		XCTAssertNil(keymap.sequences(for: .vim).first { $0.sequence == [stroke("shift+x")] }, "X is no longer bound")
+	}
+
 	func testVimPaneJumpsGoThroughAPendingStroke() throws {
 		let dispatcher = KeyDispatcher(keymap: try repoKeymap(), scheme: .vim)
 		XCTAssertEqual(dispatcher.handle(stroke("g")), .pending([stroke("g")]))

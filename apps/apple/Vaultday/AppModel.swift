@@ -82,11 +82,19 @@ final class AppModel {
 	let story = StoryModel()
 	/// The day's selection when the story screen opened: its task and place.
 	@ObservationIgnored private var daySelectionBeforeStory: (taskId: String?, index: Int?)?
+	/// Browse's selected line when the story screen opened from Browse; Esc
+	/// goes back there rather than to the day.
+	@ObservationIgnored private var browseSelectionBeforeStory: Int?
+	/// The screen the story screen opened from: the day or Browse.
+	private(set) var screenBeforeStory: MainScreen = .home
 	let dayLog = DayLogModel()
 	/// The Inbox column and the triage screen.
 	let inbox = InboxModel()
 	/// The Backlog tab's list: the Backlog preset of Browse.
 	let backlog = BrowseModel()
+	/// The open workspace's folder, watched for changes made outside the app.
+	@ObservationIgnored let vaultChanges = VaultChangeMonitor()
+	@ObservationIgnored private var watchedWorkspaceRoot: String?
 	/// Where peekable views sit, for the force click; not observed.
 	@ObservationIgnored let peekTargets = PeekTargetRegistry()
 	/// Browse takes the place of Today, Inbox and the side panel while shown (`gb`).
@@ -350,8 +358,13 @@ final class AppModel {
 		switch action {
 		case .nextStoryPanelTab, .previousStoryPanelTab, .showStoryPanelTab:
 			return false
-		case .nextMatch, .previousMatch, .nextGroup, .previousGroup, .toggleFold:
+		case .nextMatch, .previousMatch, .nextGroup, .previousGroup:
 			return screen == .browse
+		case .toggleFold:
+			// Browse folds its groups; Today folds the selected card's subtasks.
+			return screen == .browse || (screen == .home && focus.focusedPane == .today)
+		case _ where action.isMenuBarAction:
+			return false
 		default:
 			return true
 		}
@@ -470,6 +483,10 @@ final class AppModel {
 			jumpGroup(by: 1)
 		case .previousGroup:
 			jumpGroup(by: -1)
+		case .nextMatch:
+			jumpMatch(isForward: true)
+		case .previousMatch:
+			jumpMatch(isForward: false)
 		case .peek:
 			if let subject = peekSubject { peek.toggle(subject) }
 		case .toggleMiniTracker:
@@ -486,6 +503,12 @@ final class AppModel {
 			// Movement is the focus model's; the register's keys never arrive here.
 			break
 		}
+	}
+
+	/// The menu-bar extra's action for a key typed in its popover, from
+	/// Keymap.yaml's `menu-bar` bindings under the current scheme.
+	func menuBarAction(for stroke: KeyStroke) -> KeyAction? {
+		dispatcher.keymap.action(for: stroke, onlyIn: .menuBar, scheme: dispatcher.scheme)
 	}
 
 	/// The keys that run `action` under the current scheme, for the caps beside controls.
@@ -545,6 +568,7 @@ final class AppModel {
 	func showSidePanelTab(_ tab: SidePanelTab) {
 		sidePanelTab = tab
 		if tab == .dayLog { dayLog.reload() }
+		if tab == .backlog, screen != .browse { BrowseModel.refresh([browse, backlog]) }
 		syncSidePanelItemCount()
 		focus.focus(.sidePanel)
 	}
@@ -573,7 +597,7 @@ final class AppModel {
 			}
 		case .sidePanel:
 			return selectedLogLine.map(PeekSubject.logLine)
-		case .sidebar, .inbox, .storyPanel:
+		case .sidebar, .inbox, .storyPanel, .menuBar:
 			return nil
 		}
 	}
@@ -631,11 +655,21 @@ final class AppModel {
 	}
 
 	private func toggleFoldOfSelection() {
+		if screen == .home {
+			if let item = selectedItem { dayPlan.toggleSubtaskFold(taskId: item.taskId) }
+			return
+		}
 		guard let index = focus.selection(in: .today), let group = browse.group(at: index) else { return }
 		browse.toggleFold(group)
 		syncTodayItemCount()
 		// A folded group's rows are gone; the selection stays on its header.
 		if let header = browse.items.firstIndex(of: .header(group)) { focus.select(header, in: .today) }
+	}
+
+	/// `n` and `N`: the next or previous row holding the query's text.
+	private func jumpMatch(isForward: Bool) {
+		guard let target = browse.matchIndex(from: focus.selection(in: .today), isForward: isForward) else { return }
+		focus.select(target, in: .today)
 	}
 
 	private func jumpGroup(by step: Int) {
@@ -661,6 +695,22 @@ final class AppModel {
 	private var selectedBrowseRowStory: String? {
 		if case let .row(row) = selectedBrowseItem { return row.storyNumber }
 		return nil
+	}
+
+	/// Starts watching `workspace`'s folder once per workspace: a note
+	/// changed outside the app (Obsidian, a sync client) refreshes the Browse
+	/// snapshot, debounced, while Browse or the Backlog tab is shown;
+	/// otherwise opening either reads the vault anyway.
+	private func watchVault(of workspace: WorkspaceModel) {
+		guard watchedWorkspaceRoot != workspace.rootPath else { return }
+		watchedWorkspaceRoot = vaultChanges.start(workspace) ? workspace.rootPath : nil
+		vaultChanges.onChange = { [weak self] _ in self?.vaultChangedOutside() }
+	}
+
+	private func vaultChangedOutside() {
+		guard screen == .browse || sidePanelTab == .backlog else { return }
+		BrowseModel.refresh([browse, backlog])
+		if screen == .browse { syncTodayItemCount() }
 	}
 
 	/// Ticks a Browse row done and reads the table again.
@@ -694,6 +744,8 @@ final class AppModel {
 		guard story.isOpen else { return }
 		if let title = story.content?.title { recentStories.touch(PaletteStory(number: number, title: title)) }
 		if screen == .home { daySelectionBeforeStory = (selectedItem?.taskId, focus.selection(in: .today)) }
+		if screen == .browse { browseSelectionBeforeStory = focus.selection(in: .today) }
+		if screen != .story { screenBeforeStory = screen == .browse ? .browse : .home }
 		screen = .story
 		focus.setPaneOrder(Pane.storyOrder)
 		syncStoryItemCounts()
@@ -701,15 +753,23 @@ final class AppModel {
 		syncStorySelection()
 	}
 
-	/// Back to the day from the story screen.
+	/// Back from the story screen to where it opened from: Browse, on the
+	/// line selected then, or the day.
 	func leaveStory() {
 		guard screen == .story else { return }
-		screen = .home
+		let isBackToBrowse = screenBeforeStory == .browse
+		screen = isBackToBrowse ? .browse : .home
+		screenBeforeStory = .home
 		story.close()
 		focus.setPaneOrder(Pane.homeOrder)
 		syncTodayItemCount()
 		syncSidePanelItemCount()
-		restoreDaySelection()
+		if isBackToBrowse {
+			if let line = browseSelectionBeforeStory, browse.items.indices.contains(line) { focus.select(line, in: .today) }
+			browseSelectionBeforeStory = nil
+		} else {
+			restoreDaySelection()
+		}
 	}
 
 	/// The story screen borrows the Today pane's selection for its steps:
@@ -1129,6 +1189,7 @@ final class AppModel {
 	func setKeyboardScheme(_ scheme: KeyboardSchemeSetting) {
 		settings?.setKeyboardScheme(scheme)
 		keyboard.setScheme(KeyScheme(scheme))
+		if localAPI != nil { registerTrackerHotKey() }
 	}
 
 	func setHoverSelects(_ isOn: Bool) {
@@ -1240,6 +1301,7 @@ final class AppModel {
 		sessions.load(from: workspace)
 		quickAdd.attach(to: workspace, workspaces: workspaceEntries)
 		workspace.refreshHealth()
+		watchVault(of: workspace)
 		let presetFile = environment.map { $0.layout.browsePresetsFile(workspaceId: workspace.workspaceId) }
 		browse.load(from: workspace, presetFile: presetFile)
 		if let preset = browse.presets.first(where: { $0.name == "Backlog" }) {

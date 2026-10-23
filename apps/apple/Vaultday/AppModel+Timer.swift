@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import SwiftUI
 import VaultdayCore
 
@@ -20,9 +19,7 @@ extension AppModel {
 			guard let self, let session = sessions.sessions.first(where: { $0.id == sessionId }) else { return nil }
 			return timerBackend.text(of: session)
 		}
-		hotKey = GlobalHotKey(keyCode: UInt32(kVK_ANSI_T), modifiers: UInt32(cmdKey | optionKey)) { [weak self] in
-			self?.toggleMiniTracker()
-		}
+		registerTrackerHotKey()
 		observeFrontmostWindow()
 		refreshTimerPicker()
 		timerSurfacesTask = Task { [weak self] in
@@ -90,9 +87,31 @@ extension AppModel {
 		report(sessions.togglePause())
 	}
 
-	/// Stop: ends the session and writes its line to the day log, once.
+	/// The mini tracker's global hotkey: the first single-stroke binding of
+	/// `tracker.toggle` in Keymap.yaml under the current scheme (⌥⌘T), so
+	/// the keymap stays the one source of keys. Called again when the
+	/// scheme changes; nothing registers when the keymap binds no chord.
+	func registerTrackerHotKey() {
+		hotKey?.unregister()
+		hotKey = nil
+		guard let stroke = dispatcher.keymap.singleStroke(for: .toggleMiniTracker, scheme: dispatcher.scheme),
+		      let chord = HotKeyChord(stroke)
+		else { return }
+		hotKey = GlobalHotKey(keyCode: chord.keyCode, modifiers: chord.carbonModifiers) { [weak self] in
+			self?.toggleMiniTracker()
+		}
+	}
+
+	/// Stop: ends the session at once; its day-log line is written off the
+	/// main actor, and the surfaces read the day again once it is.
 	func stopTimer() {
 		report(sessions.stop())
+		Task { [weak self] in
+			await self?.sessions.waitForDayLog()
+			guard let self else { return }
+			if let message = sessions.errorMessage { timerMessage = message }
+			timerChanged()
+		}
 	}
 
 	/// "Continue latest": a new session on the last timer's task.

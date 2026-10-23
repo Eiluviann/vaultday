@@ -116,6 +116,21 @@ final class TimerSurfacesTests: XCTestCase {
 		XCTAssertEqual(try sessionLines(in: vault, sessionId: id).count, 1, "a second stop logs nothing")
 	}
 
+	func testStopReturnsAtOnceAndTheDayLogLineIsWrittenOffTheMainActor() async throws {
+		let harness = try OnboardingHarness(self)
+		let (workspace, vault) = try openWorkspace(harness)
+		let sessions = SessionModel()
+		sessions.load(from: workspace)
+		XCTAssertTrue(sessions.start(taskId: "task-5", story: nil))
+		let id = try XCTUnwrap(sessions.openSession?.id)
+		XCTAssertTrue(sessions.stop())
+		XCTAssertNil(sessions.openSession, "the stop itself is immediate")
+		await sessions.waitForDayLog()
+		let line = try XCTUnwrap(sessions.lastLogLine)
+		XCTAssertEqual(try sessionLines(in: vault, sessionId: id), [line], "logged once")
+		XCTAssertNil(sessions.errorMessage)
+	}
+
 	func testTheAPIStartsByTextAndContinuesTheLatest() async throws {
 		let harness = try OnboardingHarness(self)
 		let (workspace, _) = try openWorkspace(harness)
@@ -135,7 +150,7 @@ final class TimerSurfacesTests: XCTestCase {
 		guard case .failure(let twice) = backend.startTimer(target: "task-2", minutesAgo: nil) else { return XCTFail("already runs") }
 		XCTAssertEqual(twice.kind, .conflict)
 
-		let stopped = try backend.stopTimer().get()
+		let stopped = try await backend.stopTimer().get()
 		XCTAssertTrue(stopped.logLine?.contains(" · 5m ") == true, stopped.logLine ?? "")
 		let continued = try backend.continueTimer().get()
 		XCTAssertEqual(continued.timer?.taskId, "task-2")

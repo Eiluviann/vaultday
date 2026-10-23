@@ -48,7 +48,7 @@ struct NextStepsSection: View {
 					}
 					.onChange(of: accordion.selectedId) {
 						if let selected = accordion.selectedId {
-							withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(selected) }
+							withAnimation(.easeOut(duration: Tokens.Motion.motionTransition)) { proxy.scrollTo(selected) }
 						}
 					}
 				}
@@ -123,7 +123,7 @@ private struct StepRow: View {
 		.padding(.leading, CGFloat(step.depth) * Tokens.Spacing.space20)
 		.background(isExpanded ? Tokens.Colors.surfaceRaised : .clear, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
 		.contentShape(Rectangle())
-		.animation(.easeOut(duration: 0.15), value: isExpanded)
+		.animation(.easeOut(duration: Tokens.Motion.motionTransition), value: isExpanded)
 	}
 
 	private func meta(_ text: String) -> some View {

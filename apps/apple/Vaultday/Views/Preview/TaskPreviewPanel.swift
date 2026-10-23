@@ -18,6 +18,13 @@ struct TaskPreviewPanel: View {
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
 			facts
+			if let notice = content.obsidianLinkNotice {
+				Label(notice, systemImage: "info.circle")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.info)
+					.lineLimit(1)
+					.help(notice)
+			}
 			HStack(alignment: .top, spacing: 18) {
 				storyNote
 					.frame(maxWidth: .infinity, alignment: .topLeading)

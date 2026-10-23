@@ -74,6 +74,8 @@ public final class DayPlanModel {
 	/// The cards of the day: unfinished in list order, then the ones done on the day.
 	public private(set) var items: [PlanItem] = []
 	public private(set) var isToday = true
+	/// Cards whose subtask list `za` folded; kept while the app runs.
+	public private(set) var foldedSubtaskTaskIds: Set<String> = []
 	public private(set) var totals = DayTotals()
 	/// Every open task of the workspace's stories, for the sidebar's Browse row.
 	public private(set) var browseCount = 0
@@ -104,6 +106,22 @@ public final class DayPlanModel {
 
 	public init(now: @escaping () -> Date = Date.init) {
 		self.now = now
+	}
+
+	/// `za` in Today: folds the card's subtasks, or opens them again. A card
+	/// without subtasks has nothing to fold; `false` then.
+	@discardableResult
+	public func toggleSubtaskFold(taskId: String) -> Bool {
+		guard items.first(where: { $0.taskId == taskId })?.subtasks.isEmpty == false else { return false }
+		if !foldedSubtaskTaskIds.insert(taskId).inserted {
+			foldedSubtaskTaskIds.remove(taskId)
+		}
+		return true
+	}
+
+	/// Whether the card of `taskId` shows its subtasks folded.
+	public func isSubtaskListFolded(_ taskId: String) -> Bool {
+		foldedSubtaskTaskIds.contains(taskId)
 	}
 
 	public var openTaskCount: Int {

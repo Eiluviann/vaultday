@@ -359,6 +359,40 @@ final class KeyboardModelTests: XCTestCase {
 		XCTAssertEqual(harness.plan.shownList, ["task-1", "task-2", "task-3"])
 	}
 
+	func testRepeatRecordsNothingWithoutASelection() throws {
+		let harness = try Harness(scheme: .vim)
+		harness.type("g 1")
+		XCTAssertNil(harness.selectedTaskId)
+		harness.type("x")
+		XCTAssertNil(harness.session.lastChange, "a change with nothing selected is no change to repeat")
+		harness.type("j > >")
+		XCTAssertEqual(harness.session.lastChange, .pushToTomorrow)
+		harness.type("g 1 x")
+		XCTAssertEqual(harness.session.lastChange, .pushToTomorrow, "the last real change is kept")
+		harness.type(".")
+		XCTAssertEqual(harness.plan.lines["task-2"]?.scheduled, "2026-10-23", "`.` without a selection does nothing")
+	}
+
+	func testUndoingAReorderRefusesAnOrderChangedSince() {
+		let plan = FakePlan()
+		plan.add("task-1", "One", scheduled: "2026-10-23")
+		plan.add("task-2", "Two", scheduled: "2026-10-23")
+		plan.add("task-3", "Three", scheduled: "2026-10-23")
+		let register = PlanRegister(plan: plan) { _ in }
+		register.step("task-3", by: -1)
+		XCTAssertEqual(plan.shownList, ["task-1", "task-3", "task-2"])
+		_ = plan.storeOrder(["task-2", "task-1", "task-3"], on: "2026-10-23")
+		register.undo()
+		XCTAssertEqual(register.message, "the order changed since")
+		XCTAssertEqual(plan.shownList, ["task-2", "task-1", "task-3"], "the newer order stays")
+		XCTAssertEqual(register.undoStack.count, 1, "the change stays for a later undo")
+		_ = plan.storeOrder(["task-1", "task-3", "task-2"], on: "2026-10-23")
+		register.undo()
+		XCTAssertEqual(plan.shownList, ["task-1", "task-2", "task-3"], "an order as the change left it is put back")
+		XCTAssertTrue(PlanRegister.keepsRelativeOrder(["a", "x", "b"], ["a", "b", "y"]), "added and gone tasks do not count")
+		XCTAssertFalse(PlanRegister.keepsRelativeOrder(["b", "a"], ["a", "b"]))
+	}
+
 	func testARefusedEditKeepsHistoryAndSaysWhy() throws {
 		let harness = try Harness(scheme: .vim)
 		harness.type("g 1 j")
@@ -444,14 +478,17 @@ final class KeyboardModelTests: XCTestCase {
 			let palette = CommandPaletteModel(dispatcher: dispatcher)
 			let commands = palette.sections.filter { ![CommandPaletteModel.recentStoriesTitle, CommandPaletteModel.workspacesTitle].contains($0.title) }
 			let rendered = commands.flatMap(\.rows).map { "\($0.title) | \($0.caps)" }
-			let table = keymap.table(for: scheme).map { "\($0.label) | \($0.caps)" }
+			// The menu-bar extra's keys act in its popover only, never from the palette.
+			let homeRows = keymap.table(for: scheme).filter { !$0.action.isMenuBarAction }
+			let table = homeRows.map { "\($0.label) | \($0.caps)" }
 			XCTAssertEqual(rendered.sorted(), table.sorted(), "\(scheme)")
-			XCTAssertEqual(Set(commands.map(\.title)), Set(keymap.table(for: scheme).map(\.group)))
+			XCTAssertEqual(Set(commands.map(\.title)), Set(homeRows.map(\.group)))
+			XCTAssertFalse(commands.contains { $0.title == "Menu bar" })
 		}
 		let vim = CommandPaletteModel(dispatcher: KeyDispatcher(keymap: keymap, scheme: .vim))
 		XCTAssertEqual(vim.rows.first { $0.choice == .action(.cut) }?.caps, [["d", "d"]])
 		XCTAssertEqual(vim.rows.first { $0.choice == .action(.openPalette) }?.caps, [["⌘K"], [":"]])
-		XCTAssertEqual(vim.rows.first { $0.choice == .action(.togglePin) }?.caps, [["m"], ["X"]])
+		XCTAssertEqual(vim.rows.first { $0.choice == .action(.togglePin) }?.caps, [["m"]], "lock stays on m alone")
 	}
 
 	func testThePalettesEmptyStateAndWorkspaceJump() throws {
