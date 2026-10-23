@@ -16,7 +16,7 @@ struct TodayColumn: View {
 				case .open:
 					TodayList(plan: app.dayPlan, focus: app.focus)
 				case .noFolder:
-					grantPrompt(message: "Vaultday reads a workspace folder in place; nothing is copied or moved.")
+					grantPrompt(message: app.grantMessage ?? "Vaultday reads a workspace folder in place; nothing is copied or moved.")
 				case let .failed(message):
 					grantPrompt(message: message)
 				}

@@ -14,12 +14,12 @@ public final class CoreEnvironment: Sendable {
 	public let unsignedFallbackNotice: String?
 	let secrets: any SecretStorePort
 
-	init(layout: AppGroupLayout, secrets: any SecretStorePort, isHardwareWrapped: Bool, unsignedFallbackNotice: String? = nil) {
+	init(layout: AppGroupLayout, secrets: any SecretStorePort, isHardwareWrapped: Bool, grants: FolderGrants = FolderGrants(), unsignedFallbackNotice: String? = nil) {
 		self.layout = layout
 		self.unsignedFallbackNotice = unsignedFallbackNotice
 		self.secrets = secrets
 		self.isHardwareWrapped = isHardwareWrapped
-		grants = FolderGrants()
+		self.grants = grants
 		files = CoordinatedSyncFiles(roots: [layout.container])
 	}
 
@@ -63,6 +63,7 @@ public final class CoreEnvironment: Sendable {
 		do {
 			return try inMemory(
 				container: container,
+				grants: FolderGrants(),
 				unsignedFallbackNotice: "This build is not signed with a development team: keys and app state last for this run only.",
 			)
 		} catch {
@@ -72,10 +73,12 @@ public final class CoreEnvironment: Sendable {
 
 	/// An environment over an in-memory Keychain and a plain folder, for
 	/// tests and for CI, where the Keychain is not reachable. Keys at rest are
-	/// wrapped by a software key kept in that Keychain.
+	/// wrapped by a software key kept in that Keychain. Folder grants are plain
+	/// bookmarks unless `grants` says otherwise, for the same reason.
 	public static func inMemory(
 		container: URL,
 		keychain: InMemoryKeychainBackend = InMemoryKeychainBackend(),
+		grants: FolderGrants = FolderGrants(usesSecurityScope: false),
 		unsignedFallbackNotice: String? = nil,
 	) throws -> CoreEnvironment {
 		let layout = AppGroupLayout(container: container)
@@ -91,7 +94,7 @@ public final class CoreEnvironment: Sendable {
 			),
 		)
 		let store = KeychainSecretStore(backend: keychain, accessGroup: accessGroup, wrapper: wrapper)
-		return CoreEnvironment(layout: layout, secrets: store, isHardwareWrapped: store.isHardwareWrapped, unsignedFallbackNotice: unsignedFallbackNotice)
+		return CoreEnvironment(layout: layout, secrets: store, isHardwareWrapped: store.isHardwareWrapped, grants: grants, unsignedFallbackNotice: unsignedFallbackNotice)
 	}
 }
 

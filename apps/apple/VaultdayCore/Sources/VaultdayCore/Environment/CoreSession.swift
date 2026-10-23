@@ -39,6 +39,12 @@ public final class CoreSession {
 	func save() throws {
 		_ = try appState.save()
 	}
+
+	/// Runs an edit of the app-level document and writes the snapshot.
+	func edit(_ body: (AppStateHandle) throws -> Void) throws {
+		try body(appState)
+		try save()
+	}
 }
 
 /// The app-level document could not be opened.

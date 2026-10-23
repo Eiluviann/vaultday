@@ -251,7 +251,8 @@ public final class WorkspaceModel {
 		}
 	}
 
-	private func close() {
+	/// Closes the open workspace without touching the app document or the folder.
+	public func close() {
 		if let root {
 			session.environment.files.disallow(root)
 		}
@@ -276,22 +277,7 @@ public final class WorkspaceModel {
 
 	private func archiveSyncFolder() throws {
 		guard let root else { return }
-		let sync = root.appending(path: ".vaultday/sync", directoryHint: .isDirectory)
-		guard FileManager.default.fileExists(atPath: sync.path) else { return }
-		let formatter = DateFormatter()
-		formatter.locale = Locale(identifier: "en_US_POSIX")
-		formatter.dateFormat = "yyyyMMdd-HHmmss"
-		let archive = root.appending(path: ".vaultday/sync-removed-\(formatter.string(from: Date()))", directoryHint: .isDirectory)
-		var coordinationError: NSError?
-		var moveError: Error?
-		NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: sync, options: .forMoving, error: &coordinationError) { url in
-			do {
-				try FileManager.default.moveItem(at: url, to: archive)
-			} catch {
-				moveError = error
-			}
-		}
-		if let error = coordinationError ?? moveError { throw error }
+		try SyncFolderArchive.archive(root: root)
 	}
 
 	private func storeGrant(connection: String, bookmark: Data, path: String) {

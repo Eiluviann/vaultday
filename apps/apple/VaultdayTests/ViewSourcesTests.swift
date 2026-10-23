@@ -17,8 +17,8 @@ final class ViewSourcesTests: XCTestCase {
 		XCTAssertGreaterThan(names.count, 20, "the generated bindings were not found; run scripts/build-xcframework.sh")
 		XCTAssertTrue(names.isSuperset(of: ["TodayView", "WorkspaceHandle", "CoreError", "SecretStorePort", "SecretItem"]))
 
-		let viewFiles = try FileManager.default.contentsOfDirectory(at: Self.views, includingPropertiesForKeys: nil)
-			.filter { $0.pathExtension == "swift" }
+		let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: Self.views, includingPropertiesForKeys: nil))
+		let viewFiles = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
 		XCTAssertFalse(viewFiles.isEmpty)
 		for file in viewFiles {
 			let source = try String(contentsOf: file, encoding: .utf8)

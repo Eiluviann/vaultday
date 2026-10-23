@@ -3,9 +3,16 @@ import XCTest
 @testable import VaultdayCore
 
 /// Security-scoped bookmarks round-trip in a plain test process too (no
-/// sandbox needed to make or resolve one), so these run on this Mac and CI.
+/// sandbox needed to make or resolve one). They go through ScopedBookmarkAgent
+/// and the login keychain, which can block a headless CI runner, so the
+/// bookmark tests run on a Mac only.
 final class FileAccessTests: XCTestCase {
+	private func skipOnCI() throws {
+		try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil, "security-scoped bookmarks need ScopedBookmarkAgent and a login keychain")
+	}
+
 	func testABookmarkRoundTripsToTheSameFolder() throws {
+		try skipOnCI()
 		let folder = try TestFixtures.temporaryFolder(self, "granted")
 		let grants = FolderGrants()
 		let bookmark = try grants.makeBookmark(for: folder)
@@ -19,6 +26,7 @@ final class FileAccessTests: XCTestCase {
 	}
 
 	func testAMovedFolderStillResolvesAndAStaleBookmarkIsRefreshed() throws {
+		try skipOnCI()
 		let parent = try TestFixtures.temporaryFolder(self, "parent")
 		let folder = parent.appending(path: "Vault", directoryHint: .isDirectory)
 		try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -38,6 +46,7 @@ final class FileAccessTests: XCTestCase {
 	}
 
 	func testABookmarkToADeletedFolderOrGarbageIsUnresolvable() throws {
+		try skipOnCI()
 		let folder = try TestFixtures.temporaryFolder(self, "gone")
 		let grants = FolderGrants()
 		let bookmark = try grants.makeBookmark(for: folder)

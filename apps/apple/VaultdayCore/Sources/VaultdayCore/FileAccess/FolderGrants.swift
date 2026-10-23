@@ -13,16 +13,21 @@ public enum GrantResolution: Equatable, Sendable {
 /// Security-scoped bookmarks for the folders the user granted through the
 /// open panel. Bookmarks are made with `.withSecurityScope` so the sandboxed
 /// app can reopen the folder at the next launch; access stays open from
-/// resolution until ``stopAccessing(_:)``.
+/// resolution until ``stopAccessing(_:)``. Tests pass `usesSecurityScope:
+/// false`: a scoped bookmark goes through ScopedBookmarkAgent and the login
+/// keychain, which can block a headless CI runner.
 public final class FolderGrants: @unchecked Sendable {
 	private let lock = NSLock()
 	private var accessed: Set<URL> = []
+	private let usesSecurityScope: Bool
 
-	public init() {}
+	public init(usesSecurityScope: Bool = true) {
+		self.usesSecurityScope = usesSecurityScope
+	}
 
 	/// A bookmark for a folder the user just picked (inside the open panel's grant).
 	public func makeBookmark(for folder: URL) throws -> Data {
-		try folder.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+		try folder.bookmarkData(options: usesSecurityScope ? [.withSecurityScope] : [], includingResourceValuesForKeys: nil, relativeTo: nil)
 	}
 
 	/// Resolves a stored bookmark and opens access to its folder.
@@ -30,7 +35,7 @@ public final class FolderGrants: @unchecked Sendable {
 		var isStale = false
 		let url: URL
 		do {
-			url = try URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &isStale)
+			url = try URL(resolvingBookmarkData: bookmark, options: usesSecurityScope ? [.withSecurityScope] : [], relativeTo: nil, bookmarkDataIsStale: &isStale)
 		} catch {
 			return .unresolvable(reason: (error as NSError).localizedDescription)
 		}

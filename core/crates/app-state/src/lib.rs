@@ -37,8 +37,9 @@ pub mod volatile;
 pub mod workspace_state;
 
 pub use app_doc::{
-    AppState, Connection, ConnectionId, ConnectionKind, EnablementScope, FolderGrant,
-    KeyboardScheme, SecurityMode, Source, WorkspaceSecurity,
+    AccountPart, AppState, Connection, ConnectionId, ConnectionKind, EnablementScope,
+    FeatureScopeChoice, FeatureScopeMode, FolderGrant, KeyboardScheme, ONBOARDING_STEP_COUNT,
+    OnboardingProgress, SecurityMode, Source, SyncChoice, SyncHome, SyncService, WorkspaceSecurity,
 };
 pub use device::DeviceId;
 pub use error::AppStateError;

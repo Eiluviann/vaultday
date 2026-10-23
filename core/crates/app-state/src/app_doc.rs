@@ -20,6 +20,13 @@ use crate::doc::{
 };
 use crate::error::AppStateError;
 
+mod onboarding;
+
+pub use onboarding::{
+    AccountPart, FeatureScopeChoice, FeatureScopeMode, ONBOARDING_STEP_COUNT, OnboardingProgress,
+    SyncChoice, SyncHome, SyncService,
+};
+
 /// Version of this document's schema, carried in every snapshot's header.
 pub const APP_SCHEMA_VERSION: u16 = 1;
 /// The workload threshold until the user sets one: an eight-hour day.

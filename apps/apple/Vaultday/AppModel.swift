@@ -2,6 +2,15 @@ import Foundation
 import Observation
 import VaultdayCore
 
+/// The models behind the setup window's steps, built once the app document is open.
+struct SetupModels {
+	let onboarding: OnboardingModel
+	let workspaces: WorkspacesModel
+	let sync: SyncStepModel
+	let accounts: AccountsStepModel
+	let features: FeatureSetsStepModel
+}
+
 /// The app's composition: the platform environment, the core session and
 /// the models the views read. Built once at launch. Not a view; it never
 /// touches the core's generated types either, only VaultdayCore's models.
@@ -13,6 +22,8 @@ final class AppModel {
 	private(set) var setupError: String?
 	private(set) var workspace: WorkspaceModel?
 	private(set) var settings: SettingsModel?
+	/// The setup window's models; `nil` until the app document is open.
+	private(set) var setup: SetupModels?
 	let dayPlan = DayPlanModel()
 	let sessions = SessionModel()
 	let focus: PaneFocusModel
@@ -61,6 +72,16 @@ final class AppModel {
 			let settings = SettingsModel(session: session)
 			self.workspace = workspace
 			self.settings = settings
+			let workspaces = WorkspacesModel(session: session)
+			let setup = SetupModels(
+				onboarding: OnboardingModel(session: session, workspaces: workspaces),
+				workspaces: workspaces,
+				sync: SyncStepModel(session: session, workspaces: workspaces),
+				accounts: AccountsStepModel(session: session),
+				features: FeatureSetsStepModel(session: session),
+			)
+			self.setup = setup
+			workspaces.onChange = { [weak self] in self?.workspacesChanged() }
 			dispatcher.setScheme(KeyScheme(settings.keyboardScheme))
 			let store = WindowStateStore(layout: environment.layout)
 			windowStateStore = store
@@ -71,15 +92,46 @@ final class AppModel {
 			}
 			workspace.restoreAtLaunch()
 			reloadWorkspaceContent()
+			refreshSetupSteps()
 		} catch {
 			setupError = error.localizedDescription
 		}
 	}
 
-	/// The user picked a folder in the open panel.
+	/// Whether the setup window opens at launch: the flow is not finished and no workspace exists yet.
+	var needsSetup: Bool {
+		guard let setup else { return false }
+		return !setup.onboarding.isFinished && setup.workspaces.entries.isEmpty
+	}
+
+	/// The user picked a folder in the open panel: it becomes a work workspace, as the setup's Workspaces step makes one.
 	func grantFolder(_ url: URL) {
-		workspace?.grantFolder(url)
+		setup?.workspaces.addWorkspace(folder: url, sphere: .work)
+	}
+
+	/// Why the last folder could not be added, for the empty Today column.
+	var grantMessage: String? { setup?.workspaces.message }
+
+	/// The workspaces changed in the setup window: the open workspace follows.
+	func workspacesChanged() {
+		guard let workspace, let workspaces = setup?.workspaces else { return }
+		let isOpenOneGone = workspace.phase == .open && !workspaces.entries.contains { $0.id == workspace.workspaceId }
+		if isOpenOneGone {
+			workspace.close()
+		}
+		if workspace.phase != .open {
+			workspace.restoreAtLaunch()
+		}
 		reloadWorkspaceContent()
+		refreshSetupSteps()
+	}
+
+	private func refreshSetupSteps() {
+		guard let setup else { return }
+		let entries = setup.workspaces.entries
+		setup.accounts.refresh(workspaces: entries)
+		setup.features.refresh(workspaces: entries)
+		setup.sync.refreshGitWorkspaces()
 	}
 
 	/// Feeds one key press to the dispatcher; `true` when it was a binding or a pending prefix.

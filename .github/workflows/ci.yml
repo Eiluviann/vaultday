@@ -150,5 +150,8 @@ jobs:
         working-directory: apps/apple
       # The package's own tests (models, Keychain store over the in-memory
       # backend, file access, calendar source, keyboard) are not in the app scheme.
+      # Bounded: a test that blocks (for example a security-scoped bookmark
+      # waiting on the login keychain) fails the step, not the whole job.
       - run: swift test
+        timeout-minutes: 10
         working-directory: apps/apple/VaultdayCore

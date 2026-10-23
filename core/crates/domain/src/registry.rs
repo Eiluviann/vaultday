@@ -345,6 +345,55 @@ impl Registry {
     }
 }
 
+/// A feature set the product plans but the base version does not ship. The
+/// onboarding step lists these as inert tiles with a "Planned" tag; the
+/// registry itself stays empty until a feature crate registers a manifest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlannedFeatureSet {
+    /// The id the feature will register under; enablement is stored under it today.
+    pub id: &'static str,
+    /// The tile's title.
+    pub title: &'static str,
+    /// The tile's one-line description.
+    pub description: &'static str,
+    /// Whether switching it on will send data to a new third party.
+    pub raises_egress: bool,
+}
+
+/// The planned feature sets, in the order the Feature sets step draws them.
+pub const PLANNED_FEATURE_SETS: [PlannedFeatureSet; 5] = [
+    PlannedFeatureSet {
+        id: "github",
+        title: "GitHub",
+        description: "Review requests, assigned issues, failing checks",
+        raises_egress: true,
+    },
+    PlannedFeatureSet {
+        id: "servicenow",
+        title: "ServiceNow",
+        description: "Capture tickets from the browser, link stories",
+        raises_egress: false,
+    },
+    PlannedFeatureSet {
+        id: "azure-devops",
+        title: "Azure DevOps",
+        description: "Work items and pull requests, linked to stories",
+        raises_egress: false,
+    },
+    PlannedFeatureSet {
+        id: "teams-work-mail",
+        title: "Teams and work mail",
+        description: "Messages and mail from a work tenant as signals",
+        raises_egress: false,
+    },
+    PlannedFeatureSet {
+        id: "toggl-billing",
+        title: "Toggl and billing",
+        description: "Send logged hours, hourly or fixed-price billing",
+        raises_egress: true,
+    },
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -625,5 +674,19 @@ mod tests {
         let shown = registry.contributions(Slot::CliCommand, &enablement, &acme());
         assert_eq!(shown.len(), 1);
         assert_eq!(shown[0].feature, FeatureId::new("time-sink"));
+    }
+
+    #[test]
+    fn planned_feature_sets_are_unique_and_none_is_registered() {
+        let mut ids: Vec<&str> = PLANNED_FEATURE_SETS.iter().map(|set| set.id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), PLANNED_FEATURE_SETS.len());
+        let registry = Registry::new();
+        assert!(registry.is_empty());
+        for planned in PLANNED_FEATURE_SETS {
+            assert!(registry.manifest(&FeatureId::new(planned.id)).is_none());
+            assert!(!planned.title.is_empty() && !planned.description.ends_with('.'));
+        }
     }
 }

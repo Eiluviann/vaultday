@@ -15,7 +15,9 @@
 pub mod app_state;
 pub mod calendar;
 pub mod files;
+pub mod onboarding;
 pub mod secrets;
+pub mod workspace_form;
 
 use std::sync::Arc;
 

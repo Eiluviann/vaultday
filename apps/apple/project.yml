@@ -91,6 +91,10 @@ targets:
     platform: macOS
     sources:
       - path: VaultdayTests
+      # The setup views take plain models, so the layout tests compile them
+      # with the tokens instead of hosting the whole app.
+      - path: Vaultday/Tokens.swift
+      - path: Vaultday/Views/Setup
     dependencies:
       - package: VaultdayCore
     settings:

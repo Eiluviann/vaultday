@@ -583,6 +583,22 @@ impl From<AppStateError> for CoreError {
 
 // A panic while a handle is locked leaves the document as the last finished
 // call left it, so a poisoned lock is still safe to use.
+impl AppStateHandle {
+    /// Reads from the document.
+    pub(crate) fn read_state<T>(&self, read: impl FnOnce(&app_state::AppState) -> T) -> T {
+        read(lock(&self.store).state())
+    }
+
+    /// Edits the document.
+    pub(crate) fn edit_state(
+        &self,
+        edit: impl FnOnce(&mut app_state::AppState) -> Result<(), AppStateError>,
+    ) -> Result<(), CoreError> {
+        lock(&self.store).edit(edit)?;
+        Ok(())
+    }
+}
+
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
