@@ -36,24 +36,20 @@ struct HoursTab: View {
 	}
 }
 
-/// Tracked time is the user's alone: the hand says it never goes into a report.
+/// Tracked time is the user's alone: the hand says it never goes into a
+/// report, and screen-share mode swaps the value for "Private".
 struct PrivateTracked: View {
 	let text: String
+	var label: String?
 
 	var body: some View {
-		Label {
-			Text(text)
-		} icon: {
-			Image(systemName: "hand.raised")
-				.font(.system(size: 10))
-		}
-		.labelStyle(.titleAndIcon)
-		.help("Tracked by the timer and your meetings; private to you, never in a report")
+		PrivateTimeValue(text, label: label, carriesHand: true)
 	}
 }
 
 private struct DailyTargetCard: View {
 	let hours: HoursModel
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
@@ -67,9 +63,11 @@ private struct DailyTargetCard: View {
 			PrivateTracked(text: hours.targetText)
 				.font(Tokens.Typography.headline.font)
 				.foregroundStyle(Tokens.Colors.ink)
-			ProgressView(value: hours.targetShare)
-				.tint(Tokens.Colors.primary)
-				.accessibilityLabel("Tracked today against the daily target")
+			if screenShare?.hides(.hoursTab) != true {
+				ProgressView(value: hours.targetShare)
+					.tint(Tokens.Colors.primary)
+					.accessibilityLabel("Tracked today against the daily target")
+			}
 		}
 		.padding(Tokens.Spacing.space12)
 		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg))
@@ -79,6 +77,9 @@ private struct DailyTargetCard: View {
 
 private struct StoryHoursCard: View {
 	let row: HoursRow
+	@Environment(\.screenShare) private var screenShare
+
+	private var isHidden: Bool { screenShare?.hides(.hoursTab) == true }
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
@@ -93,10 +94,10 @@ private struct StoryHoursCard: View {
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			HStack(spacing: Tokens.Spacing.space8) {
-				PrivateTracked(text: "Tracked \(DurationText.minutes(row.trackedMinutes))")
-				Text(row.budgetText)
-					.foregroundStyle(row.isOver ? Tokens.Colors.caution : Tokens.Colors.inkMuted)
-				if row.isOver {
+				PrivateTracked(text: DurationText.minutes(row.trackedMinutes), label: "Tracked")
+				Text(isHidden ? row.estimateOnlyText : row.budgetText)
+					.foregroundStyle(row.isOver && !isHidden ? Tokens.Colors.caution : Tokens.Colors.inkMuted)
+				if row.isOver, !isHidden {
 					Image(systemName: "exclamationmark.triangle")
 						.font(.system(size: 10))
 						.foregroundStyle(Tokens.Colors.caution)
@@ -106,7 +107,7 @@ private struct StoryHoursCard: View {
 			.font(Tokens.Typography.caption.font)
 			.foregroundStyle(Tokens.Colors.inkSecondary)
 			.lineLimit(1)
-			if let share = row.share {
+			if let share = row.share, !isHidden {
 				ProgressView(value: share)
 					.tint(row.isOver ? Tokens.Colors.caution : Tokens.Colors.primary)
 					.accessibilityLabel("Tracked against the estimate")

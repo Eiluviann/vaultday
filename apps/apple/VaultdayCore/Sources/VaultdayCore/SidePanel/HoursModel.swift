@@ -22,6 +22,11 @@ public struct HoursRow: Identifiable, Hashable, Sendable {
 		return min(1, Double(trackedMinutes) / Double(estimateMinutes))
 	}
 
+	/// "Estimate 6h", "No estimate": the budget without what is left of it, which gives tracked time away.
+	public var estimateOnlyText: String {
+		estimateMinutes.map { "Estimate \(DurationText.minutes($0))\(isEstimateFromTasks ? " from tasks" : "")" } ?? "No estimate"
+	}
+
 	/// "Estimate 6h · 3h 55m left", "Estimate 1h · 15m over", "No estimate".
 	public var budgetText: String {
 		guard let estimateMinutes else { return "No estimate" }

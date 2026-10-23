@@ -81,9 +81,10 @@ public struct SignalCard: Identifiable, Equatable, Sendable {
 	/// + Task can file into it.
 	public var hasMatchedStory: Bool { ticket != nil && ticketStoryTitle != nil }
 
-	/// The Wait for button: the sender's first name, else the address's local part.
+	/// The Wait for button: the sender's first name, else the address's local part; bare when the sender is hidden.
 	public var waitForLabel: String {
-		"Wait for \(Self.shortName(of: sender))"
+		let name = Self.shortName(of: sender)
+		return name.isEmpty ? "Wait for" : "Wait for \(name)"
 	}
 
 	static func shortName(of sender: String) -> String {

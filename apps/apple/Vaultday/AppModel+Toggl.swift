@@ -20,6 +20,7 @@ extension AppModel {
 	func togglPanels() -> [TogglSettingsModel] {
 		guard let coreSession, let workspaces else { return [] }
 		return WorkspaceSphere.allCases
+			.filter { screenShare.showsSphere($0) }
 			.flatMap { workspaces.entries(in: $0) }
 			.map { TogglSettingsModel(session: coreSession, workspaceId: $0.id, workspaceName: $0.name) }
 	}

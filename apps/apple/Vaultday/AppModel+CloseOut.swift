@@ -33,9 +33,10 @@ extension AppModel {
 		}
 	}
 
-	/// Opens the ritual screen on what the header offers.
+	/// Opens the ritual screen on what the header offers; refused with a
+	/// notice while screen-share mode is on.
 	func openCloseOut() {
-		guard let due = closeOutDue.due, let source = closeOutSource else { return }
+		guard let due = closeOutDue.due, let source = closeOutSource, !screenShare.refusesClosingOut() else { return }
 		closeOutDue.dismissAlert()
 		closeOut.open(source: source, kind: due.kind, date: due.date)
 	}

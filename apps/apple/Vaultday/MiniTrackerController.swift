@@ -58,6 +58,8 @@ final class MiniTrackerController: NSObject, NSWindowDelegate {
 		panel.title = "Mini tracker"
 		panel.delegate = self
 		panel.contentView = NSHostingView(rootView: MiniTrackerView(app: app))
+		// Out of a screen share while the mode is on; the registry sets the type now and on every change.
+		app.windowSharing.register(panel)
 		if let visible = NSScreen.main?.visibleFrame {
 			// First shown at the bottom right, on the edge it snaps to.
 			let origin = CGPoint(x: visible.maxX - size.width - MiniTrackerLayout.edgeMargin, y: visible.minY + MiniTrackerLayout.edgeMargin)

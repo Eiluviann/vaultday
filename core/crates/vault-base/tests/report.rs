@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use common::{Sandbox, diff, sandbox, snapshot, workspace, write};
 use serde_json::Value;
 use vault_base::ops::{OpError, SessionLogRequest, append_session_log, open_vault};
-use vault_base::report::{ReportBundle, ReportHours, build_report_bundle, write_report};
+use vault_base::report::{
+    ReportBundle, ReportHours, ReportVariant, build_report_bundle, build_report_bundle_as,
+    write_report, write_report_as,
+};
 use vault_base::writer::{VaultWriter, WriteError};
 use vault_base::{Date, PlainFileAccess, Time};
 
@@ -518,4 +521,85 @@ fn the_clients_a_report_can_be_asked_for_are_the_workspace_then_each_project() {
             "{client} is asked for but not found"
         );
     }
+}
+
+#[test]
+fn the_fte_safe_variant_of_any_billing_model_is_the_fte_report_of_the_same_sessions() {
+    let fte = bundle_in(
+        &sandbox_with_sessions(Some(r#"{"model": "fte"}"#)),
+        "Mock Studio",
+        "2026-10-01",
+        "2026-10-31",
+    );
+    for billing in [
+        None,
+        Some(r#"{"model": "hourly", "rounding_minutes": 30}"#),
+        Some(r#"{"model": "fixed"}"#),
+        Some(r#"{"model": "fte"}"#),
+    ] {
+        let sandbox = sandbox_with_sessions(billing);
+        let workspace = workspace(&sandbox.root);
+        let vault = open_vault(&workspace, &PlainFileAccess).unwrap();
+        let safe = build_report_bundle_as(
+            &workspace,
+            &vault,
+            "Mock Studio",
+            date("2026-10-01"),
+            date("2026-10-31"),
+            ReportVariant::FteSafe,
+        )
+        .unwrap();
+        let ReportHours::Fte(logged) = &safe.hours else {
+            panic!("{billing:?}: expected FTE hours, got {:?}", safe.hours);
+        };
+        assert_eq!(logged.logged_minutes, 155, "{billing:?}");
+        assert_eq!(safe.to_json(), fte.to_json(), "{billing:?}");
+        assert_eq!(safe.to_markdown(), fte.to_markdown(), "{billing:?}");
+        let lower = safe.to_json().to_lowercase();
+        for forbidden in ["billable", "quoted", "overrun", "rounding_minutes"] {
+            assert!(!lower.contains(forbidden), "{billing:?}: {forbidden}");
+        }
+    }
+}
+
+#[test]
+fn the_full_variant_is_the_bundle_the_billing_model_builds() {
+    let sandbox = sandbox_with_sessions(Some(r#"{"model": "fixed"}"#));
+    let workspace = workspace(&sandbox.root);
+    let vault = open_vault(&workspace, &PlainFileAccess).unwrap();
+    let full = build_report_bundle_as(
+        &workspace,
+        &vault,
+        "WEB-142",
+        date("2026-10-21"),
+        date("2026-10-22"),
+        ReportVariant::Full,
+    )
+    .unwrap();
+    assert!(matches!(full.hours, ReportHours::Fixed(_)));
+    assert_eq!(
+        full.to_json(),
+        bundle_in(&sandbox, "WEB-142", "2026-10-21", "2026-10-22").to_json()
+    );
+}
+
+#[test]
+fn writing_the_fte_safe_variant_stores_the_safe_bundle_in_the_same_one_file() {
+    let sandbox = sandbox_with_sessions(Some(r#"{"model": "hourly"}"#));
+    let workspace = workspace(&sandbox.root);
+    let vault = open_vault(&workspace, &PlainFileAccess).unwrap();
+    let written = write_report_as(
+        &workspace,
+        &vault,
+        &PlainFileAccess,
+        "WEB-142",
+        date("2026-10-21"),
+        date("2026-10-22"),
+        ReportVariant::FteSafe,
+    )
+    .unwrap();
+    let text = std::fs::read_to_string(&written.absolute_path).unwrap();
+    let json: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(json["hours"]["model"], "fte");
+    assert_eq!(json["billing"], "fte");
 }

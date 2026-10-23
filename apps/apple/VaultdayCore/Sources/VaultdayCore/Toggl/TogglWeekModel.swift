@@ -18,6 +18,9 @@ public struct TogglWeekDay: Identifiable, Hashable, Sendable {
 
 	public var id: String { date }
 
+	/// "Mon", the day without its hours, for a shared screen.
+	public var titleWithoutHours: String { weekday }
+
 	/// "Mon · 8h flat", "Tue · 1h 30m".
 	public var title: String {
 		let amount = DurationText.minutes(seconds / 60)

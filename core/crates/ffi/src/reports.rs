@@ -4,7 +4,7 @@
 //! authorship summary is computed by the CLI, so the JSON here carries an
 //! empty slot for it.
 
-use vault_base::report::{self, ReportBundle, ReportHours, StoryMinutes};
+use vault_base::report::{self, ReportBundle, ReportHours, ReportVariant, StoryMinutes};
 use vault_base::{PlainFileAccess, ops};
 
 use crate::{CoreError, ReportLogLineView, WorkspaceHandle};
@@ -142,6 +142,24 @@ pub struct WrittenReportView {
     pub absolute_path: String,
 }
 
+/// Which hours section a report carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ReportVariantView {
+    /// The hours of the workspace's billing model.
+    Full,
+    /// Logged hours only, as an FTE report: safe on a shared screen.
+    FteSafe,
+}
+
+impl From<ReportVariantView> for ReportVariant {
+    fn from(view: ReportVariantView) -> Self {
+        match view {
+            ReportVariantView::Full => ReportVariant::Full,
+            ReportVariantView::FteSafe => ReportVariant::FteSafe,
+        }
+    }
+}
+
 /// The clients a report can be asked for: the workspace, then each project.
 ///
 /// # Errors
@@ -165,14 +183,16 @@ pub fn report_bundle(
     subject: String,
     from: String,
     to: String,
+    variant: ReportVariantView,
 ) -> Result<ReportBundleView, CoreError> {
     let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
-    let bundle = report::build_report_bundle(
+    let bundle = report::build_report_bundle_as(
         &workspace.workspace,
         &vault,
         &subject,
         ops::parse_date(&from)?,
         ops::parse_date(&to)?,
+        variant.into(),
     )?;
     Ok(bundle_view(&bundle))
 }
@@ -189,15 +209,17 @@ pub fn write_report(
     subject: String,
     from: String,
     to: String,
+    variant: ReportVariantView,
 ) -> Result<WrittenReportView, CoreError> {
     let vault = ops::open_vault(&workspace.workspace, &PlainFileAccess)?;
-    let written = report::write_report(
+    let written = report::write_report_as(
         &workspace.workspace,
         &vault,
         &PlainFileAccess,
         &subject,
         ops::parse_date(&from)?,
         ops::parse_date(&to)?,
+        variant.into(),
     )?;
     Ok(WrittenReportView {
         relative_path: written.relative_path,

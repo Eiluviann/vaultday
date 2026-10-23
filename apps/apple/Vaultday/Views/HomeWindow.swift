@@ -34,6 +34,7 @@ struct HomeWindow: View {
 		}
 		.background(Tokens.Colors.surfaceWindow)
 		.environment(\.workspaceAccent, app.accentColor)
+		.environment(\.screenShare, app.screenShare)
 		// The task preview slides over the Inbox and the side panel from the right edge.
 		.overlay(alignment: .trailing) {
 			if let content = app.preview.content {

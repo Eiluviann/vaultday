@@ -58,10 +58,12 @@ private struct WorkspaceSwitcher: View {
 				selectedFill: Tokens.Colors.primary,
 				selectedText: Tokens.Colors.onPrimary,
 				isSelected: app.isShowingAll,
+				disabledReason: app.screenShare.allWorkspacesDisabledReason,
 			) {
 				app.perform(.showAllWorkspaces)
 			}
-			ForEach(Array(app.workspaceEntries.enumerated()), id: \.element.id) { index, entry in
+			// Key places count every workspace, so ⌘2 stays where it was while one is hidden.
+			ForEach(Array(app.workspaceEntries.enumerated()).filter { app.screenShare.canShow($0.element) }, id: \.element.id) { index, entry in
 				SwitcherRow(
 					title: entry.name,
 					dot: AnyShapeStyle(entry.color),
@@ -92,6 +94,8 @@ private struct SwitcherRow: View {
 	let isSelected: Bool
 	/// New signals; the badge hides at zero.
 	var badge = 0
+	/// Why the row is off, shown as its caption and tooltip; `nil` while it is on offer.
+	var disabledReason: String?
 	let action: () -> Void
 
 	var body: some View {
@@ -127,7 +131,10 @@ private struct SwitcherRow: View {
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)
+		.opacity(disabledReason == nil ? 1 : 0.5)
+		.help(disabledReason ?? "")
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
+		.accessibilityHint(disabledReason ?? "")
 	}
 }
 
@@ -165,10 +172,15 @@ private struct NowCard: View {
 				.font(Tokens.Typography.body.font.weight(.semibold))
 				.lineLimit(2)
 			HStack(spacing: Tokens.Spacing.space8) {
-				TimelineView(.periodic(from: .now, by: 1)) { context in
-					Text(DurationText.clock(seconds: session.elapsed(at: context.date)))
-						.font(.system(size: 18, weight: .bold))
-						.monospacedDigit()
+				if app.screenShare.hides(.nowCard) {
+					PrivateTimeValue("")
+						.font(Tokens.Typography.callout.font.weight(.semibold))
+				} else {
+					TimelineView(.periodic(from: .now, by: 1)) { context in
+						Text(DurationText.clock(seconds: session.elapsed(at: context.date)))
+							.font(.system(size: 18, weight: .bold))
+							.monospacedDigit()
+					}
 				}
 				Spacer()
 				NowButton(symbol: session.isPaused ? "play.fill" : "pause.fill", label: session.isPaused ? "Resume timer" : "Pause timer", help: app.keyLabel(.toggleTimer).map { session.isPaused ? "Resume (\($0))" : "Pause (\($0))" } ?? "Pause") {
@@ -343,13 +355,14 @@ private struct SidebarNotices: View {
 private struct TrackedRing: View {
 	let totals: DayTotals
 	@Environment(\.workspaceAccent) private var accent
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
 			ZStack {
 				Circle().stroke(Tokens.Colors.line, lineWidth: 2.5)
 				Circle()
-					.trim(from: 0, to: fraction)
+					.trim(from: 0, to: screenShare?.hides(.sidebarRing) == true ? 0 : fraction)
 					.stroke(accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
 					.rotationEffect(.degrees(-90))
 					.progressDraw(value: Double(fraction))
@@ -357,17 +370,23 @@ private struct TrackedRing: View {
 			.frame(width: 18, height: 18)
 			.padding(2)
 			.accessibilityHidden(true)
-			(Text(DurationText.minutes(totals.spentMinutes)).fontWeight(.bold).foregroundColor(Tokens.Colors.ink)
-				+ Text(" tracked of \(DurationText.minutes(totals.plannedMinutes)) planned"))
-				.font(Tokens.Typography.caption.font)
-				.foregroundStyle(Tokens.Colors.inkSecondary)
+			if screenShare?.hides(.sidebarRing) == true {
+				PrivateTimeValue("", label: "Tracked")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+			} else {
+				(Text(DurationText.minutes(totals.spentMinutes)).fontWeight(.bold).foregroundColor(Tokens.Colors.ink)
+					+ Text(" tracked of \(DurationText.minutes(totals.plannedMinutes)) planned"))
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+			}
 		}
 		.padding(.horizontal, 10)
 		.padding(.vertical, Tokens.Spacing.space8)
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
 		.overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Tokens.Colors.line))
-		.help("Tracked by the timer against the day's plan; \(DurationText.minutes(totals.loggedMinutes)) of it logged to stories")
+		.help(screenShare?.hides(.sidebarRing) == true ? PrivateTimeMark.tooltip : "Tracked by the timer against the day's plan; \(DurationText.minutes(totals.loggedMinutes)) of it logged to stories")
 		.accessibilityElement(children: .combine)
 	}
 
@@ -461,7 +480,7 @@ struct SidebarRail: View {
 
 	var body: some View {
 		VStack(spacing: 10) {
-			ForEach(app.workspaceEntries) { entry in
+			ForEach(app.screenShare.visible(app.workspaceEntries)) { entry in
 				let isCurrent = !app.isShowingAll && entry.id == app.workspace?.workspaceId
 				Button {
 					app.showWorkspace(entry)

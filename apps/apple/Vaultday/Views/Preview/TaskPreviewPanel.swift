@@ -9,6 +9,7 @@ struct TaskPreviewPanel: View {
 	let app: AppModel
 	let content: TaskPreviewContent
 	@Environment(\.workspaceAccent) private var accent
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 12) {
@@ -116,7 +117,7 @@ struct TaskPreviewPanel: View {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 8) {
 					if content.blocks.isEmpty {
-						Text("The story note has no text beyond its tasks")
+						Text(screenShare?.hides(.taskPreview) == true ? "The story note is hidden while screen-share mode is on" : "The story note has no text beyond its tasks")
 							.font(Tokens.Typography.callout.font)
 							.foregroundStyle(Tokens.Colors.inkMuted)
 					}

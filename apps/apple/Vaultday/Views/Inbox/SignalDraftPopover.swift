@@ -9,6 +9,7 @@ struct SignalDraftPopover: View {
 	@Bindable var inbox: InboxModel
 	@FocusState private var focusedField: Field?
 	@Environment(\.workspaceAccent) private var accent
+	@Environment(\.screenShare) private var screenShare
 
 	private enum Field: Hashable {
 		case text, story, assignee, day, estimate
@@ -19,7 +20,7 @@ struct SignalDraftPopover: View {
 			VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
 				HStack(spacing: Tokens.Spacing.space8) {
 					Text(draft.title).fontWeight(.semibold)
-					Text("· from \(draft.sourceLabel)")
+					Text(screenShare?.hides(.signalCard) == true ? "· from the mail" : "· from \(draft.sourceLabel)")
 						.foregroundStyle(Tokens.Colors.inkMuted)
 						.lineLimit(1)
 				}

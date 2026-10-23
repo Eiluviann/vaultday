@@ -41,14 +41,22 @@ public struct PeekContent: Hashable, Sendable {
 @Observable
 public final class PeekModel {
 	public private(set) var subject: PeekSubject?
-	public private(set) var content: PeekContent?
 	public private(set) var errorMessage: String?
+	/// Screen-share mode: the peek shows what the row shows, nothing more.
+	public var isScreenShare = false
+
+	private var loadedContent: PeekContent?
 
 	private var vault: WorkspaceHandle?
 	private let now: () -> Date
 
 	public init(now: @escaping () -> Date = Date.init) {
 		self.now = now
+	}
+
+	/// What the peek shows: everything read, or the reduced form while screen-share mode is on.
+	public var content: PeekContent? {
+		isScreenShare ? loadedContent?.reducedForScreenShare : loadedContent
 	}
 
 	public func attach(to workspace: WorkspaceModel) {
@@ -66,11 +74,11 @@ public final class PeekModel {
 	public func show(_ subject: PeekSubject) {
 		let today = DayText.string(now())
 		do {
-			content = try Self.content(for: subject, in: vault, today: today)
+			loadedContent = try Self.content(for: subject, in: vault, today: today)
 			self.subject = subject
 			errorMessage = nil
 		} catch {
-			content = nil
+			loadedContent = nil
 			self.subject = nil
 			errorMessage = coreErrorMessage(error)
 		}
@@ -88,7 +96,7 @@ public final class PeekModel {
 
 	public func dismiss() {
 		subject = nil
-		content = nil
+		loadedContent = nil
 		errorMessage = nil
 	}
 

@@ -24,6 +24,7 @@ mod billing;
 mod mail;
 mod onboarding;
 mod preferences;
+mod screen_share;
 
 pub use billing::{BillingRate, FeatureValueScope};
 pub use mail::{DEFAULT_MAIL_FETCH_INTERVAL, MailAccount, MailAuth, MailProvider};

@@ -101,7 +101,16 @@ private struct SnoozedList: View {
 }
 
 private struct SnoozedRow: View {
-	let card: SignalCard
+	let rawCard: SignalCard
+	@Environment(\.screenShare) private var screenShare
+
+	init(card: SignalCard) {
+		rawCard = card
+	}
+
+	private var card: SignalCard {
+		screenShare?.hides(.signalCard) == true ? rawCard.reducedForScreenShare : rawCard
+	}
 
 	var body: some View {
 		HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.space8) {
@@ -110,7 +119,9 @@ private struct SnoozedRow: View {
 				.accessibilityLabel(card.sourceName)
 			VStack(alignment: .leading, spacing: 2) {
 				Text(card.headline).foregroundStyle(Tokens.Colors.ink)
-				Text(card.sender).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				if !card.sender.isEmpty {
+					Text(card.sender).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				}
 			}
 			Spacer()
 			Text(until)

@@ -68,6 +68,9 @@ struct MenuBarContent: View {
 		.background(Tokens.Colors.surface)
 		.foregroundStyle(Tokens.Colors.ink)
 		.font(Tokens.Typography.body.font)
+		// The popover's window stays out of a screen share while the mode is on,
+		// so it keeps its values: no screen-share environment here.
+		.background(WindowReader { app.windowSharing.register($0) })
 		.focusable()
 		.focusEffectDisabled()
 		.focused($isListFocused)
@@ -174,9 +177,12 @@ private struct LoggedHeader: View {
 			VStack(alignment: .leading, spacing: 2) {
 				Text(app.loggedSummary)
 					.fontWeight(.bold)
-				Text([app.workspace?.name, "\(DurationText.minutes(app.dayPlan.totals.spentMinutes)) tracked today"].compactMap(\.self).joined(separator: " · "))
-					.font(Tokens.Typography.caption.font)
-					.foregroundStyle(Tokens.Colors.inkMuted)
+				HStack(spacing: 4) {
+					if let name = app.workspace?.name { Text(name + " ·") }
+					PrivateTimeValue("\(DurationText.minutes(app.dayPlan.totals.spentMinutes)) tracked today", carriesHand: true)
+				}
+				.font(Tokens.Typography.caption.font)
+				.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer()
 		}

@@ -92,6 +92,7 @@ private struct StoryFactsBlock: View {
 private struct StoryHoursTab: View {
 	let hours: StoryHours?
 	let togglWeek: TogglWeekModel
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
@@ -111,9 +112,11 @@ private struct StoryHoursTab: View {
 						PrivateTracked(text: "Tracked")
 							.foregroundStyle(Tokens.Colors.inkMuted)
 						Spacer()
-						Text(hours.trackedText)
-							.fontWeight(.semibold)
-							.foregroundStyle(Tokens.Colors.ink)
+						if screenShare?.hides(.storyHours) != true {
+							Text(hours.trackedText)
+								.fontWeight(.semibold)
+								.foregroundStyle(Tokens.Colors.ink)
+						}
 					}
 				}
 				.font(Tokens.Typography.callout.font)

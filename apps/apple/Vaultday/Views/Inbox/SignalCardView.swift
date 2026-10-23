@@ -15,6 +15,12 @@ struct SignalCardView: View {
 	@State private var isHovered = false
 	@State private var hasAppeared = false
 	@Environment(\.workspaceAccent) private var accent
+	@Environment(\.screenShare) private var screenShare
+
+	/// The card as drawn: only the headline and the source icon while screen-share mode is on.
+	private var shown: SignalCard {
+		screenShare?.hides(.signalCard) == true ? card.reducedForScreenShare : card
+	}
 
 	private var draft: SignalDraft? {
 		app.inbox.draft.flatMap { $0.signalId == card.id ? $0 : nil }
@@ -27,7 +33,7 @@ struct SignalCardView: View {
 				app.select(signal: card)
 				app.inbox.openPreview(signalId: card.id)
 			} label: {
-				Text(card.headline)
+				Text(shown.headline)
 					.fontWeight(.semibold)
 					.foregroundStyle(Tokens.Colors.ink)
 					.multilineTextAlignment(.leading)
@@ -36,10 +42,10 @@ struct SignalCardView: View {
 			}
 			.buttonStyle(.plain)
 			.help("Open the preview")
-			if let ticket = card.ticket {
+			if let ticket = shown.ticket {
 				HStack(spacing: Tokens.Spacing.space4) {
 					MonoChip(text: ticket)
-						.help(card.ticketStoryTitle.map { "\(ticket) · \($0)" } ?? "No story \(ticket) in this workspace")
+						.help(shown.ticketStoryTitle.map { "\(ticket) · \($0)" } ?? "No story \(ticket) in this workspace")
 				}
 			}
 			primaryRow
@@ -62,7 +68,7 @@ struct SignalCardView: View {
 		.onTapGesture { app.select(signal: card) }
 		.draggable(card.id)
 		.accessibilityElement(children: .contain)
-		.accessibilityLabel("\(card.sender), \(card.headline)")
+		.accessibilityLabel(shown.sender.isEmpty ? shown.headline : "\(shown.sender), \(shown.headline)")
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
 	}
 
@@ -71,17 +77,17 @@ struct SignalCardView: View {
 			// A signal that arrives while the Inbox is on screen draws its
 			// mark on; the cards there at first render show theirs at once.
 			IconPresence(isShown: !isArrival || hasAppeared) {
-				MarkIcon(mark: card.source.mark)
+				MarkIcon(mark: shown.source.mark)
 			}
 			.frame(width: 16, height: 16)
 			.onAppear { hasAppeared = true }
-			Text(card.sender)
+			Text(shown.sender)
 				.fontWeight(.semibold)
 				.foregroundStyle(Tokens.Colors.ink)
 				.lineLimit(1)
-				.help(card.senderAddress)
+				.help(shown.senderAddress)
 			Spacer(minLength: Tokens.Spacing.space4)
-			Text(card.timeLabel)
+			Text(shown.timeLabel)
 				.font(Tokens.Typography.caption.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
 				.monospacedDigit()
@@ -106,7 +112,7 @@ struct SignalCardView: View {
 			}
 			.buttonStyle(.plain)
 			.help("+ Task: a line under Next Steps of the matched story, or the Mail note")
-			OutlineButton(title: card.waitForLabel, cap: .signalWaitFor, app: app) { begin(.waitFor) }
+			OutlineButton(title: shown.waitForLabel, cap: .signalWaitFor, app: app) { begin(.waitFor) }
 				.help("Wait for: a line under Pending Input with the sender as assigned_to")
 			Spacer(minLength: 0)
 			Button {

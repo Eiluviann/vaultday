@@ -15,10 +15,10 @@ struct SettingsWindow: View {
 						.tabItem { Label("General", systemImage: "gearshape") }
 					DaySettings(rhythm: rhythm)
 						.tabItem { Label("Day", systemImage: "sun.max") }
-					WorkspaceSettings(workspaces: workspaces, billing: { app.billingModel(for: $0) }, onChange: { app.workspacesChanged() })
+					WorkspaceSettings(workspaces: workspaces, showsSphere: { app.screenShare.showsSphere($0) }, billing: { app.billingModel(for: $0) }, onChange: { app.workspacesChanged() })
 						.tabItem { Label("Workspaces", systemImage: "square.stack") }
 					if let accounts = app.setup?.accounts {
-						AccountSettings(workspaces: workspaces, accounts: accounts, scheduler: app.mailScheduler)
+						AccountSettings(workspaces: workspaces, accounts: accounts, scheduler: app.mailScheduler, showsSphere: { app.screenShare.showsSphere($0) })
 							.tabItem { Label("Accounts", systemImage: "envelope") }
 					}
 					TogglSettingsTab(makePanels: { app.togglPanels() }, queue: app.togglQueue)
@@ -57,6 +57,9 @@ private struct GeneralSettings: View {
 				EmptyView()
 			} extra: {
 				EmptyView()
+			}
+			SetupCard(icon: "rectangle.on.rectangle", title: "Screen-share mode", description: "Hides tracked time, private workspaces and message details while you share your screen, on this Mac only", footnote: "While on, the mini tracker and the menu-bar window are left out of shares and captures; the main window stays shareable") {
+				SetupSwitch(label: "Screen-share mode", isOn: Binding(get: { app.screenShare.isOn }, set: { app.setScreenShare($0) }))
 			}
 			SetupCard(icon: "command", title: "Shortcut caps", description: "How the shortcut caps arrive with the selection; Reduce Motion always crossfades") {
 				SegmentedChoice(
@@ -123,6 +126,8 @@ private struct DaySettings: View {
 
 private struct WorkspaceSettings: View {
 	let workspaces: WorkspacesModel
+	/// Screen-share mode leaves the life workspaces out of the lists.
+	let showsSphere: (WorkspaceSphere) -> Bool
 	/// The billing fields of a workspace's sheet, while Toggl and billing is on for it.
 	let billing: (WorkspaceEntry) -> BillingSettingsModel?
 	let onChange: () -> Void
@@ -130,7 +135,7 @@ private struct WorkspaceSettings: View {
 
 	var body: some View {
 		SettingsPane(error: workspaces.message) {
-			ForEach(WorkspaceSphere.allCases, id: \.self) { sphere in
+			ForEach(WorkspaceSphere.allCases.filter(showsSphere), id: \.self) { sphere in
 				SpherePanel(sphere: sphere) { EmptyView() } content: {
 					let inSphere = workspaces.entries(in: sphere)
 					if inSphere.isEmpty {
@@ -146,7 +151,7 @@ private struct WorkspaceSettings: View {
 									model: WorkspaceConfigureModel(root: entry.rootPath),
 									billing: billing(entry),
 									closeOut: CloseOutSettingsModel(root: entry.rootPath),
-									leaveSources: WorkspaceSphere.allCases.flatMap { workspaces.entries(in: $0) }.map(\.name).filter { $0 != entry.name },
+									leaveSources: WorkspaceSphere.allCases.filter(showsSphere).flatMap { workspaces.entries(in: $0) }.map(\.name).filter { $0 != entry.name },
 								)
 							} label: {
 								SetupLabel(title: "Configure", icon: "gearshape")
@@ -178,6 +183,7 @@ private struct AccountSettings: View {
 	let workspaces: WorkspacesModel
 	let accounts: AccountsStepModel
 	let scheduler: MailFetchScheduler?
+	let showsSphere: (WorkspaceSphere) -> Bool
 
 	var body: some View {
 		SettingsPane {
@@ -200,7 +206,7 @@ private struct AccountSettings: View {
 					.accessibilityLabel("Fetch mail now")
 				}
 			}
-			AccountsPanel(workspaces: workspaces, accounts: accounts)
+			AccountsPanel(workspaces: workspaces, accounts: accounts, showsSphere: showsSphere)
 		}
 	}
 

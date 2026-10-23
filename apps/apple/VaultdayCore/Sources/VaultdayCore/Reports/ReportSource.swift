@@ -1,5 +1,17 @@
 import Foundation
 
+/// Which hours a report carries.
+public enum ReportVariant: Equatable, Sendable {
+	/// The hours of the workspace's billing model.
+	case full
+	/// Logged hours only, as an FTE report: nothing billed, no rounding, no quote.
+	case fteSafe
+
+	var core: ReportVariantView {
+		self == .full ? .full : .fteSafe
+	}
+}
+
 /// Where reports come from: the core in the app, a fake in tests. A source
 /// builds a bundle without writing anything; `storeReport` is the one call
 /// that writes, and it writes only the report file.
@@ -8,9 +20,9 @@ public protocol ReportSource: AnyObject {
 	/// The clients a report can be asked for: the workspace, then each project.
 	func clients() throws -> [String]
 	/// The bundle for a story number or a client over `range`. Writes nothing.
-	func bundle(subject: String, range: ReportRange) throws -> ReportBundle
+	func bundle(subject: String, range: ReportRange, variant: ReportVariant) throws -> ReportBundle
 	/// Writes the bundle's JSON to `_agent/reports/<from>-<to>.json` beside the subject.
-	func storeReport(subject: String, range: ReportRange) throws -> WrittenReport
+	func storeReport(subject: String, range: ReportRange, variant: ReportVariant) throws -> WrittenReport
 }
 
 /// The core behind the Reports tab.
@@ -26,13 +38,13 @@ final class CoreReportSource: ReportSource {
 		try VaultdayCore.reportClients(workspace: vault)
 	}
 
-	func bundle(subject: String, range: ReportRange) throws -> ReportBundle {
-		let view = try VaultdayCore.reportBundle(workspace: vault, subject: subject, from: range.from, to: range.to)
+	func bundle(subject: String, range: ReportRange, variant: ReportVariant) throws -> ReportBundle {
+		let view = try VaultdayCore.reportBundle(workspace: vault, subject: subject, from: range.from, to: range.to, variant: variant.core)
 		return ReportBundle(view)
 	}
 
-	func storeReport(subject: String, range: ReportRange) throws -> WrittenReport {
-		let view = try VaultdayCore.writeReport(workspace: vault, subject: subject, from: range.from, to: range.to)
+	func storeReport(subject: String, range: ReportRange, variant: ReportVariant) throws -> WrittenReport {
+		let view = try VaultdayCore.writeReport(workspace: vault, subject: subject, from: range.from, to: range.to, variant: variant.core)
 		return WrittenReport(relativePath: view.relativePath, absolutePath: view.absolutePath)
 	}
 }

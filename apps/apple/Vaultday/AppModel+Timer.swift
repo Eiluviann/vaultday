@@ -79,7 +79,7 @@ extension AppModel {
 
 	/// The menu bar's title: the running clock, or nothing.
 	var menuBarClock: String? {
-		guard let session = runningSession else { return nil }
+		guard let session = runningSession, !screenShare.hides(.menuBarTitle) else { return nil }
 		return DurationText.clock(seconds: session.elapsed(at: timerClock))
 	}
 

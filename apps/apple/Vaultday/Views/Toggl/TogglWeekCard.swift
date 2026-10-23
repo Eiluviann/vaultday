@@ -6,6 +6,7 @@ import VaultdayCore
 /// in the workspace document. "Toggl not connected" while the feature is off.
 struct TogglWeekCard: View {
 	let week: TogglWeekModel
+	@Environment(\.screenShare) private var screenShare
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
@@ -17,7 +18,7 @@ struct TogglWeekCard: View {
 			}
 			ForEach(week.visibleDays) { day in
 				HStack(spacing: Tokens.Spacing.space6) {
-					Text(day.title)
+					Text(screenShare?.hides(.togglWeek) == true ? day.titleWithoutHours : day.title)
 						.foregroundStyle(Tokens.Colors.ink)
 					Spacer(minLength: Tokens.Spacing.space8)
 					Text(day.stateText)

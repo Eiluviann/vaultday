@@ -461,6 +461,13 @@ bindings:
     group: "Panes and tabs"
     vim: "ctrl+cmd+s"
     standard: "ctrl+cmd+s"
+  # Screen-share mode (PR 19) is a per-device switch, so its key is bound
+  # everywhere and scoped to no pane: ⌘⇧S works from any pane of the window.
+  - action: screen-share.toggle
+    label: "Turn screen-share mode on or off"
+    group: "Panes and tabs"
+    vim: "shift+cmd+s"
+    standard: "shift+cmd+s"
   # Day and workspace
   - action: plan.auto-schedule
     label: "Arrange the day in list order"

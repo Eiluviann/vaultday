@@ -7,8 +7,11 @@ import Observation
 @MainActor
 @Observable
 public final class PreviewModel {
-	public private(set) var content: TaskPreviewContent?
 	public private(set) var errorMessage: String?
+	/// Screen-share mode: the preview keeps the task and its facts, and leaves out the story note, the people waited on and the activity.
+	public var isScreenShare = false
+
+	private var loadedContent: TaskPreviewContent?
 
 	private var vault: WorkspaceHandle?
 	private let now: () -> Date
@@ -17,7 +20,12 @@ public final class PreviewModel {
 		self.now = now
 	}
 
-	public var isOpen: Bool { content != nil }
+	/// What the preview shows: everything read, or the reduced form while screen-share mode is on.
+	public var content: TaskPreviewContent? {
+		isScreenShare ? loadedContent?.reducedForScreenShare : loadedContent
+	}
+
+	public var isOpen: Bool { loadedContent != nil }
 
 	/// Points the model at the open workspace; an open preview closes.
 	public func attach(to workspace: WorkspaceModel) {
@@ -36,16 +44,16 @@ public final class PreviewModel {
 		guard let vault else { return }
 		let today = DayText.string(now())
 		do {
-			content = PreviewMapping.content(try taskPreview(workspace: vault, id: taskId, today: today), today: today)
+			loadedContent = PreviewMapping.content(try taskPreview(workspace: vault, id: taskId, today: today), today: today)
 			errorMessage = nil
 		} catch {
-			content = nil
+			loadedContent = nil
 			errorMessage = coreErrorMessage(error)
 		}
 	}
 
 	public func close() {
-		content = nil
+		loadedContent = nil
 		errorMessage = nil
 	}
 

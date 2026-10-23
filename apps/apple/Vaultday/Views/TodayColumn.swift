@@ -214,7 +214,7 @@ private struct DayTotalsRow: View {
 				isCaution: workloadMinutes.map { totals.plannedMinutes > $0 } ?? false,
 				help: plannedHelp,
 			)
-			TotalPill(name: "Spent", value: DurationText.minutes(totals.spentMinutes), help: "Time the timer counted on this day")
+			TotalPill(name: "Spent", value: DurationText.minutes(totals.spentMinutes), help: "Time the timer counted on this day", isPrivateTime: true)
 			TotalPill(name: "Logged", value: DurationText.minutes(totals.loggedMinutes), help: "Timer time already allocated to a story")
 			if let free = totals.freeMinutes {
 				TotalPill(name: "Free", value: DurationText.minutes(free), isCaution: totals.overFreeTime(remainingMinutes: remainingMinutes) > 0, help: "Working time left around your calendars")

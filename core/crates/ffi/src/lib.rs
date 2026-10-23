@@ -25,6 +25,7 @@ pub mod mail_accounts;
 pub mod onboarding;
 pub mod preferences;
 pub mod reports;
+pub mod screen_share;
 pub mod secrets;
 pub mod side_panel;
 pub mod story;

@@ -127,6 +127,17 @@ pub enum ReportHours {
     Fixed(FixedHours),
 }
 
+/// Which hours section a report carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReportVariant {
+    /// The hours of the workspace's billing model.
+    #[default]
+    Full,
+    /// Logged hours only, as an FTE workspace's report: nothing billed, no
+    /// rounding, no quote. Safe to show on a shared screen.
+    FteSafe,
+}
+
 /// Everything a report holds.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReportBundle {
@@ -179,6 +190,36 @@ pub fn build_report_bundle(
     from: Date,
     to: Date,
 ) -> Result<ReportBundle, OpError> {
+    build_report_bundle_as(workspace, vault, subject, from, to, ReportVariant::Full)
+}
+
+/// Builds the bundle as `variant` says: the hours of the workspace's billing
+/// model, or the FTE-safe logged hours only.
+///
+/// # Errors
+/// As [`build_report_bundle`].
+pub fn build_report_bundle_as(
+    workspace: &Workspace,
+    vault: &Vault,
+    subject: &str,
+    from: Date,
+    to: Date,
+    variant: ReportVariant,
+) -> Result<ReportBundle, OpError> {
+    let bundle = build_full_bundle(workspace, vault, subject, from, to)?;
+    Ok(match variant {
+        ReportVariant::Full => bundle,
+        ReportVariant::FteSafe => bundle.into_fte_safe(),
+    })
+}
+
+fn build_full_bundle(
+    workspace: &Workspace,
+    vault: &Vault,
+    subject: &str,
+    from: Date,
+    to: Date,
+) -> Result<ReportBundle, OpError> {
     let report = build_report(workspace, vault, subject, from, to)?;
     let billing = workspace.settings.billing.as_ref();
     let sessions = session_facts(&report);
@@ -222,7 +263,31 @@ pub fn write_report(
     from: Date,
     to: Date,
 ) -> Result<WrittenReport, OpError> {
-    let bundle = build_report_bundle(workspace, vault, subject, from, to)?;
+    write_report_as(
+        workspace,
+        vault,
+        file_access,
+        subject,
+        from,
+        to,
+        ReportVariant::Full,
+    )
+}
+
+/// As [`write_report`], for the bundle `variant` names.
+///
+/// # Errors
+/// As [`write_report`].
+pub fn write_report_as(
+    workspace: &Workspace,
+    vault: &Vault,
+    file_access: &dyn FileAccess,
+    subject: &str,
+    from: Date,
+    to: Date,
+    variant: ReportVariant,
+) -> Result<WrittenReport, OpError> {
+    let bundle = build_report_bundle_as(workspace, vault, subject, from, to, variant)?;
     let relative = VaultWriter::new(file_access, workspace).write_report_file(
         Path::new(&bundle.report.home_folder),
         from,
@@ -237,6 +302,19 @@ pub fn write_report(
 }
 
 impl ReportBundle {
+    /// The FTE-safe variant of this bundle: the hours section keeps logged
+    /// time only, with no rounding, no billable split, no quote and no
+    /// overrun, and the billing model reads FTE. Stories and log lines stay.
+    #[must_use]
+    pub fn into_fte_safe(mut self) -> ReportBundle {
+        self.hours = ReportHours::Fte(LoggedHours {
+            logged_minutes: self.sessions.logged_minutes,
+            by_story: self.sessions.by_story.clone(),
+        });
+        self.billing = Some(BillingModel::Fte);
+        self
+    }
+
     /// The canonical JSON: two-space indent, keys in the order of
     /// [`ReportBundle::to_value`], absent optional fields left out, a
     /// trailing newline. The CLI parses this, fills `authorship` and prints it

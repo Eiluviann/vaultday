@@ -22,6 +22,11 @@ public final class ReportsModel {
 	public private(set) var writtenReport: WrittenReport?
 	/// What the last copy put on the pasteboard, as a short confirmation.
 	public private(set) var copyNotice: String?
+	/// Screen-share mode: the tab offers only the FTE-safe variant, logged hours without billing detail.
+	public var isScreenShare = false {
+		didSet { if isScreenShare != oldValue { reload() } }
+	}
+
 	/// The custom range's days while Custom is picked.
 	public var customFrom: Date
 	public var customTo: Date
@@ -67,6 +72,23 @@ public final class ReportsModel {
 		errorMessage = nil
 		writtenReport = nil
 		copyNotice = nil
+	}
+
+	// MARK: Variant
+
+	/// The variants the tab offers now: the workspace's own hours, or only the FTE-safe ones while screen-share mode is on.
+	public var offeredVariants: [ReportVariant] {
+		isScreenShare ? [.fteSafe] : [.full]
+	}
+
+	/// The variant the tab builds and copies.
+	public var variant: ReportVariant {
+		offeredVariants.first ?? .full
+	}
+
+	/// What the tab says under the range while the mode narrows the report.
+	public var variantNote: String? {
+		isScreenShare ? "Logged hours only while screen-share mode is on" : nil
 	}
 
 	// MARK: Subject and range
@@ -131,7 +153,7 @@ public final class ReportsModel {
 			return
 		}
 		do {
-			bundle = try source.bundle(subject: subject, range: range)
+			bundle = try source.bundle(subject: subject, range: range, variant: variant)
 			errorMessage = nil
 		} catch {
 			bundle = nil
@@ -185,7 +207,7 @@ public final class ReportsModel {
 	public func writeForClaudeCode() -> WrittenReport? {
 		guard let source, let subject, let range, range.isValid, bundle != nil else { return nil }
 		do {
-			let written = try source.storeReport(subject: subject, range: range)
+			let written = try source.storeReport(subject: subject, range: range, variant: variant)
 			writtenReport = written
 			errorMessage = nil
 			return written

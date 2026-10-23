@@ -6,8 +6,19 @@ import VaultdayCore
 /// the side panel from the right edge; Esc or ✕ closes it.
 struct SignalPreviewPanel: View {
 	let app: AppModel
-	let card: SignalCard
+	let rawCard: SignalCard
 	@Environment(\.workspaceAccent) private var accent
+	@Environment(\.screenShare) private var screenShare
+
+	init(app: AppModel, card: SignalCard) {
+		self.app = app
+		rawCard = card
+	}
+
+	/// The card as drawn: only the headline and the source icon while screen-share mode is on.
+	private var card: SignalCard {
+		screenShare?.hides(.signalPreview) == true ? rawCard.reducedForScreenShare : rawCard
+	}
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 12) {
@@ -27,10 +38,12 @@ struct SignalPreviewPanel: View {
 				Image(systemName: card.source.mark.symbol)
 					.foregroundStyle(Tokens.Colors.inkSecondary)
 					.accessibilityLabel(card.sourceName)
-				Text("\(card.sender) · \(card.timeLabel)")
-					.font(Tokens.Typography.callout.font.weight(.semibold))
-					.foregroundStyle(Tokens.Colors.ink)
-					.lineLimit(1)
+				if !card.sender.isEmpty {
+					Text("\(card.sender) · \(card.timeLabel)")
+						.font(Tokens.Typography.callout.font.weight(.semibold))
+						.foregroundStyle(Tokens.Colors.ink)
+						.lineLimit(1)
+				}
 				Spacer(minLength: 8)
 				MonoChip(text: card.id, isRounded: false)
 				Button("Reply in the mail app") { _ = app.inbox.replyInMailApp(signalId: card.id) }
@@ -42,20 +55,26 @@ struct SignalPreviewPanel: View {
 				.font(Tokens.Typography.title.font)
 				.foregroundStyle(Tokens.Colors.ink)
 				.fixedSize(horizontal: false, vertical: true)
-			VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
-				fact("From", card.senderAddress)
-				fact("Subject", card.subject)
-				if let ticket = card.ticket {
-					fact("Ticket", card.ticketStoryTitle.map { "\(ticket) · \($0)" } ?? "\(ticket) · no story in this workspace")
+			if screenShare?.hides(.signalPreview) == true {
+				Text("Sender and excerpt are hidden while screen-share mode is on")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkMuted)
+			} else {
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
+					fact("From", card.senderAddress)
+					fact("Subject", card.subject)
+					if let ticket = card.ticket {
+						fact("Ticket", card.ticketStoryTitle.map { "\(ticket) · \($0)" } ?? "\(ticket) · no story in this workspace")
+					}
 				}
+				Text("\u{201C}\(card.excerpt)\u{201D}")
+					.font(Tokens.Typography.body.font)
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+					.fixedSize(horizontal: false, vertical: true)
+				Text("Excerpt only; the message stays in the mail account and its text in the encrypted store")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
-			Text("\u{201C}\(card.excerpt)\u{201D}")
-				.font(Tokens.Typography.body.font)
-				.foregroundStyle(Tokens.Colors.inkSecondary)
-				.fixedSize(horizontal: false, vertical: true)
-			Text("Excerpt only; the message stays in the mail account and its text in the encrypted store")
-				.font(Tokens.Typography.caption.font)
-				.foregroundStyle(Tokens.Colors.inkMuted)
 			if card.state.isInTriage {
 				HStack(spacing: Tokens.Spacing.space6) {
 					Button {

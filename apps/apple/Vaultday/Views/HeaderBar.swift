@@ -2,7 +2,7 @@ import SwiftUI
 import VaultdayCore
 
 /// The 38 px header: room for the traffic lights, the sidebar toggle, the
-/// screen-share toggle (a later version) and the palette's field, whose
+/// screen-share toggle and the palette's field, whose
 /// placeholder names the scope.
 struct HeaderBar: View {
 	let app: AppModel
@@ -26,7 +26,7 @@ struct HeaderBar: View {
 			if let due = app.closeOutDue.due {
 				RitualButton(due: due) { app.openCloseOut() }
 			}
-			ScreenShareToggle()
+			ScreenShareToggle(app: app)
 			SearchField(app: app)
 		}
 		.padding(.horizontal, Tokens.Spacing.space12)
@@ -68,22 +68,60 @@ private struct RitualButton: View {
 	}
 }
 
-/// Screen-share mode's place in the header; the mode itself is a later version.
+/// Screen-share mode's place in the header: off, outlined; on, filled with
+/// a caption beside it. Drawn disabled, with the reason as its tooltip, while
+/// All workspaces or a life workspace is shown: the mode starts from a work
+/// workspace. A refused switch says why next to it for a few seconds.
 private struct ScreenShareToggle: View {
+	let app: AppModel
+
+	private var isOn: Bool { app.screenShare.isOn }
+	private var disabledReason: String? { app.screenShareStartDisabledReason }
+
 	var body: some View {
-		// custom symbol pending: screen-share
-		Image(systemName: "rectangle.on.rectangle")
-			.font(.system(size: 13))
-			.foregroundStyle(Tokens.Colors.inkDisabled)
-			.frame(width: 24, height: 24)
-			.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 7))
-			.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Tokens.Colors.lineButton))
-			.contentShape(Rectangle())
-			.help("Available in a later version")
-			.accessibilityElement()
+		HStack(spacing: Tokens.Spacing.space6) {
+			if let notice = app.screenShare.notice {
+				Text(notice)
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.caution)
+					.lineLimit(1)
+					.task(id: notice) {
+						try? await Task.sleep(for: .seconds(4))
+						app.screenShare.dismissNotice()
+					}
+			}
+			if isOn {
+				Text("Screen-share on")
+					.font(Tokens.Typography.caption.font.weight(.semibold))
+					.foregroundStyle(Tokens.Colors.inkSecondary)
+			}
+			Button {
+				app.toggleScreenShare()
+			} label: {
+				// custom symbol pending: screen-share
+				Image(systemName: isOn ? "rectangle.fill.on.rectangle.fill" : "rectangle.on.rectangle")
+					.font(.system(size: 13))
+					.iconReplace(value: isOn)
+					.foregroundStyle(isOn ? Tokens.Colors.onPrimary : disabledReason == nil ? Tokens.Colors.inkSecondary : Tokens.Colors.inkDisabled)
+					.frame(width: 24, height: 24)
+					.background(isOn ? Tokens.Colors.primary : Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: 7))
+					.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Tokens.Colors.lineButton))
+					.contentShape(Rectangle())
+			}
+			.buttonStyle(.plain)
+			.disabled(disabledReason != nil)
+			.help(disabledReason ?? tooltip)
 			.accessibilityLabel("Screen-share mode")
-			.accessibilityValue("Available in a later version")
-			.accessibilityAddTraits(.isButton)
+			.accessibilityValue(isOn ? "On" : disabledReason.map { "Off, \($0)" } ?? "Off")
+			.accessibilityAddTraits(isOn ? .isSelected : [])
+		}
+	}
+
+	private var tooltip: String {
+		let key = app.keyLabel(.toggleScreenShare).map { " (\($0))" } ?? ""
+		return isOn
+			? "Screen-share mode is on: private workspaces are hidden and tracked time shows as private\(key.isEmpty ? "" : "; \(key.dropFirst(2).dropLast()) turns it off")"
+			: "Screen-share mode: hide other workspaces and silence their notifications\(key)"
 	}
 }
 

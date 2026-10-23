@@ -64,10 +64,14 @@ public final class DayLogModel {
 		self.now = now
 	}
 
+	/// Screen-share mode: the session lines carry the time the timer counted, so the tab leaves them out.
+	public var hidesSessionLines = false
+
 	/// The lines the chip lets through.
 	public var visibleLines: [DayLogLine] {
-		guard let kindFilter else { return lines }
-		return lines.filter { $0.kind == kindFilter.rawValue }
+		let shown = hidesSessionLines ? lines.filter { $0.kind != DayLogKind.session.rawValue } : lines
+		guard let kindFilter else { return shown }
+		return shown.filter { $0.kind == kindFilter.rawValue }
 	}
 
 	/// "Log/2026-10-15.md · 9 lines".

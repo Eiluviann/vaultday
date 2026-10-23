@@ -222,8 +222,14 @@ private struct SubtaskRow: View {
 				.foregroundStyle(subtask.isDone ? Tokens.Colors.inkMuted : Tokens.Colors.ink)
 				.frame(maxWidth: .infinity, alignment: .leading)
 			if isRunning, let session = app.sessions.openSession {
-				TimelineView(.periodic(from: .now, by: 1)) { context in
-					Text(session.isPaused ? "paused" : "running \(DurationText.clock(seconds: session.elapsed(at: context.date)).dropFirst(2))")
+				Group {
+				if app.screenShare.hides(.nowCard) {
+					Text(session.isPaused ? "paused" : "running")
+				} else {
+					TimelineView(.periodic(from: .now, by: 1)) { context in
+						Text(session.isPaused ? "paused" : "running \(DurationText.clock(seconds: session.elapsed(at: context.date)).dropFirst(2))")
+					}
+				}
 				}
 				.font(Tokens.Typography.caption.font.weight(.semibold))
 				.foregroundStyle(tint)

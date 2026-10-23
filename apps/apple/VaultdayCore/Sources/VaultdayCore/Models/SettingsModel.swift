@@ -27,6 +27,9 @@ public final class SettingsModel {
 	public private(set) var keyboardScheme: KeyboardSchemeSetting = .standard
 	public private(set) var hoverSelects = true
 	public private(set) var shortcutCaps: ShortcutCapsSetting = .animated
+	/// Screen-share mode on this Mac, and the selection to come back to when it ends; neither syncs.
+	public private(set) var isScreenShareOn = false
+	public private(set) var screenShareReturnTo: String?
 	/// This device's id, read-only: the sync folder names this Mac's change files by it.
 	public let deviceId: String
 	/// A line about the id for the device block, saying what it is for.
@@ -58,6 +61,8 @@ public final class SettingsModel {
 		keyboardScheme = appState.keyboardScheme() == .vim ? .vimMotions : .standard
 		hoverSelects = appState.hoverSelects()
 		shortcutCaps = ShortcutCapsSetting(appState.shortcutCaps())
+		isScreenShareOn = appState.screenShareMode()
+		screenShareReturnTo = appState.screenShareReturnTo()
 		connections = appState.connections().map(mapConnection)
 		refusedSnapshots = session.refusedSnapshots
 	}
@@ -72,6 +77,14 @@ public final class SettingsModel {
 
 	public func setShortcutCaps(_ caps: ShortcutCapsSetting) {
 		write { try $0.setShortcutCaps(caps: caps.core) }
+	}
+
+	/// Writes screen-share mode and the selection to restore, for this Mac only.
+	public func setScreenShare(isOn: Bool, returnTo: String?) {
+		write {
+			try $0.setScreenShareMode(isOn: isOn)
+			try $0.setScreenShareReturnTo(selection: returnTo)
+		}
 	}
 
 	/// Copies the device id for pasting into a support note or a bug report.

@@ -158,6 +158,8 @@ public enum KeyAction: Hashable, Sendable {
 	case openReportInClaudeCode
 	/// ⌥⌘T: shows the mini tracker, or toggles its expanded form.
 	case toggleMiniTracker
+	/// ⌘⇧S: screen-share mode on or off, from anywhere in the app.
+	case toggleScreenShare
 	/// The menu-bar extra's keys, inside its popover only: the previous and
 	/// next row, start on the row or the typed entry, a new typed entry, and
 	/// leaving the typed entry.
@@ -279,6 +281,7 @@ public enum KeyAction: Hashable, Sendable {
 		"item.open-link": .openLink,
 		"item.claude-code": .openInClaudeCode,
 		"tracker.toggle": .toggleMiniTracker,
+		"screen-share.toggle": .toggleScreenShare,
 		"menu-bar.previous": .menuBarPrevious,
 		"menu-bar.next": .menuBarNext,
 		"menu-bar.start": .menuBarStart,

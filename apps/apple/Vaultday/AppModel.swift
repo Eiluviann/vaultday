@@ -74,6 +74,10 @@ final class AppModel {
 	let reports = ReportsModel()
 	/// The Toggl queue of the open workspace and its drain schedule.
 	let togglQueue = TogglQueueModel()
+	/// Screen-share mode (PR 19): a per-device switch that hides tracked time and private content.
+	let screenShare = ScreenShareModel()
+	/// The windows kept out of a screen share while the mode is on: the mini tracker and the menu-bar extra's.
+	@ObservationIgnored let windowSharing = WindowSharingRegistry()
 	/// The week close-out ritual screen.
 	let closeOut = CloseOutModel()
 	/// The header's ritual button and the Monday alert.
@@ -215,7 +219,7 @@ final class AppModel {
 			let mailScheduler = MailFetchScheduler(session: session)
 			mailScheduler.onFetched = { [weak self] in self?.inbox.reload() }
 			mailScheduler.onNewSignals = { [weak self] added, waiting in
-				guard let self, let workspace = self.workspace else { return }
+				guard let self, let workspace = self.workspace, !self.screenShare.isOn else { return }
 				QuietSignalNotification.post(workspaceId: workspace.workspaceId, workspaceName: workspace.name, added: added, waiting: waiting)
 			}
 			self.mailScheduler = mailScheduler
@@ -239,6 +243,7 @@ final class AppModel {
 			reloadWorkspaceContent()
 			refreshSetupSteps()
 			startTimerSurfaces(environment: environment)
+			configureScreenShare(settings: settings)
 		} catch {
 			setupError = error.localizedDescription
 		}
@@ -282,6 +287,7 @@ final class AppModel {
 		}
 		reloadWorkspaceContent()
 		refreshSetupSteps()
+		leaveHiddenWorkspaceForScreenShare()
 	}
 
 	private func refreshSetupSteps() {
@@ -500,6 +506,8 @@ final class AppModel {
 			if let subject = peekSubject { peek.toggle(subject) }
 		case .toggleMiniTracker:
 			toggleMiniTracker()
+		case .toggleScreenShare:
+			toggleScreenShare()
 		case .openLink where focus.focusedPane == .inbox:
 			if let signal = selectedSignal { inbox.replyInMailApp(signalId: signal.id) }
 		case .openLink:
@@ -991,7 +999,7 @@ final class AppModel {
 
 	/// ⌘0: every workspace together. The last single workspace stays the one the app opens on.
 	func showAllWorkspaces() {
-		guard let workspace else { return }
+		guard let workspace, !screenShare.refusesShowingAll() else { return }
 		workspace.showAll()
 		reloadAllWorkspaces()
 	}
@@ -1003,7 +1011,8 @@ final class AppModel {
 	}
 
 	func showWorkspace(_ entry: WorkspaceEntry) {
-		guard let workspace else { return }
+		guard let workspace, !screenShare.refusesShowing(entry) else { return }
+		screenShare.noteShown(entry)
 		keyboard.reset()
 		recentStories.clear()
 		workspace.switchTo(entry)
@@ -1238,7 +1247,7 @@ final class AppModel {
 			item.storyNumber.map { PaletteStory(number: $0, title: item.storyTitle ?? $0) }
 		}
 		palette.recentStories = recentStories.filled(with: dayStories)
-		palette.workspaces = workspaceEntries.map { PaletteWorkspace(id: $0.id, name: $0.name) }
+		palette.workspaces = screenShare.visible(workspaceEntries).map { PaletteWorkspace(id: $0.id, name: $0.name) }
 		palette.open()
 	}
 
@@ -1266,7 +1275,7 @@ final class AppModel {
 	}
 
 	private func stepWorkspace(by step: Int) {
-		let entries = workspaceEntries
+		let entries = screenShare.visible(workspaceEntries)
 		guard !entries.isEmpty else { return }
 		let current = entries.firstIndex { $0.id == workspace?.workspaceId } ?? (step > 0 ? -1 : 0)
 		let target = (current + step + entries.count) % entries.count
@@ -1332,7 +1341,7 @@ final class AppModel {
 		calendarSource?.setPickedCalendars(workspace.pickedCalendarIds)
 		dayPlan.load(from: workspace)
 		sessions.load(from: workspace)
-		quickAdd.attach(to: workspace, workspaces: workspaceEntries)
+		quickAdd.attach(to: workspace, workspaces: screenShare.visible(workspaceEntries))
 		workspace.refreshHealth()
 		watchVault(of: workspace)
 		let presetFile = environment.map { $0.layout.browsePresetsFile(workspaceId: workspace.workspaceId) }

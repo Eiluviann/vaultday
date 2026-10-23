@@ -19,6 +19,8 @@ struct TotalPill: View {
 	let value: String
 	var isCaution = false
 	var help = ""
+	/// Tracked time: the hand and "Private" take the value's place in screen-share mode.
+	var isPrivateTime = false
 
 	var body: some View {
 		HStack(spacing: 0) {
@@ -27,7 +29,7 @@ struct TotalPill: View {
 				.padding(.horizontal, 9)
 				.padding(.vertical, 5)
 				.background(Tokens.Colors.fillControl)
-			Text(value)
+			valueCell
 				.foregroundStyle(isCaution ? Tokens.Colors.caution : Tokens.Colors.ink)
 				.monospacedDigit()
 				.padding(.horizontal, 9)
@@ -39,6 +41,15 @@ struct TotalPill: View {
 		.overlay(Capsule().strokeBorder(Tokens.Colors.line))
 		.help(help)
 		.accessibilityElement(children: .combine)
+	}
+
+	@ViewBuilder
+	private var valueCell: some View {
+		if isPrivateTime {
+			PrivateTimeValue(value)
+		} else {
+			Text(value)
+		}
 	}
 }
 

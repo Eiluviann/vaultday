@@ -67,6 +67,11 @@ struct ReportsView: View {
 			Text(model.rangeText)
 				.font(Tokens.Typography.mono.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
+			if let note = model.variantNote {
+				Label(note, systemImage: "rectangle.on.rectangle")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.inkMuted)
+			}
 		}
 	}
 

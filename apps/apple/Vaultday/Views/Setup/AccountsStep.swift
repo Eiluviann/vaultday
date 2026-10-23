@@ -20,6 +20,8 @@ struct AccountsStep: View {
 struct AccountsPanel: View {
 	let workspaces: WorkspacesModel
 	let accounts: AccountsStepModel
+	/// Screen-share mode leaves the life workspaces out of the Settings window's list.
+	var showsSphere: (WorkspaceSphere) -> Bool = { _ in true }
 
 	private let parts: [(AccountPartChoice, String, String)] = [
 		(.mail, "envelope", "flagged and unread become inbox items"),
@@ -38,7 +40,7 @@ struct AccountsPanel: View {
 				SetupCallout(icon: "folder.badge.plus", text: "Add a workspace first; its accounts are listed here")
 			}
 			LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: Tokens.Spacing.space16, alignment: .top)], alignment: .leading, spacing: Tokens.Spacing.space16) {
-				ForEach(WorkspaceSphere.allCases, id: \.self) { sphere in
+				ForEach(WorkspaceSphere.allCases.filter(showsSphere), id: \.self) { sphere in
 					let inSphere = workspaces.entries(in: sphere)
 					if !inSphere.isEmpty {
 						SpherePanel(sphere: sphere) {
