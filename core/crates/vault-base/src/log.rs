@@ -166,6 +166,46 @@ pub fn format_log_line(entry: &LogAppend) -> Result<String, LogFormatError> {
     Ok(line)
 }
 
+/// What a typed log line says: its kind and the text left once the kind word is read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogShorthand {
+    /// The kind the line starts with, `Note` when it names none.
+    pub kind: LogKind,
+    /// The text after the kind word, trimmed.
+    pub text: String,
+}
+
+/// Reads `decision: keep the redirect group dev only`: a leading kind word and
+/// a colon set the kind (`session`, `done`, `decision`, `blocker` or
+/// `blocked`, `status`, `note`; case ignored). Anything else is a note and
+/// the whole input is the text.
+#[must_use]
+pub fn parse_log_shorthand(input: &str) -> LogShorthand {
+    let trimmed = input.trim();
+    let kind = trimmed.split_once(':').and_then(|(word, rest)| {
+        let kind = match word.trim().to_ascii_lowercase().as_str() {
+            "session" => LogKind::Session,
+            "done" => LogKind::Done,
+            "decision" => LogKind::Decision,
+            "blocker" | "blocked" => LogKind::Blocker,
+            "status" => LogKind::Status,
+            "note" => LogKind::Note,
+            _ => return None,
+        };
+        Some((kind, rest.trim()))
+    });
+    match kind {
+        Some((kind, text)) => LogShorthand {
+            kind,
+            text: text.to_owned(),
+        },
+        None => LogShorthand {
+            kind: LogKind::Note,
+            text: trimmed.to_owned(),
+        },
+    }
+}
+
 /// The path of a day's log relative to the workspace root.
 #[must_use]
 pub fn day_log_path(log_folder: &str, date: Date) -> PathBuf {
@@ -194,7 +234,10 @@ fn validate_text(text: &str) -> Result<(), LogFormatError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{LogAppend, LogFormatError, day_log_path, format_log_line, new_day_log_header};
+    use super::{
+        LogAppend, LogFormatError, LogShorthand, day_log_path, format_log_line, new_day_log_header,
+        parse_log_shorthand,
+    };
     use crate::date::{Date, Time};
     use crate::note::LogKind;
     use std::path::Path;
@@ -326,6 +369,65 @@ mod tests {
         assert_eq!(
             new_day_log_header(date),
             "---\ntype: log\ndate: 2026-10-23\n---\n# 2026-10-23\n\n## Log\n"
+        );
+    }
+
+    #[test]
+    fn a_leading_kind_word_sets_the_kind() {
+        assert_eq!(
+            parse_log_shorthand("decision: keep the QA redirect group dev and test only"),
+            LogShorthand {
+                kind: LogKind::Decision,
+                text: "keep the QA redirect group dev and test only".to_owned(),
+            }
+        );
+        assert_eq!(
+            parse_log_shorthand("Blocked:  waiting on Dana ").kind,
+            LogKind::Blocker
+        );
+        assert_eq!(parse_log_shorthand("blocker: x").kind, LogKind::Blocker);
+        assert_eq!(parse_log_shorthand("done: shipped").kind, LogKind::Done);
+        assert_eq!(parse_log_shorthand("status: ready").kind, LogKind::Status);
+        assert_eq!(
+            parse_log_shorthand("session: pairing").kind,
+            LogKind::Session
+        );
+    }
+
+    #[test]
+    fn any_other_text_is_a_note_and_keeps_its_colons() {
+        assert_eq!(
+            parse_log_shorthand("  call at 10:30 about X  "),
+            LogShorthand {
+                kind: LogKind::Note,
+                text: "call at 10:30 about X".to_owned(),
+            }
+        );
+        assert_eq!(
+            parse_log_shorthand("meeting: notes follow"),
+            LogShorthand {
+                kind: LogKind::Note,
+                text: "meeting: notes follow".to_owned(),
+            }
+        );
+        assert_eq!(parse_log_shorthand("note: x"), parse_log_shorthand("x"));
+        assert_eq!(parse_log_shorthand("decision:").text, "");
+    }
+
+    #[test]
+    fn shorthand_feeds_the_formatter_byte_for_byte() {
+        let shorthand =
+            parse_log_shorthand("decision: keep the QA redirect group dev and test only");
+        let line = format_log_line(
+            &LogAppend::new(at(9, 48), shorthand.text)
+                .with_kind(shorthand.kind)
+                .with_story("WEB-142")
+                .with_task("task-2"),
+        )
+        .unwrap();
+        assert_eq!(
+            line,
+            "- 09:48 decision · keep the QA redirect group dev and test only [story:: WEB-142] [kind:: decision] [task:: task-2]"
         );
     }
 }

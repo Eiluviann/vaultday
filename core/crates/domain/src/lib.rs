@@ -21,7 +21,7 @@
 //! manifest, the slots and the enablement rules later feature sets use.
 //! [`ticket`] is the generic ticket provider every workspace gets from its
 //! settings. [`today_list`] decides which tasks a day's list holds and in
-//! what order.
+//! what order. [`browse`] reads the typed query line Browse filters tasks with.
 
 // The workspace lints forbid `unwrap`/`expect` in shipped code; tests may use them.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
@@ -65,6 +65,7 @@ macro_rules! id_type {
     };
 }
 
+pub mod browse;
 pub mod calendar_day;
 pub mod day_plan;
 pub mod error;

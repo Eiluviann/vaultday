@@ -25,6 +25,11 @@ public struct AppGroupLayout: Sendable, Equatable {
 	public var cachesFolder: URL { volatileFolder.appending(path: "Caches", directoryHint: .isDirectory) }
 	/// Window state: sidebar collapse, focused pane.
 	public var windowStateFile: URL { volatileFolder.appending(path: "window-state.json") }
+	/// The Browse presets a user saved for one workspace on this Mac.
+	public func browsePresetsFile(workspaceId: String) -> URL {
+		container.appending(path: "Presets/browse-\(workspaceId).json")
+	}
+
 	/// Reserved for the localhost API's token (PR 11); `vaultday status` reads it here.
 	public var apiTokenFile: URL { container.appending(path: "API/token") }
 

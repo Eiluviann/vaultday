@@ -14,4 +14,13 @@ public enum VaultdayLink: Equatable, Sendable {
 		guard url.scheme?.lowercased() == Self.scheme else { return nil }
 		self = .notHandledYet(host: url.host() ?? "", path: url.path())
 	}
+
+	/// A link of this app: `vaultday://<host><path>`, the path percent-encoded.
+	public static func url(host: String, path: String) -> URL? {
+		var components = URLComponents()
+		components.scheme = scheme
+		components.host = host
+		components.path = path
+		return components.url
+	}
 }

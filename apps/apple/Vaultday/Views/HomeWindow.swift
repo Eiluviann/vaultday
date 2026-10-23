@@ -20,6 +20,7 @@ enum HomeLayout {
 struct HomeWindow: View {
 	@Bindable var app: AppModel
 	@FocusState private var hasKeyFocus: Bool
+	@State private var forceClick = ForceClickMonitor()
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -30,18 +31,23 @@ struct HomeWindow: View {
 				} else {
 					SidebarColumn(app: app)
 				}
-				Group {
-					if app.isShowingAll, let all = app.allWorkspaces {
-						AllWorkspacesColumn(app: app, all: all)
-					} else {
-						TodayColumn(app: app)
+				if app.screen == .browse, !app.isShowingAll {
+					BrowseColumn(app: app, browse: app.browse)
+						.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+				} else {
+					Group {
+						if app.isShowingAll, let all = app.allWorkspaces {
+							AllWorkspacesColumn(app: app, all: all)
+						} else {
+							TodayColumn(app: app)
+						}
 					}
+					.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
+					InboxColumn(app: app)
+						.frame(width: HomeLayout.inboxWidth)
+					SidePanelColumn(app: app)
+						.frame(width: HomeLayout.sidePanelWidth)
 				}
-				.frame(minWidth: HomeLayout.todayMinWidth, maxWidth: .infinity)
-				InboxColumn(app: app)
-					.frame(width: HomeLayout.inboxWidth)
-				SidePanelColumn(app: app)
-					.frame(width: HomeLayout.sidePanelWidth)
 			}
 			.frame(maxHeight: .infinity)
 			// The row paints the sidebar's column to the window's foot, as the board's gradient does.
@@ -52,6 +58,16 @@ struct HomeWindow: View {
 		}
 		.background(Tokens.Colors.surfaceWindow)
 		.environment(\.workspaceAccent, app.accentColor)
+		// The task preview slides over the Inbox and the side panel from the right edge.
+		.overlay(alignment: .trailing) {
+			if let content = app.preview.content {
+				TaskPreviewPanel(app: app, content: content)
+					.frame(width: HomeLayout.inboxWidth + HomeLayout.sidePanelWidth)
+					.padding(.top, HomeLayout.headerHeight)
+					.transition(.move(edge: .trailing))
+			}
+		}
+		.animation(.easeOut(duration: 0.18), value: app.preview.isOpen)
 		.ignoresSafeArea(.container, edges: .top)
 		.focusable()
 		.focusEffectDisabled()
@@ -64,7 +80,11 @@ struct HomeWindow: View {
 		.overlay(alignment: .bottomTrailing) {
 			ShowCommand(text: app.dispatcher.pendingText)
 		}
-		.onAppear { hasKeyFocus = true }
+		.onAppear {
+			hasKeyFocus = true
+			forceClick.start(app: app)
+		}
+		.onDisappear { forceClick.stop() }
 		.onChange(of: app.homeSettingsSignature) { app.reloadWorkspaceContent() }
 		.task {
 			// The side panel's clock: the now line, ended meetings, the Reminders intake.

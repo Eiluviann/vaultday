@@ -13,6 +13,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod app_state;
+pub mod browse;
 pub mod calendar;
 pub mod files;
 pub mod home;

@@ -124,3 +124,54 @@ bindings:
   - action: dismiss
     vim: "escape"
     standard: "escape"
+  # Browse, Day log and Peek (PR 9b). Browse keys act while Browse is shown.
+  - action: browse.open
+    vim: "g b"
+    standard: "shift+cmd+b"
+  - action: daylog.open
+    vim: "g l"
+    standard: "shift+cmd+l"
+  - action: browse.query
+    vim: "/"
+    standard: "cmd+f"
+  - action: browse.fold
+    vim: "z a"
+    standard: ""
+  - action: browse.next-group
+    vim: "shift+}"
+    standard: "alt+down"
+  - action: browse.previous-group
+    vim: "shift+{"
+    standard: "alt+up"
+  - action: browse.next-match
+    vim: "n"
+    standard: "cmd+g"
+  - action: browse.previous-match
+    vim: "shift+n"
+    standard: "shift+cmd+g"
+  - action: peek
+    vim: "shift+k"
+    standard: "cmd+y"
+  # The side panel's tabs by their place on the rail: Calendar, Hours,
+  # Chasers, Backlog, Objectives, Day log, Claude.
+  - action: side-panel.tab.1
+    vim: "alt+1"
+    standard: "alt+1"
+  - action: side-panel.tab.2
+    vim: "alt+2"
+    standard: "alt+2"
+  - action: side-panel.tab.3
+    vim: "alt+3"
+    standard: "alt+3"
+  - action: side-panel.tab.4
+    vim: "alt+4"
+    standard: "alt+4"
+  - action: side-panel.tab.5
+    vim: "alt+5"
+    standard: "alt+5"
+  - action: side-panel.tab.6
+    vim: "alt+6"
+    standard: "alt+6"
+  - action: side-panel.tab.7
+    vim: "alt+7"
+    standard: "alt+7"

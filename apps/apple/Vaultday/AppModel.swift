@@ -1,6 +1,7 @@
 import EventKit
 import Foundation
 import Observation
+import OSLog
 import SwiftUI
 import VaultdayCore
 
@@ -17,6 +18,13 @@ struct SetupModels {
 	let aiProviders: AiProvidersStepModel
 	let aiAssistance: AiAssistanceStepModel
 	let ready: ReadyStepModel
+}
+
+/// What the main area of the Home window shows: the day (Today, Inbox and
+/// the side panel) or the Browse table across all three.
+enum MainScreen {
+	case home
+	case browse
 }
 
 /// The app's composition: the platform environment, the core session and
@@ -39,6 +47,20 @@ final class AppModel {
 	let calendarPanel = CalendarPanelModel()
 	let hours = HoursModel()
 	let remindersIntake = RemindersIntakeModel(store: EKReminderStoreAccess())
+	let browse = BrowseModel()
+	let preview = PreviewModel()
+	let peek = PeekModel()
+	let dayLog = DayLogModel()
+	/// The Backlog tab's list: the Backlog preset of Browse.
+	let backlog = BrowseModel()
+	/// Where peekable views sit, for the force click; not observed.
+	@ObservationIgnored let peekTargets = PeekTargetRegistry()
+	/// Browse takes the place of Today, Inbox and the side panel while shown (`gb`).
+	private(set) var screen: MainScreen = .home
+	/// The side panel's open tab.
+	var sidePanelTab: SidePanelTab = .calendar
+	/// Bumped to move keyboard focus into the Browse query line (`/`).
+	private(set) var browseQueryFocusRequest = 0
 	/// The All view's model; `nil` until the app document is open.
 	private(set) var allWorkspaces: AllWorkspacesModel?
 	let focus: PaneFocusModel
@@ -224,8 +246,31 @@ final class AppModel {
 		}
 	}
 
+	/// A key typed while the peek popover holds the keys: only the keymap's
+	/// `open`, `peek` and `dismiss` act there, so the list underneath stays put.
+	func handlePeekKey(_ stroke: KeyStroke) -> Bool {
+		switch dispatcher.handle(stroke) {
+		case let .action(action):
+			switch action {
+			case .open:
+				if let taskId = peek.content?.taskId { openPreview(taskId: taskId) }
+			case .peek, .dismiss:
+				peek.dismiss()
+			default:
+				break
+			}
+			return true
+		case .pending:
+			return true
+		case .unbound:
+			return false
+		}
+	}
+
 	/// Runs one action, from a key or from a control that names it.
 	func perform(_ action: KeyAction) {
+		// The match walk and the group jumps belong to the Browse table.
+		if [.nextMatch, .previousMatch, .nextGroup, .previousGroup, .toggleFold].contains(action), screen != .browse { return }
 		focus.apply(action)
 		switch action {
 		case .showAllWorkspaces:
@@ -255,10 +300,39 @@ final class AppModel {
 		case .nextDay:
 			showDay(offset: 1)
 		case .showToday:
+			leaveBrowse()
 			showToday()
 		case .dismiss:
-			if quickAdd.entry != nil { quickAdd.cancel() } else { dayPlan.dismissToast() }
-		case .focusPane, .moveDown, .moveUp, .moveLeft, .moveRight, .moveFirst, .moveLast, .open, .toggleSidebar:
+			if peek.subject != nil {
+				peek.dismiss()
+			} else if preview.isOpen {
+				preview.close()
+			} else if quickAdd.entry != nil {
+				quickAdd.cancel()
+			} else {
+				dayPlan.dismissToast()
+			}
+		case let .focusPane(pane):
+			if pane == .today { leaveBrowse() }
+		case .open:
+			openSelection()
+		case .showBrowse:
+			showBrowse()
+		case .showDayLog:
+			showSidePanelTab(.dayLog)
+		case let .showSidePanelTab(place):
+			if SidePanelTab.allCases.indices.contains(place - 1) { showSidePanelTab(SidePanelTab.allCases[place - 1]) }
+		case .focusBrowseQuery:
+			if screen == .browse { browseQueryFocusRequest += 1 }
+		case .toggleFold:
+			toggleFoldOfSelection()
+		case .nextGroup:
+			jumpGroup(by: 1)
+		case .previousGroup:
+			jumpGroup(by: -1)
+		case .peek:
+			if let subject = peekSubject { peek.toggle(subject) }
+		case .nextMatch, .previousMatch, .moveDown, .moveUp, .moveLeft, .moveRight, .moveFirst, .moveLast, .toggleSidebar:
 			break
 		}
 		saveWindowState()
@@ -267,6 +341,139 @@ final class AppModel {
 	/// The keys that run `action` under the current scheme, for the caps beside controls.
 	func keyLabel(_ action: KeyAction) -> String? {
 		dispatcher.label(for: action)
+	}
+
+	// MARK: Browse, preview, peek and day log
+
+	/// `gb`: the Browse table in place of the day.
+	func showBrowse() {
+		guard workspace?.phase == .open, !isShowingAll else { return }
+		screen = .browse
+		// One read of the vault serves the table, its counts and the Backlog tab.
+		BrowseModel.refresh([browse, backlog])
+		syncTodayItemCount()
+	}
+
+	/// Back to the day from Browse.
+	func leaveBrowse() {
+		guard screen == .browse else { return }
+		screen = .home
+		syncTodayItemCount()
+	}
+
+	/// The Today pane's item count follows what the main area shows.
+	func syncTodayItemCount() {
+		focus.setItemCount(screen == .browse ? browse.items.count : dayPlan.items.count, in: .today)
+	}
+
+	/// The side panel pane's item count follows its open tab.
+	func syncSidePanelItemCount() {
+		focus.setItemCount(sidePanelTab == .dayLog ? dayLog.visibleLines.count : 0, in: .sidePanel)
+	}
+
+	/// Opens a rail tab and puts keyboard focus in the side panel.
+	func showSidePanelTab(_ tab: SidePanelTab) {
+		sidePanelTab = tab
+		if tab == .dayLog { dayLog.reload() }
+		syncSidePanelItemCount()
+		focus.focus(.sidePanel)
+	}
+
+	/// The selected line of the Browse table.
+	var selectedBrowseItem: BrowseItem? {
+		guard screen == .browse, let index = focus.selection(in: .today), browse.items.indices.contains(index) else { return nil }
+		return browse.items[index]
+	}
+
+	/// The selected line of the Day log tab.
+	var selectedLogLine: DayLogLine? {
+		guard sidePanelTab == .dayLog, let index = focus.selection(in: .sidePanel), dayLog.visibleLines.indices.contains(index) else { return nil }
+		return dayLog.visibleLines[index]
+	}
+
+	/// What `K` looks up: the selected task, story or log line of the focused pane.
+	var peekSubject: PeekSubject? {
+		switch focus.focusedPane {
+		case .today:
+			switch selectedBrowseItem {
+			case let .row(row): return .task(row.id)
+			case let .header(group): return group.storyNumber.map(PeekSubject.story)
+			case nil: return selectedItem.map { .task($0.taskId) }
+			}
+		case .sidePanel:
+			return selectedLogLine.map(PeekSubject.logLine)
+		case .sidebar, .inbox:
+			return nil
+		}
+	}
+
+	/// ⏎ on the selection: a task opens its preview, a Browse group header folds.
+	private func openSelection() {
+		guard focus.focusedPane == .today else { return }
+		switch selectedBrowseItem {
+		case let .row(row):
+			preview.open(taskId: row.id)
+		case let .header(group):
+			browse.toggleFold(group)
+			syncTodayItemCount()
+		case nil:
+			if let item = selectedItem { preview.open(taskId: item.taskId) }
+		}
+	}
+
+	/// Opens the preview of a task, from a peek's Open or a row's click.
+	func openPreview(taskId: String) {
+		peek.dismiss()
+		preview.open(taskId: taskId)
+	}
+
+	private func toggleFoldOfSelection() {
+		guard let index = focus.selection(in: .today), let group = browse.group(at: index) else { return }
+		browse.toggleFold(group)
+		syncTodayItemCount()
+		// A folded group's rows are gone; the selection stays on its header.
+		if let header = browse.items.firstIndex(of: .header(group)) { focus.select(header, in: .today) }
+	}
+
+	private func jumpGroup(by step: Int) {
+		guard let index = focus.selection(in: .today) else { return }
+		focus.select(step > 0 ? browse.nextGroupStart(after: index) : browse.previousGroupStart(before: index), in: .today)
+	}
+
+	/// Appends the Day log field's text, about the selected task when there is one.
+	func appendDayLog() {
+		let task = selectedBrowseRowId ?? selectedItem?.taskId
+		dayLog.contextTask = task
+		dayLog.contextStory = selectedBrowseRowStory ?? selectedItem?.storyNumber
+		if dayLog.append() {
+			syncSidePanelItemCount()
+		}
+	}
+
+	private var selectedBrowseRowId: String? {
+		if case let .row(row) = selectedBrowseItem { return row.id }
+		return nil
+	}
+
+	private var selectedBrowseRowStory: String? {
+		if case let .row(row) = selectedBrowseItem { return row.storyNumber }
+		return nil
+	}
+
+	/// Ticks a Browse row done and reads the table again.
+	func completeBrowseTask(_ taskId: String) {
+		dayPlan.tick(taskId: taskId)
+		BrowseModel.refresh([browse, backlog])
+		syncTodayItemCount()
+		afterPlanChange()
+	}
+
+	/// The Open in Claude Code and Full story buttons: the links are registered
+	/// but nothing listens yet, so they are recorded and logged.
+	func handleLink(_ url: URL?) {
+		guard let url else { return }
+		Logger(subsystem: "com.eiluviann.vaultday", category: "link").info("link not handled yet: \(url.absoluteString, privacy: .public)")
+		handle(url)
 	}
 
 	// MARK: Home
@@ -287,7 +494,7 @@ final class AppModel {
 
 	/// The selected card of the Today list, when the list holds one.
 	var selectedItem: PlanItem? {
-		guard !isShowingAll, let index = focus.selection(in: .today) else { return nil }
+		guard !isShowingAll, screen == .home, let index = focus.selection(in: .today) else { return nil }
 		return dayPlan.items.indices.contains(index) ? dayPlan.items[index] : nil
 	}
 
@@ -422,7 +629,7 @@ final class AppModel {
 	}
 
 	private func afterPlanChange() {
-		focus.setItemCount(dayPlan.items.count, in: .today)
+		syncTodayItemCount()
 		if let workspace {
 			sessions.load(from: workspace)
 			workspace.refreshHealth()
@@ -607,7 +814,16 @@ final class AppModel {
 		sessions.load(from: workspace)
 		quickAdd.attach(to: workspace, workspaces: workspaceEntries)
 		workspace.refreshHealth()
-		focus.setItemCount(dayPlan.items.count, in: .today)
+		let presetFile = environment.map { $0.layout.browsePresetsFile(workspaceId: workspace.workspaceId) }
+		browse.load(from: workspace, presetFile: presetFile)
+		if let preset = browse.presets.first(where: { $0.name == "Backlog" }) {
+			backlog.load(sharingReadOf: browse, query: preset.query)
+		}
+		preview.attach(to: workspace)
+		peek.attach(to: workspace)
+		dayLog.load(from: workspace)
+		syncTodayItemCount()
+		syncSidePanelItemCount()
 		refreshSidePanel()
 		Task { await runIntake() }
 		if isShowingAll {

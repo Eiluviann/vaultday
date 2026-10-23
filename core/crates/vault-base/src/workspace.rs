@@ -127,6 +127,43 @@ impl Workspace {
     pub fn contains(&self, path: &Path) -> bool {
         normalize_path(path).starts_with(&self.root)
     }
+
+    /// The `obsidian://open` link for the note at `relative_path` (relative to
+    /// the workspace root). Obsidian names the vault by the folder holding
+    /// `.obsidian/`, which can lie above the workspace root; the file is the
+    /// path from that folder without `.md`. Every character outside the
+    /// unreserved set is percent-encoded.
+    #[must_use]
+    pub fn obsidian_link(&self, relative_path: &Path) -> String {
+        let from_vault_root = self
+            .root
+            .strip_prefix(&self.vault_root)
+            .unwrap_or(Path::new(""))
+            .join(relative_path);
+        let file = from_vault_root.to_string_lossy().replace('\\', "/");
+        let file = file.strip_suffix(".md").unwrap_or(&file);
+        let vault = self
+            .vault_root
+            .file_name()
+            .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+        format!(
+            "obsidian://open?vault={}&file={}",
+            percent_encode(&vault),
+            percent_encode(file)
+        )
+    }
+}
+
+fn percent_encode(text: &str) -> String {
+    let mut encoded = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
 }
 
 impl WorkspaceSet {

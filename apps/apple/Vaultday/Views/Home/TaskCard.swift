@@ -44,9 +44,13 @@ struct TaskCard: View {
 			isHovered = hovering
 			if hovering, !isReadOnly { app.hover(item) }
 		}
+		.onTapGesture(count: 2) {
+			if !isReadOnly { app.openPreview(taskId: item.taskId) }
+		}
 		.onTapGesture {
 			if !isReadOnly { app.select(item) }
 		}
+		.peekPopover(app: app, subject: isReadOnly ? nil : .task(item.taskId))
 		.modifier(DraggableTask(taskId: item.taskId, isEnabled: !isReadOnly && !item.isDone))
 		.accessibilityElement(children: .contain)
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -332,7 +336,7 @@ private struct DraggableTask: ViewModifier {
 	}
 }
 
-private struct TightLabelStyle: LabelStyle {
+struct TightLabelStyle: LabelStyle {
 	func makeBody(configuration: Configuration) -> some View {
 		HStack(spacing: 4) {
 			configuration.icon.font(.system(size: 8, weight: .semibold))

@@ -289,9 +289,11 @@ pub struct VaultHealthView {
 }
 
 /// A task line of a story with what its card needs.
-struct StoryLine {
-    task: VaultTask,
-    story_title: Option<String>,
+pub(crate) struct StoryLine {
+    pub(crate) task: VaultTask,
+    pub(crate) story_title: Option<String>,
+    /// The story note's status token, lower case: the vocabulary's word, else the word as written.
+    pub(crate) story_status: Option<String>,
     is_in_progress: bool,
     created: Option<Date>,
     subtasks: Vec<SubtaskView>,
@@ -807,7 +809,7 @@ impl From<DomainError> for CoreError {
 
 /// Every task line with an id under a story's Next Steps or Pending Input,
 /// in the vault's story order, then note order.
-fn story_lines(vault: &Vault) -> Vec<StoryLine> {
+pub(crate) fn story_lines(vault: &Vault) -> Vec<StoryLine> {
     let mut lines = Vec::new();
     for entry in vault.stories() {
         if is_conflict_copy(vault, entry.path) {
@@ -865,6 +867,10 @@ fn story_line(
             parent,
         },
         story_title: story.title.clone().or_else(|| story.number.clone()),
+        story_status: story
+            .status
+            .map(|status| status.as_str().to_owned())
+            .or_else(|| story.raw_status.as_deref().map(str::to_lowercase)),
         is_in_progress: status == TaskStatus::InProgress,
         created: field_date(task, "created"),
         subtasks: document
@@ -1088,7 +1094,7 @@ pub(crate) fn whole_minutes(duration: Duration) -> u32 {
     u32::try_from(duration.as_secs() / 60).unwrap_or(u32::MAX)
 }
 
-fn count(value: usize) -> u32 {
+pub(crate) fn count(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
 

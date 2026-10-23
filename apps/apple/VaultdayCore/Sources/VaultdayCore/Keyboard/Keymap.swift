@@ -54,11 +54,33 @@ public enum KeyAction: Hashable, Sendable {
 	case showToday
 	/// Esc: closes the toast or the confirmation.
 	case dismiss
+	/// `gb`: the Browse table in place of the Today column.
+	case showBrowse
+	/// `gl`: the side panel's Day log tab.
+	case showDayLog
+	/// `/`: the Browse query line.
+	case focusBrowseQuery
+	/// `za`: folds or opens the story group under the selection.
+	case toggleFold
+	/// `}` and `{`: the next and the previous story group.
+	case nextGroup
+	case previousGroup
+	/// `n` and `N`: the next and the previous row of the query's matches.
+	case nextMatch
+	case previousMatch
+	/// `K`, or a force click: the peek popover of the selected item.
+	case peek
+	/// A side panel tab by its place on the rail, counted from 1.
+	case showSidePanelTab(Int)
 
 	/// The action named `name` in Keymap.yaml.
 	init?(name: String) {
 		if name.hasPrefix("workspace."), let place = Int(name.dropFirst("workspace.".count)), (1 ... 9).contains(place) {
 			self = .showWorkspace(place)
+			return
+		}
+		if name.hasPrefix("side-panel.tab."), let place = Int(name.dropFirst("side-panel.tab.".count)), (1 ... 9).contains(place) {
+			self = .showSidePanelTab(place)
 			return
 		}
 		switch name {
@@ -88,6 +110,15 @@ public enum KeyAction: Hashable, Sendable {
 		case "day.next": self = .nextDay
 		case "day.today": self = .showToday
 		case "dismiss": self = .dismiss
+		case "browse.open": self = .showBrowse
+		case "daylog.open": self = .showDayLog
+		case "browse.query": self = .focusBrowseQuery
+		case "browse.fold": self = .toggleFold
+		case "browse.next-group": self = .nextGroup
+		case "browse.previous-group": self = .previousGroup
+		case "browse.next-match": self = .nextMatch
+		case "browse.previous-match": self = .previousMatch
+		case "peek": self = .peek
 		default: return nil
 		}
 	}

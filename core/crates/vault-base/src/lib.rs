@@ -8,6 +8,8 @@
 //! - [`FileIndex`] caches modification times; [`Vault`] loads notes and
 //!   answers the queries the CLI and the app need; [`TodayView`] is the
 //!   one the Today surfaces copy out.
+//! - [`preview`] cuts a story note into the read-only blocks the app shows
+//!   beside a task.
 //! - [`ops`] holds the operations the CLI, the MCP server and the apps share,
 //!   as plain records the bindings copy.
 //! - [`FileAccess`] is the port to the file system; [`PlainFileAccess`] is the
@@ -32,6 +34,7 @@ mod line;
 pub mod log;
 pub mod note;
 pub mod ops;
+pub mod preview;
 pub mod scan;
 pub mod settings;
 pub mod today;
@@ -53,9 +56,15 @@ pub use frontmatter::Frontmatter;
 pub use index::{FileIndex, FileStamp, IndexDelta, IndexError, IndexScope};
 pub use index_store::{INDEX_STORE_SCHEMA_VERSION, IndexStore, IndexStoreError};
 pub use line::LineEnding;
-pub use log::{LogAppend, LogFormatError, day_log_path, format_log_line, new_day_log_header};
+pub use log::{
+    LogAppend, LogFormatError, LogShorthand, day_log_path, format_log_line, new_day_log_header,
+    parse_log_shorthand,
+};
 pub use note::{DayLog, LogKind, LogLine, NoteType, ProjectHub, Story, StoryStatus};
 pub use ops::{OpError, resolve_workspace};
+pub use preview::{
+    ActivityEntry, NoteBlock, StoryPreview, SubtaskEntry, TaskPreview, WaitingEntry, note_blocks,
+};
 pub use scan::{
     Document, Heading, InlineField, Line, LineKind, ListItem, Marker, MarkerKind, ProvenanceUnit,
     Section, Task, TaskStatus,

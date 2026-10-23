@@ -22,7 +22,7 @@ struct SidebarColumn: View {
 				.fill(Tokens.Colors.line)
 				.frame(height: 1)
 				.padding(EdgeInsets(top: 10, leading: 4, bottom: 2, trailing: 4))
-			BrowseRow(count: app.dayPlan.browseCount)
+			BrowseRow(app: app, count: app.dayPlan.browseCount)
 				.padding(.top, Tokens.Spacing.space4)
 			Spacer(minLength: Tokens.Spacing.space8)
 			SidebarNotices(app: app)
@@ -251,8 +251,9 @@ private struct RitualList: View {
 
 // MARK: Browse
 
-/// Every open task line of the workspace; the Browse view itself arrives later.
+/// Every open task line of the workspace; a click or `gb` opens the Browse table.
 private struct BrowseRow: View {
+	let app: AppModel
 	let count: Int
 
 	var body: some View {
@@ -266,10 +267,15 @@ private struct BrowseRow: View {
 			Text("\(count) open")
 				.font(Tokens.Typography.caption.font)
 				.foregroundStyle(Tokens.Colors.inkMuted)
+			ActionCap(app: app, action: .showBrowse)
 		}
 		.padding(.horizontal, Tokens.Spacing.space8)
 		.padding(.vertical, Tokens.Spacing.space6)
-		.help("Every open task line of this workspace; Browse opens in a later version")
+		.background(app.screen == .browse ? Tokens.Colors.fillHover : .clear, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
+		.contentShape(Rectangle())
+		.onTapGesture { app.perform(.showBrowse) }
+		.accessibilityAddTraits(.isButton)
+		.help("Every open task line of this workspace")
 	}
 }
 

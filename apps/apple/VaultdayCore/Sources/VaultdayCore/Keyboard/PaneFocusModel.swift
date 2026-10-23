@@ -72,8 +72,16 @@ public final class PaneFocusModel {
 			isSidebarCollapsed.toggle()
 		case .addTask, .completeTask, .moveTaskUp, .moveTaskDown, .togglePin, .toggleTimer:
 			focusedPane = .today
+		case .showBrowse, .focusBrowseQuery:
+			focusedPane = .today
+		case .showDayLog, .showSidePanelTab:
+			focusedPane = .sidePanel
+		case .nextMatch:
+			moveSelection(by: 1)
+		case .previousMatch:
+			moveSelection(by: -1)
 		case .showAllWorkspaces, .showWorkspace, .focusSearch, .replan, .autoSchedule,
-		     .previousDay, .nextDay, .showToday, .dismiss:
+		     .previousDay, .nextDay, .showToday, .dismiss, .toggleFold, .nextGroup, .previousGroup, .peek:
 			break
 		}
 	}
