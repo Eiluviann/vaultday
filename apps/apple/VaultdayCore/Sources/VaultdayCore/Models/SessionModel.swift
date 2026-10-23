@@ -70,9 +70,13 @@ public final class SessionModel {
 	public private(set) var lastFailure: SessionFailure?
 	/// The `session` line the last stop appended to the day log.
 	public private(set) var lastLogLine: String?
+	/// Why the last stopped session did not reach a time sink (the Toggl
+	/// queue); the stop itself stands.
+	public private(set) var timeSinkMessage: String?
 
 	private var state: WorkspaceStateHandle?
 	private var vault: WorkspaceHandle?
+	private weak var workspace: WorkspaceModel?
 	private let now: () -> Date
 
 	public init(now: @escaping () -> Date = Date.init) {
@@ -108,6 +112,7 @@ public final class SessionModel {
 	public func load(from workspace: WorkspaceModel) {
 		state = workspace.state
 		vault = workspace.vault
+		self.workspace = workspace
 		reload()
 	}
 
@@ -188,14 +193,26 @@ public final class SessionModel {
 
 	private func stopAndLog(_ state: WorkspaceStateHandle) throws {
 		guard let vault else {
-			_ = try state.stopSession()
+			let stopped = try state.stopSession()
 			lastLogLine = nil
+			sendToTimeSinks(sessionId: stopped.id)
 			return
 		}
 		let stopped = try state.stopAndLogSession(workspace: vault)
 		lastLogLine = stopped.logLine
+		sendToTimeSinks(sessionId: stopped.session.id)
 		if let logError = stopped.logError {
 			throw SessionLogError(message: "The session stopped, but its day-log line was not written: \(logError)")
+		}
+	}
+
+	/// The stop stands whatever a time sink answers; its failure is only reported.
+	private func sendToTimeSinks(sessionId: String) {
+		do {
+			try workspace?.sendToTimeSinks(sessionId: sessionId)
+			timeSinkMessage = nil
+		} catch {
+			timeSinkMessage = coreErrorMessage(error)
 		}
 	}
 

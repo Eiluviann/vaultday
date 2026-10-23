@@ -40,7 +40,7 @@ struct StoryPanelColumn: View {
 	private var tabBody: some View {
 		switch story.panelTab {
 		case .hours:
-			StoryHoursTab(hours: story.hours)
+			StoryHoursTab(hours: story.hours, togglWeek: story.togglWeek)
 		case .reports:
 			PlannedTab(title: "Reports", blurb: "Reports on this story, what they will include and their authorship will live here")
 		case .claudeCode:
@@ -91,6 +91,7 @@ private struct StoryFactsBlock: View {
 /// estimate, and what remains, kept apart; then the Toggl week's slot.
 private struct StoryHoursTab: View {
 	let hours: StoryHours?
+	let togglWeek: TogglWeekModel
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
@@ -123,7 +124,7 @@ private struct StoryHoursTab: View {
 					.font(Tokens.Typography.callout.font)
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
-			TogglWeekSlot()
+			TogglWeekCard(week: togglWeek)
 		}
 	}
 
@@ -135,26 +136,6 @@ private struct StoryHoursTab: View {
 				.fontWeight(.semibold)
 				.foregroundStyle(isCaution ? Tokens.Colors.caution : Tokens.Colors.ink)
 		}
-	}
-}
-
-/// The seam for the Toggl week (PR 16 of Phase 2): a labelled, empty slot
-/// in the base version. The Toggl feature set fills it with the week's days
-/// and their pushed or queued state.
-private struct TogglWeekSlot: View {
-	var body: some View {
-		VStack(alignment: .leading, spacing: Tokens.Spacing.space6) {
-			HomeEyebrow(text: "Toggl · this week")
-			Text("The week's days and what was pushed to Toggl show here once Toggl is connected")
-				.font(Tokens.Typography.caption.font)
-				.foregroundStyle(Tokens.Colors.inkMuted)
-				.fixedSize(horizontal: false, vertical: true)
-		}
-		.padding(Tokens.Spacing.space12)
-		.frame(maxWidth: .infinity, alignment: .leading)
-		.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(Tokens.Colors.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-		.accessibilityElement(children: .combine)
-		.accessibilityLabel("Toggl this week, not connected")
 	}
 }
 

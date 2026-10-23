@@ -2139,6 +2139,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "vaultday-feature-toggl"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "jiff",
+ "rustls",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "ureq",
+ "vaultday-app-state",
+ "vaultday-domain",
+ "vaultday-vault-base",
+]
+
+[[package]]
 name = "vaultday-ffi"
 version = "0.1.0"
 dependencies = [
@@ -2149,6 +2167,7 @@ dependencies = [
  "uniffi",
  "vaultday-app-state",
  "vaultday-domain",
+ "vaultday-feature-toggl",
  "vaultday-mail",
  "vaultday-vault-base",
 ]

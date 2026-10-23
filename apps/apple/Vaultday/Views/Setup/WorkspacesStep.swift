@@ -128,6 +128,8 @@ struct WorkspacesStep: View {
 struct ConfigureTarget: Identifiable {
 	let id = UUID()
 	let model: WorkspaceConfigureModel
+	/// The billing fields, while Toggl and billing is on for the workspace.
+	var billing: BillingSettingsModel?
 }
 
 /// The Add-folder popover: an existing folder or a new one.

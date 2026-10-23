@@ -76,7 +76,10 @@ pub use scan::{
     Document, Heading, InlineField, Line, LineKind, ListItem, Marker, MarkerKind, ProvenanceUnit,
     Section, Task, TaskStatus,
 };
-pub use settings::{SETTINGS_SCHEMA_VERSION, SettingsError, WorkspaceKind, WorkspaceSettings};
+pub use settings::{
+    BillingModel, BillingSettings, SETTINGS_SCHEMA_VERSION, SettingsError, WorkspaceKind,
+    WorkspaceSettings,
+};
 pub use today::{TodayStory, TodayView};
 pub use vault::{
     LogEntry, Note, StoryEntry, TaskRef, UnreadableNote, Vault, VaultError, WaitingOn,

@@ -18,10 +18,13 @@ public final class StoryModel {
 	public private(set) var panelTab: StoryPanelTab = .hours
 	/// The section last pointed at, where Open in Obsidian opens the note.
 	public private(set) var currentSection: String?
+	/// The Hours tab's "Toggl · this week" slot, for the open story.
+	public let togglWeek = TogglWeekModel()
 
 	private var vault: WorkspaceHandle?
 	private var state: WorkspaceStateHandle?
 	private var lines: (any StoryLineWriting)?
+	private var togglSource: (any TogglWeekSource)?
 	private let now: () -> Date
 
 	public init(now: @escaping () -> Date = Date.init) {
@@ -36,7 +39,14 @@ public final class StoryModel {
 		vault = workspace.vault
 		state = workspace.state
 		lines = workspace.vault.map(CoreStoryLines.init)
+		togglSource = workspace.togglWeekSource
 		close()
+	}
+
+	/// Replaces where the Toggl week comes from, for tests.
+	public func attachToggl(source: (any TogglWeekSource)?) {
+		togglSource = source
+		reload()
 	}
 
 	/// Opens the workspace at `path` without a grant (tests, and hosts
@@ -44,6 +54,7 @@ public final class StoryModel {
 	public func attach(workspacePath path: String, lines: (any StoryLineWriting)? = nil) {
 		vault = try? openWorkspace(path: path)
 		state = nil
+		togglSource = nil
 		self.lines = lines ?? vault.map(CoreStoryLines.init)
 		close()
 	}
@@ -65,6 +76,7 @@ public final class StoryModel {
 	public func close() {
 		content = nil
 		hours = nil
+		togglWeek.clear()
 		errorMessage = nil
 		writeMessage = nil
 		accordion = NextStepsAccordion(steps: [])
@@ -183,5 +195,6 @@ public final class StoryModel {
 			errorMessage = coreErrorMessage(error)
 		}
 		hours = state.flatMap { try? $0.storyHours(workspace: vault, number: number) }.map(StoryHours.init)
+		togglWeek.load(source: togglSource, containing: now(), story: number)
 	}
 }

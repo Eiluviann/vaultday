@@ -41,8 +41,35 @@ pub const SECRET_KEY_WORDS: [&str; 12] = [
 pub const SECRET_KEY_WORD_PAIRS: [(&str, &str); 3] =
     [("api", "key"), ("private", "key"), ("access", "key")];
 
+/// Key words that mark a value of the `billing` block as money. Rates and
+/// currencies live in the signed app-level document only, never in the vault,
+/// so such a key is refused there at any depth, as an unknown key too.
+pub const BILLING_MONEY_KEY_WORDS: [&str; 14] = [
+    "rate",
+    "rates",
+    "currency",
+    "currencies",
+    "price",
+    "prices",
+    "amount",
+    "amounts",
+    "fee",
+    "fees",
+    "cost",
+    "costs",
+    "money",
+    "salary",
+];
+
 /// Most working hours a day may be configured with.
 pub const MAX_HOURS_PER_DAY: f64 = 24.0;
+
+/// The rounding increment of an hourly workspace until one is set.
+pub const DEFAULT_ROUNDING_MINUTES: u32 = 15;
+/// The largest rounding increment an hourly workspace may use: an hour.
+pub const MAX_ROUNDING_MINUTES: u32 = 60;
+/// The flat Toggl hours of an FTE working day until set.
+pub const DEFAULT_FLAT_HOURS: f64 = 8.0;
 
 /// Whether a workspace holds client work or the user's own life.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -52,6 +79,43 @@ pub enum WorkspaceKind {
     Work,
     /// A personal workspace.
     Life,
+}
+
+/// How a workspace bills its time. Rates and currencies are not here: they
+/// live in the signed app-level document only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum BillingModel {
+    /// Sessions are billable time, rounded up to the workspace increment.
+    Hourly,
+    /// Each task's estimate is its quote and cap; an overrun is unpaid.
+    Fixed,
+    /// Full-time equivalent: tracked time stays private; a flat day goes out.
+    Fte,
+}
+
+/// The `billing` block of `settings.json`. Each model reads only its own
+/// keys; a key of another model is refused so a switch never leaves a stale
+/// value behind. Unknown keys are kept.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct BillingSettings {
+    /// The billing model.
+    pub model: BillingModel,
+    /// Hourly only: the increment billable time rounds up to, 1 to 60 minutes; 15 when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = 60))]
+    pub rounding_minutes: Option<u32>,
+    /// Hourly only: whether a task is billable until marked otherwise; true when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub billable_default: Option<bool>,
+    /// FTE only: hours of the flat Toggl entry per working day, above 0 and
+    /// at most 24; 8 when absent. Logged time uses `hours_per_day`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(extend("exclusiveMinimum" = 0.0, "maximum" = 24.0))]
+    pub flat_hours: Option<f64>,
+    /// Keys this build does not know, preserved verbatim.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 /// The contents of `.vaultday/settings.json`.
@@ -92,6 +156,9 @@ pub struct WorkspaceSettings {
     /// Template note for new stories, relative to the workspace root.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub story_template: Option<String>,
+    /// How the workspace bills its time; `None` until a model is picked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub billing: Option<BillingSettings>,
     /// Per-feature settings, keyed by feature id. Opaque in the base version;
     /// each feature validates its own entry against its settings schema.
     #[serde(default)]
@@ -171,6 +238,7 @@ impl WorkspaceSettings {
             hours_per_day: default_hours_per_day(),
             log_folder: default_log_folder(),
             story_template: None,
+            billing: None,
             features: BTreeMap::new(),
             extra: Map::new(),
         }
@@ -266,12 +334,98 @@ impl WorkspaceSettings {
                 ),
             });
         }
+        if let Some(billing) = &self.billing {
+            billing.validate()?;
+        }
         Ok(())
     }
 }
 
+impl BillingSettings {
+    /// A block for `model` with every optional key absent, so the defaults apply.
+    #[must_use]
+    pub fn new(model: BillingModel) -> BillingSettings {
+        BillingSettings {
+            model,
+            rounding_minutes: None,
+            billable_default: None,
+            flat_hours: None,
+            extra: Map::new(),
+        }
+    }
+
+    /// The rounding increment in minutes; the default when unset.
+    #[must_use]
+    pub fn rounding_minutes_or_default(&self) -> u32 {
+        self.rounding_minutes.unwrap_or(DEFAULT_ROUNDING_MINUTES)
+    }
+
+    /// Whether tasks are billable until marked otherwise; true when unset.
+    #[must_use]
+    pub fn billable_default_or_default(&self) -> bool {
+        self.billable_default.unwrap_or(true)
+    }
+
+    /// The flat hours of an FTE day; the default when unset.
+    #[must_use]
+    pub fn flat_hours_or_default(&self) -> f64 {
+        self.flat_hours.unwrap_or(DEFAULT_FLAT_HOURS)
+    }
+
+    fn validate(&self) -> Result<(), SettingsError> {
+        if let Some(path) = money_key_path(&self.extra, "billing") {
+            return Err(SettingsError::ForbiddenKey {
+                path,
+                reason: "rates and currencies belong to the signed app state, not to the vault",
+            });
+        }
+        let foreign = |key: &'static str| SettingsError::InvalidValue {
+            key,
+            reason: format!("{} billing does not take this key", self.model_label()),
+        };
+        if self.model != BillingModel::Hourly {
+            if self.rounding_minutes.is_some() {
+                return Err(foreign("billing.rounding_minutes"));
+            }
+            if self.billable_default.is_some() {
+                return Err(foreign("billing.billable_default"));
+            }
+        }
+        if self.model != BillingModel::Fte && self.flat_hours.is_some() {
+            return Err(foreign("billing.flat_hours"));
+        }
+        if let Some(minutes) = self.rounding_minutes
+            && !(1..=MAX_ROUNDING_MINUTES).contains(&minutes)
+        {
+            return Err(SettingsError::InvalidValue {
+                key: "billing.rounding_minutes",
+                reason: format!("must be 1 to {MAX_ROUNDING_MINUTES} minutes, got {minutes}"),
+            });
+        }
+        if let Some(hours) = self.flat_hours
+            && (!hours.is_finite() || hours <= 0.0 || hours > MAX_HOURS_PER_DAY)
+        {
+            return Err(SettingsError::InvalidValue {
+                key: "billing.flat_hours",
+                reason: format!(
+                    "must be a number above 0 and at most {MAX_HOURS_PER_DAY}, got {hours}"
+                ),
+            });
+        }
+        Ok(())
+    }
+
+    const fn model_label(&self) -> &'static str {
+        match self.model {
+            BillingModel::Hourly => "hourly",
+            BillingModel::Fixed => "fixed-price",
+            BillingModel::Fte => "FTE",
+        }
+    }
+}
+
 /// The keys the schema defines; `extra` may not shadow them.
-const SCHEMA_KEYS: [&str; 13] = [
+const SCHEMA_KEYS: [&str; 14] = [
     "schema_version",
     "name",
     "kind",
@@ -283,6 +437,7 @@ const SCHEMA_KEYS: [&str; 13] = [
     "hours_per_day",
     "log_folder",
     "story_template",
+    "billing",
     "features",
     "extra",
 ];
@@ -360,6 +515,31 @@ pub fn is_secret_key(key: &str) -> bool {
         })
 }
 
+/// The dotted path of the first key under `object` whose words name money.
+fn money_key_path(object: &Map<String, Value>, prefix: &str) -> Option<String> {
+    object.iter().find_map(|(key, value)| {
+        let path = format!("{prefix}.{key}");
+        if key_words(key)
+            .iter()
+            .any(|word| BILLING_MONEY_KEY_WORDS.contains(&word.as_str()))
+        {
+            return Some(path);
+        }
+        money_value_path(value, &path)
+    })
+}
+
+fn money_value_path(value: &Value, path: &str) -> Option<String> {
+    match value {
+        Value::Object(nested) => money_key_path(nested, path),
+        Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .find_map(|(index, item)| money_value_path(item, &format!("{path}[{index}]"))),
+        _ => None,
+    }
+}
+
 /// An ECMA-262 pattern that matches exactly a forbidden key, without case:
 /// JSON Schema has no case-insensitive flag, so every letter becomes a class.
 fn forbidden_key_pattern() -> String {
@@ -396,7 +576,8 @@ fn key_words(key: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        SettingsError, WorkspaceKind, WorkspaceSettings, forbidden_key_pattern, is_secret_key,
+        BillingModel, BillingSettings, SettingsError, WorkspaceKind, WorkspaceSettings,
+        forbidden_key_pattern, is_secret_key,
     };
     use serde_json::json;
 
@@ -635,5 +816,194 @@ mod tests {
             pattern.matches('|').count(),
             super::FORBIDDEN_SETTINGS_KEYS.len() - 1
         );
+    }
+
+    fn with_billing(block: &str) -> String {
+        format!(r#"{{"schema_version": 1, "name": "x", "kind": "work", "billing": {block}}}"#)
+    }
+
+    #[test]
+    fn each_billing_model_reads_its_keys_with_defaults() {
+        let hourly = WorkspaceSettings::from_json(&with_billing(
+            r#"{"model": "hourly", "rounding_minutes": 6, "billable_default": false}"#,
+        ))
+        .expect("hourly");
+        let billing = hourly.billing.expect("billing block");
+        assert_eq!(billing.model, BillingModel::Hourly);
+        assert_eq!(billing.rounding_minutes_or_default(), 6);
+        assert!(!billing.billable_default_or_default());
+
+        let bare_hourly =
+            WorkspaceSettings::from_json(&with_billing(r#"{"model": "hourly"}"#)).expect("bare");
+        let billing = bare_hourly.billing.expect("billing block");
+        assert_eq!(billing.rounding_minutes_or_default(), 15);
+        assert!(billing.billable_default_or_default());
+
+        let fixed =
+            WorkspaceSettings::from_json(&with_billing(r#"{"model": "fixed"}"#)).expect("fixed");
+        assert_eq!(
+            fixed.billing,
+            Some(BillingSettings::new(BillingModel::Fixed))
+        );
+
+        let fte =
+            WorkspaceSettings::from_json(&with_billing(r#"{"model": "fte", "flat_hours": 7.5}"#))
+                .expect("fte");
+        assert_eq!(fte.billing.expect("billing").flat_hours_or_default(), 7.5);
+        let bare_fte =
+            WorkspaceSettings::from_json(&with_billing(r#"{"model": "fte"}"#)).expect("fte");
+        assert_eq!(
+            bare_fte.billing.expect("billing").flat_hours_or_default(),
+            8.0
+        );
+
+        let none =
+            WorkspaceSettings::from_json(r#"{"schema_version": 1, "name": "x", "kind": "work"}"#)
+                .expect("no billing");
+        assert_eq!(none.billing, None);
+        assert!(!none.to_json().expect("writes").contains("billing"));
+    }
+
+    #[test]
+    fn the_billing_block_keeps_unknown_keys_through_a_write() {
+        let text = with_billing(r#"{"model": "hourly", "x_future": {"a": [1]}}"#);
+        let settings = WorkspaceSettings::from_json(&text).expect("valid");
+        let billing = settings.billing.clone().expect("billing");
+        assert_eq!(billing.extra["x_future"], json!({"a": [1]}));
+        let written = settings.to_json().expect("writes");
+        assert_eq!(
+            WorkspaceSettings::from_json(&written).expect("rereads"),
+            settings
+        );
+        assert!(written.contains("x_future"));
+    }
+
+    #[test]
+    fn the_billing_block_refuses_rates_tokens_and_other_models_keys() {
+        for (block, path) in [
+            (
+                r#"{"model": "hourly", "rates": {"eur": 90}}"#,
+                "billing.rates",
+            ),
+            (r#"{"model": "fixed", "tokens": []}"#, "billing.tokens"),
+            (r#"{"model": "fte", "Rates": 1}"#, "billing.Rates"),
+        ] {
+            let error = WorkspaceSettings::from_json(&with_billing(block)).expect_err(block);
+            assert!(
+                matches!(&error, SettingsError::ForbiddenKey { path: found, .. } if found == path),
+                "{block}: {error}"
+            );
+        }
+        let secret = with_billing(r#"{"model": "hourly", "toggl_api_token": "abc"}"#);
+        assert!(matches!(
+            WorkspaceSettings::from_json(&secret),
+            Err(SettingsError::SecretKey { path }) if path == "billing.toggl_api_token"
+        ));
+        for (block, key) in [
+            (
+                r#"{"model": "fixed", "rounding_minutes": 15}"#,
+                "billing.rounding_minutes",
+            ),
+            (
+                r#"{"model": "fte", "billable_default": true}"#,
+                "billing.billable_default",
+            ),
+            (
+                r#"{"model": "hourly", "flat_hours": 8}"#,
+                "billing.flat_hours",
+            ),
+            (
+                r#"{"model": "hourly", "rounding_minutes": 0}"#,
+                "billing.rounding_minutes",
+            ),
+            (
+                r#"{"model": "hourly", "rounding_minutes": 61}"#,
+                "billing.rounding_minutes",
+            ),
+            (r#"{"model": "fte", "flat_hours": 0}"#, "billing.flat_hours"),
+            (
+                r#"{"model": "fte", "flat_hours": 25}"#,
+                "billing.flat_hours",
+            ),
+        ] {
+            let error = WorkspaceSettings::from_json(&with_billing(block)).expect_err(block);
+            assert!(
+                matches!(&error, SettingsError::InvalidValue { key: found, .. } if *found == key),
+                "{block}: {error}"
+            );
+        }
+        assert!(matches!(
+            WorkspaceSettings::from_json(&with_billing(r#"{"model": "retainer"}"#)),
+            Err(SettingsError::Json(_))
+        ));
+        let mut settings = WorkspaceSettings::new("x", WorkspaceKind::Work);
+        let mut billing = BillingSettings::new(BillingModel::Hourly);
+        billing.extra.insert("rates".to_owned(), json!({"eur": 90}));
+        settings.billing = Some(billing);
+        assert!(matches!(
+            settings.to_json(),
+            Err(SettingsError::ForbiddenKey { .. })
+        ));
+    }
+
+    #[test]
+    fn the_billing_block_refuses_every_money_key_on_read_and_write() {
+        for (block, path) in [
+            (r#"{"model": "hourly", "rate": 90}"#, "billing.rate"),
+            (
+                r#"{"model": "hourly", "hourlyRate": 90}"#,
+                "billing.hourlyRate",
+            ),
+            (
+                r#"{"model": "fixed", "currency": "EUR"}"#,
+                "billing.currency",
+            ),
+            (
+                r#"{"model": "fixed", "quote_price": 1200}"#,
+                "billing.quote_price",
+            ),
+            (
+                r#"{"model": "fte", "x": {"day_rate": 400}}"#,
+                "billing.x.day_rate",
+            ),
+            (
+                r#"{"model": "fte", "x": [{"Currency": "CHF"}]}"#,
+                "billing.x[0].Currency",
+            ),
+        ] {
+            let error = WorkspaceSettings::from_json(&with_billing(block)).unwrap_err();
+            assert!(
+                matches!(&error, SettingsError::ForbiddenKey { path: found, .. } if found == path),
+                "{block}: {error}"
+            );
+        }
+        let mut settings = WorkspaceSettings::new("x", WorkspaceKind::Work);
+        let mut billing = BillingSettings::new(BillingModel::Hourly);
+        billing.extra.insert("currency".to_owned(), json!("EUR"));
+        settings.billing = Some(billing);
+        assert!(matches!(
+            settings.to_json(),
+            Err(SettingsError::ForbiddenKey { .. })
+        ));
+        // Words that only contain a money word are not money keys.
+        let kept = with_billing(r#"{"model": "hourly", "separate": true, "accurate": 1}"#);
+        assert!(WorkspaceSettings::from_json(&kept).is_ok());
+    }
+
+    #[test]
+    fn the_schema_describes_the_billing_block() {
+        let schema = WorkspaceSettings::json_schema();
+        let text = schema.to_string();
+        assert!(schema["properties"]["billing"].is_object());
+        for word in [
+            "hourly",
+            "fixed",
+            "fte",
+            "rounding_minutes",
+            "flat_hours",
+            "billable_default",
+        ] {
+            assert!(text.contains(word), "{word}");
+        }
     }
 }

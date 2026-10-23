@@ -25,6 +25,8 @@ struct ConfigureSheet: View {
 	}
 
 	@Bindable var model: WorkspaceConfigureModel
+	/// The billing block and rate; `nil` while the Toggl and billing feature set is off.
+	var billing: BillingSettingsModel?
 	let onDone: () -> Void
 	@Environment(\.dismiss) private var dismiss
 	@State private var tab: Tab = .general
@@ -127,7 +129,7 @@ struct ConfigureSheet: View {
 					.buttonStyle(SetupButtonStyle())
 					.keyboardShortcut(.cancelAction)
 				Button("Done") {
-					if model.save() {
+					if model.save(), billing?.save() ?? true {
 						onDone()
 						dismiss()
 					} else if let first = firstTabWithIssue {
@@ -235,6 +237,14 @@ struct ConfigureSheet: View {
 			field("Log folder", key: "log_folder", note: "Holds the day logs, inside the workspace folder", isMono: true) {
 				TextField("Log", text: $model.logFolder).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
 			}
+			if let billing {
+				BillingFields(billing: billing)
+			} else {
+				VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
+					Text("Billing").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.inkMuted)
+					Text("Appears once the Toggl and billing feature set is on").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+				}
+			}
 		}
 	}
 
@@ -273,6 +283,73 @@ struct ConfigureSheet: View {
 		case .folders: []
 		case .tasks: ["ticket_pattern", "ticket_url", "hosts", "story_template"]
 		case .hours: ["hours_per_day", "log_folder"]
+		}
+	}
+}
+
+/// The billing model of the workspace: written to `settings.json` with only
+/// the chosen model's keys; the rate goes to the app's signed store.
+private struct BillingFields: View {
+	@Bindable var billing: BillingSettingsModel
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
+			VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
+				HStack(spacing: 6) {
+					Text("Billing").font(Tokens.Typography.body.font.weight(.semibold)).foregroundStyle(Tokens.Colors.ink)
+					Image(systemName: "doc.text").imageScale(.small).foregroundStyle(Tokens.Colors.inkMuted)
+						.accessibilityLabel("Saved to settings.json")
+				}
+				Picker("Billing model", selection: $billing.model) {
+					ForEach(BillingModelChoice.allCases, id: \.self) { choice in
+						Text(choice.title).tag(choice)
+					}
+				}
+				.pickerStyle(.segmented)
+				.labelsHidden()
+				.frame(maxWidth: 420)
+				Text(billing.model.note).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
+			}
+			switch billing.model {
+			case .hourly:
+				HStack(spacing: Tokens.Spacing.space12) {
+					Picker("Round up to", selection: $billing.roundingMinutes) {
+						ForEach(BillingSettingsModel.roundingChoices, id: \.self) { minutes in
+							Text("\(minutes) min").tag(minutes)
+						}
+					}
+					.frame(width: 200)
+					Toggle("Tasks are billable unless marked", isOn: $billing.isBillableByDefault)
+				}
+				rate
+			case .fixed:
+				rate
+			case .fte:
+				HStack(spacing: Tokens.Spacing.space8) {
+					Text("Toggl hours a day").foregroundStyle(Tokens.Colors.inkSecondary)
+					TextField("8", text: $billing.flatHours).textFieldStyle(.roundedBorder).frame(width: 80)
+				}
+				.font(Tokens.Typography.callout.font)
+			case .none:
+				EmptyView()
+			}
+			if let error = billing.errorMessage {
+				Label(error, systemImage: "exclamationmark.circle.fill")
+					.font(Tokens.Typography.caption.font)
+					.foregroundStyle(Tokens.Colors.danger)
+			}
+		}
+	}
+
+	private var rate: some View {
+		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
+			HStack(spacing: Tokens.Spacing.space8) {
+				Text("Rate per hour").foregroundStyle(Tokens.Colors.inkSecondary)
+				TextField("None", text: $billing.rate).textFieldStyle(.roundedBorder).frame(width: 100)
+				TextField("EUR", text: $billing.currency).textFieldStyle(.roundedBorder).frame(width: 60).font(Tokens.Typography.mono.font)
+			}
+			.font(Tokens.Typography.callout.font)
+			Text("Kept in Vaultday's signed store, never in settings.json or Toggl").font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.inkMuted)
 		}
 	}
 }

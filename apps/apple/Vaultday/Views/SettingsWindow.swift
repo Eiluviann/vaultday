@@ -15,12 +15,14 @@ struct SettingsWindow: View {
 						.tabItem { Label("General", systemImage: "gearshape") }
 					DaySettings(rhythm: rhythm)
 						.tabItem { Label("Day", systemImage: "sun.max") }
-					WorkspaceSettings(workspaces: workspaces, onChange: { app.workspacesChanged() })
+					WorkspaceSettings(workspaces: workspaces, billing: { app.billingModel(for: $0) }, onChange: { app.workspacesChanged() })
 						.tabItem { Label("Workspaces", systemImage: "square.stack") }
 					if let accounts = app.setup?.accounts {
 						AccountSettings(workspaces: workspaces, accounts: accounts, scheduler: app.mailScheduler)
 							.tabItem { Label("Accounts", systemImage: "envelope") }
 					}
+					TogglSettingsTab(makePanels: { app.togglPanels() }, queue: app.togglQueue)
+						.tabItem { Label("Toggl and billing", systemImage: "clock.badge.checkmark") }
 					DeviceSettings(settings: settings)
 						.tabItem { Label("This Mac", systemImage: "desktopcomputer") }
 				}
@@ -121,6 +123,8 @@ private struct DaySettings: View {
 
 private struct WorkspaceSettings: View {
 	let workspaces: WorkspacesModel
+	/// The billing fields of a workspace's sheet, while Toggl and billing is on for it.
+	let billing: (WorkspaceEntry) -> BillingSettingsModel?
 	let onChange: () -> Void
 	@State private var configuring: ConfigureTarget?
 
@@ -138,7 +142,7 @@ private struct WorkspaceSettings: View {
 					ForEach(inSphere) { entry in
 						SetupCard(title: entry.name, description: entry.rootPath.abbreviatedPath) {
 							Button {
-								configuring = ConfigureTarget(model: WorkspaceConfigureModel(root: entry.rootPath))
+								configuring = ConfigureTarget(model: WorkspaceConfigureModel(root: entry.rootPath), billing: billing(entry))
 							} label: {
 								SetupLabel(title: "Configure", icon: "gearshape")
 							}
@@ -154,7 +158,7 @@ private struct WorkspaceSettings: View {
 		}
 		.onAppear { workspaces.reload() }
 		.sheet(item: $configuring) { target in
-			ConfigureSheet(model: target.model, onDone: {
+			ConfigureSheet(model: target.model, billing: target.billing, onDone: {
 				workspaces.reload()
 				onChange()
 			})

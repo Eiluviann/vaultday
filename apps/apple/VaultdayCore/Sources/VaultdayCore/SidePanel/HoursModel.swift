@@ -32,8 +32,8 @@ public struct HoursRow: Identifiable, Hashable, Sendable {
 }
 
 /// The Hours tab: today's tracked time against the daily target from the
-/// workspace's `hours_per_day`, and tracked, estimate and remaining per open
-/// story. The maths is the core's.
+/// workspace's `hours_per_day`, tracked, estimate and remaining per open
+/// story, and the Toggl week's slot. The maths is the core's.
 @MainActor
 @Observable
 public final class HoursModel {
@@ -41,6 +41,8 @@ public final class HoursModel {
 	public private(set) var trackedMinutes = 0
 	public private(set) var rows: [HoursRow] = []
 	public private(set) var errorMessage: String?
+	/// The "Toggl · this week" slot: the week holding the loaded day.
+	public let togglWeek = TogglWeekModel()
 
 	public init() {}
 
@@ -70,6 +72,7 @@ public final class HoursModel {
 		} catch {
 			errorMessage = coreErrorMessage(error)
 		}
+		togglWeek.load(source: workspace.togglWeekSource, containing: DayText.date(from: date) ?? Date(), story: nil)
 	}
 
 	public func clear() {
@@ -77,6 +80,7 @@ public final class HoursModel {
 		trackedMinutes = 0
 		rows = []
 		errorMessage = nil
+		togglWeek.clear()
 	}
 }
 

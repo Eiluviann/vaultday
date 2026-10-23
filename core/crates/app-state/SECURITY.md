@@ -108,6 +108,13 @@ Protected:
   signs in on its own. Access tokens stay in memory; a rotated refresh token
   replaces the stored one. Removing an account deletes its items; cancelling
   an unsaved one deletes what its connection test stored.
+- **The Toggl token is a device-only item** (`TogglApiToken`) named by the
+  workspace id, read from the store for each request and never kept by the
+  client, printed or logged. Billing rates and currencies sit in the signed
+  app document only; `settings.json` refuses `rates` and `tokens` at any
+  depth. The live Toggl client is refused unless the feature is on for the
+  workspace, a token is stored and the app-level `allow_live` switch is on;
+  `allow_live` is off by default and no build so far offers a way to set it.
 - **Account records hold no secret.** The app document (signed) keeps the
   provider, host, port, address, sign-in method, workspace and folders, so a
   synced or edited file cannot add an account or point one at another server.

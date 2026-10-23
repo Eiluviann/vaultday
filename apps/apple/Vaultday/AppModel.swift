@@ -70,6 +70,10 @@ final class AppModel {
 	/// The side panel's Calendar tab and the Today column's three-day and week grids.
 	let calendarPanel = CalendarPanelModel()
 	let hours = HoursModel()
+	/// The Toggl queue of the open workspace and its drain schedule.
+	let togglQueue = TogglQueueModel()
+	/// The app-level document, for the models Settings builds per workspace.
+	@ObservationIgnored private(set) var coreSession: CoreSession?
 	let remindersIntake = RemindersIntakeModel(store: EKReminderStoreAccess())
 	let browse = BrowseModel()
 	let preview = PreviewModel()
@@ -172,6 +176,7 @@ final class AppModel {
 			unsignedNotice = environment.unsignedFallbackNotice
 			self.environment = environment
 			let session = try CoreSession.open(environment)
+			coreSession = session
 			let workspace = WorkspaceModel(session: session)
 			let settings = SettingsModel(session: session)
 			self.workspace = workspace
@@ -1258,6 +1263,7 @@ final class AppModel {
 		syncSidePanelItemCount()
 		refreshSidePanel()
 		restartMailFetch()
+		restartTogglQueue()
 		Task { await runIntake() }
 		if isShowingAll {
 			reloadAllWorkspaces()

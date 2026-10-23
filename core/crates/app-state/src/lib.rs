@@ -39,12 +39,12 @@ pub mod volatile;
 pub mod workspace_state;
 
 pub use app_doc::{
-    AI_TIER_EVERYWHERE, AccountPart, AgentChanges, AiScopeChoice, AiTier, AppState, BreakPattern,
-    Connection, ConnectionId, ConnectionKind, DataRetention, EnablementScope, FeatureScopeChoice,
-    FeatureScopeMode, FolderGrant, KeyboardScheme, ListPosition, ONBOARDING_STEP_COUNT,
-    OnboardingProgress, OtherAppsAccess, OverrunWarning, ProviderKeyRecord, ProviderKeyScope,
-    ProviderKind, SecurityMode, ShortcutCaps, Source, SyncChoice, SyncHome, SyncService,
-    WorkingHours, WorkingHoursKind, WorkspaceSecurity,
+    AI_TIER_EVERYWHERE, AccountPart, AgentChanges, AiScopeChoice, AiTier, AppState, BillingRate,
+    BreakPattern, Connection, ConnectionId, ConnectionKind, DataRetention, EnablementScope,
+    FeatureScopeChoice, FeatureScopeMode, FeatureValueScope, FolderGrant, KeyboardScheme,
+    ListPosition, ONBOARDING_STEP_COUNT, OnboardingProgress, OtherAppsAccess, OverrunWarning,
+    ProviderKeyRecord, ProviderKeyScope, ProviderKind, SecurityMode, ShortcutCaps, Source,
+    SyncChoice, SyncHome, SyncService, WorkingHours, WorkingHoursKind, WorkspaceSecurity,
 };
 pub use app_doc::{DEFAULT_MAIL_FETCH_INTERVAL, MailAccount, MailAuth, MailProvider};
 pub use device::DeviceId;

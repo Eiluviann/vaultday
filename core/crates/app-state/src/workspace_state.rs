@@ -27,6 +27,7 @@ use crate::doc::{
 use crate::error::AppStateError;
 use crate::ids::{self, IdBlock, IdKind, IdMaps};
 
+mod features;
 mod mail;
 
 pub use mail::MAX_RAW_TEXT_BYTES;
@@ -37,6 +38,9 @@ const SCHEMA_ACTOR: &str = "vaultday:schema:workspace:1";
 /// The second schema change: the mail signal store (PR 12). A separate
 /// change keeps the first one's hash, so documents started before it merge.
 const MAIL_SCHEMA_ACTOR: &str = "vaultday:schema:workspace:mail:1";
+/// The third schema change: records feature sets keep per workspace (the
+/// Toggl queue, PR 16 of Phase 2), in a change of their own like the mail one.
+const FEATURES_SCHEMA_ACTOR: &str = "vaultday:schema:workspace:features:1";
 
 const DAY_ORDER: &str = "day_order";
 const TIME_BOXES: &str = "time_boxes";
@@ -53,6 +57,7 @@ const SIGNAL_STATES: &str = "signal_states";
 const SIGNAL_TEXTS: &str = "signal_texts";
 const MAIL_CURSORS: &str = "mail_cursors";
 const MAIL_MAPS: [&str; 4] = [SIGNALS, SIGNAL_STATES, SIGNAL_TEXTS, MAIL_CURSORS];
+const FEATURE_RECORDS: &str = "feature_records";
 const MAPS: [&str; 9] = [
     DAY_ORDER,
     TIME_BOXES,
@@ -121,14 +126,16 @@ struct Objects {
     signal_states: ObjId,
     signal_texts: ObjId,
     mail_cursors: ObjId,
+    feature_records: ObjId,
 }
 
 impl WorkspaceState {
     /// A document holding only the schema change, writing as `device`.
     pub(crate) fn new(device: DeviceId) -> Result<WorkspaceState, AppStateError> {
         let doc = schema_document(SCHEMA_ACTOR, &MAPS, &[ROLLOVERS])?;
-        let doc =
-            extend_schema(doc, MAIL_SCHEMA_ACTOR, &MAIL_MAPS)?.with_actor(device.run_actor()?);
+        let doc = extend_schema(doc, MAIL_SCHEMA_ACTOR, &MAIL_MAPS)?;
+        let doc = extend_schema(doc, FEATURES_SCHEMA_ACTOR, &[FEATURE_RECORDS])?
+            .with_actor(device.run_actor()?);
         let objects = Objects {
             day_order: root_object(&doc, DAY_ORDER)?,
             time_boxes: root_object(&doc, TIME_BOXES)?,
@@ -144,6 +151,7 @@ impl WorkspaceState {
             signal_states: root_object(&doc, SIGNAL_STATES)?,
             signal_texts: root_object(&doc, SIGNAL_TEXTS)?,
             mail_cursors: root_object(&doc, MAIL_CURSORS)?,
+            feature_records: root_object(&doc, FEATURE_RECORDS)?,
         };
         let run_seed = doc.get_actor().to_bytes().to_vec();
         Ok(WorkspaceState {

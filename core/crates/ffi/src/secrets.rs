@@ -33,6 +33,8 @@ pub enum SecretKind {
     MailPassword,
     /// A mail account's OAuth refresh token, named by its connection id; this device only.
     MailRefreshToken,
+    /// A Toggl Track API token, named by its workspace id; this device only.
+    TogglApiToken,
 }
 
 /// Names one item.
@@ -196,6 +198,7 @@ impl From<SecretKind> for CoreSecretKind {
             SecretKind::LocalApiToken => CoreSecretKind::LocalApiToken,
             SecretKind::MailPassword => CoreSecretKind::MailPassword,
             SecretKind::MailRefreshToken => CoreSecretKind::MailRefreshToken,
+            SecretKind::TogglApiToken => CoreSecretKind::TogglApiToken,
         }
     }
 }
@@ -211,6 +214,7 @@ impl From<CoreSecretKind> for SecretKind {
             CoreSecretKind::LocalApiToken => SecretKind::LocalApiToken,
             CoreSecretKind::MailPassword => SecretKind::MailPassword,
             CoreSecretKind::MailRefreshToken => SecretKind::MailRefreshToken,
+            CoreSecretKind::TogglApiToken => SecretKind::TogglApiToken,
         }
     }
 }

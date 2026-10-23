@@ -42,6 +42,8 @@ pub enum Slot {
     CliCommand,
     /// A tab on the side panel's rail.
     RailTab,
+    /// A step of the week's close-out (a flat Toggl week, time cards).
+    CloseOutStep,
 }
 
 /// What a feature set declares about itself.
@@ -438,6 +440,7 @@ mod tests {
             Slot::SettingsPanel,
             Slot::CliCommand,
             Slot::RailTab,
+            Slot::CloseOutStep,
         ] {
             assert!(
                 registry

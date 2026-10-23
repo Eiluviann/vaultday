@@ -59,7 +59,7 @@ public final class WorkspaceModel {
 	/// The footer dot's view of the open workspace; `nil` while none is open.
 	public private(set) var health: VaultHealth?
 
-	private let session: CoreSession
+	let session: CoreSession
 	private(set) var vault: WorkspaceHandle?
 	private(set) var state: WorkspaceStateHandle?
 	private var connectionId: String?

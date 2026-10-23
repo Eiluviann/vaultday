@@ -70,6 +70,17 @@
       ],
       "description": "Template note for new stories, relative to the workspace root."
     },
+    "billing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BillingSettings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "How the workspace bills its time; `None` until a model is picked."
+    },
     "features": {
       "type": "object",
       "additionalProperties": true,
@@ -101,6 +112,67 @@
         }
       ],
       "description": "Whether a workspace holds client work or the user's own life."
+    },
+    "BillingSettings": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/BillingModel",
+          "description": "The billing model."
+        },
+        "rounding_minutes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 1,
+          "description": "Hourly only: the increment billable time rounds up to, 1 to 60 minutes; 15 when absent.",
+          "maximum": 60
+        },
+        "billable_default": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Hourly only: whether a task is billable until marked otherwise; true when absent."
+        },
+        "flat_hours": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double",
+          "description": "FTE only: hours of the flat Toggl entry per working day, above 0 and\nat most 24; 8 when absent. Logged time uses `hours_per_day`.",
+          "exclusiveMinimum": 0.0,
+          "maximum": 24.0
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "additionalProperties": true,
+      "description": "The `billing` block of `settings.json`. Each model reads only its own\nkeys; a key of another model is refused so a switch never leaves a stale\nvalue behind. Unknown keys are kept."
+    },
+    "BillingModel": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "hourly",
+          "description": "Sessions are billable time, rounded up to the workspace increment."
+        },
+        {
+          "type": "string",
+          "const": "fixed",
+          "description": "Each task's estimate is its quote and cap; an overrun is unpaid."
+        },
+        {
+          "type": "string",
+          "const": "fte",
+          "description": "Full-time equivalent: tracked time stays private; a flat day goes out."
+        }
+      ],
+      "description": "How a workspace bills its time. Rates and currencies are not here: they\nlive in the signed app-level document only."
     }
   },
   "propertyNames": {

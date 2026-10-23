@@ -20,10 +20,12 @@ use crate::doc::{
 };
 use crate::error::AppStateError;
 
+mod billing;
 mod mail;
 mod onboarding;
 mod preferences;
 
+pub use billing::{BillingRate, FeatureValueScope};
 pub use mail::{DEFAULT_MAIL_FETCH_INTERVAL, MailAccount, MailAuth, MailProvider};
 
 pub use onboarding::{

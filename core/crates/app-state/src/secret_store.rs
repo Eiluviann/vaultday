@@ -36,6 +36,9 @@ pub enum SecretKind {
     /// device-code flow, or IMAP with XOAUTH2), named by the account's
     /// connection id. It stays on this device, like the password.
     MailRefreshToken,
+    /// A Toggl Track API token, named by the Vaultday workspace id it bills
+    /// for. It stays on this device and is read only at call time.
+    TogglApiToken,
 }
 
 /// Whether an item travels to the user's other devices.
@@ -139,7 +142,8 @@ impl SecretKind {
             | SecretKind::ProviderApiKey
             | SecretKind::LocalApiToken
             | SecretKind::MailPassword
-            | SecretKind::MailRefreshToken => Availability::DeviceOnly,
+            | SecretKind::MailRefreshToken
+            | SecretKind::TogglApiToken => Availability::DeviceOnly,
         }
     }
 
@@ -155,6 +159,7 @@ impl SecretKind {
             SecretKind::LocalApiToken => "local-api-token",
             SecretKind::MailPassword => "mail-password",
             SecretKind::MailRefreshToken => "mail-refresh-token",
+            SecretKind::TogglApiToken => "toggl-api-token",
         }
     }
 }

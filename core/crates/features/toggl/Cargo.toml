@@ -1,0 +1,29 @@
+[package]
+name = "vaultday-feature-toggl"
+description = "The Toggl and billing feature set: billing models, the Toggl Track client, the entry queue and the FTE flat week."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+app-state = { package = "vaultday-app-state", path = "../../app-state" }
+base64 = "0.22"
+domain = { package = "vaultday-domain", path = "../../domain" }
+# Same features as `domain`: civil dates and timestamps, no zone database; the
+# caller turns a day into its start instant.
+jiff = { version = "0.2", default-features = false, features = ["std"] }
+# `ring` rather than the default `aws-lc-rs`, as in `mail`.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+schemars = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+vaultday-vault-base = { path = "../../vault-base" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

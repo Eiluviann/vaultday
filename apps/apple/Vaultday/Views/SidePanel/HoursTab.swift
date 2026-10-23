@@ -1,9 +1,9 @@
 import SwiftUI
 import VaultdayCore
 
-/// The side panel's Hours tab in its v1 form: today's tracked time against
-/// the daily target, then tracked, estimate and remaining per open story.
-/// Tracked time is private and carries the hand glyph wherever it shows.
+/// The side panel's Hours tab: today's tracked time against the daily
+/// target, tracked, estimate and remaining per open story, then the Toggl
+/// week. Tracked time is private and carries the hand glyph wherever it shows.
 struct HoursTab: View {
 	let hours: HoursModel
 
@@ -28,6 +28,8 @@ struct HoursTab: View {
 						StoryHoursCard(row: row)
 					}
 				}
+				TogglWeekCard(week: hours.togglWeek)
+					.padding(.top, Tokens.Spacing.space8)
 			}
 		}
 		.scrollIndicators(.automatic)

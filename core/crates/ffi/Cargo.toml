@@ -23,6 +23,7 @@ app-state = { package = "vaultday-app-state", path = "../app-state" }
 domain = { package = "vaultday-domain", path = "../domain" }
 mail = { package = "vaultday-mail", path = "../mail" }
 vaultday-vault-base = { path = "../vault-base" }
+vaultday-feature-toggl = { path = "../features/toggl" }
 serde_json = "1"
 
 [dev-dependencies]
