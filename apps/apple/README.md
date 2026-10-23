@@ -3,7 +3,7 @@
 The SwiftUI app (`Vaultday/`), its tests (`VaultdayTests/`) and the `VaultdayCore` Swift package over the Rust core's XCFramework. The Xcode project is generated: `project.yml` is the source, `Vaultday.xcodeproj` is gitignored.
 
 ```bash
-scripts/build-xcframework.sh   # from the repo root: the XCFramework and the generated Swift
+scripts/build-xcframework.sh   # from the repo root: the XCFramework (arm64 debug; --release to ship) and the generated Swift
 cd apps/apple && xcodegen generate
 xcodebuild -project Vaultday.xcodeproj -scheme Vaultday -configuration Debug -derivedDataPath build build test
 ```

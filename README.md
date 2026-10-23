@@ -12,6 +12,15 @@ One app for the working day: tasks, time boxes, timer, rituals and the day log o
 
 ## Commands
 
+Building and gating locally (`scripts/gates.sh --changed` and `--full`, which caches to keep, why each worktree keeps its own Cargo target): [docs/building.md](docs/building.md). In short:
+
+```bash
+source scripts/env.sh && scripts/gates.sh --changed   # while iterating
+scripts/gates.sh --full                               # once before the PR
+```
+
+The gates one by one:
+
 ```bash
 pnpm install && pnpm typecheck && pnpm lint && pnpm test
 ```
@@ -20,7 +29,7 @@ pnpm install && pnpm typecheck && pnpm lint && pnpm test
 cd core && cargo fmt --all --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features
 ```
 
-The CLI's types and tests need the napi binding first: `pnpm --filter @vaultday/core-node build`. The Mac app needs the XCFramework and the generated Swift, then XcodeGen:
+The CLI's types and tests need the napi binding first: `pnpm --filter @vaultday/core-node build`. The Mac app needs the XCFramework and the generated Swift (locally an arm64 debug build; `--release` builds the optimised two-architecture one CI ships), then XcodeGen. The scheme's tests include the `VaultdayCore` package tests:
 
 ```bash
 scripts/build-xcframework.sh && (cd apps/apple && xcodegen generate && xcodebuild build test -project Vaultday.xcodeproj -scheme Vaultday -destination 'platform=macOS' -derivedDataPath build)

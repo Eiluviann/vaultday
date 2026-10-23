@@ -28,3 +28,15 @@ missing_docs = "warn"
 all = { level = "warn", priority = -1 }
 unwrap_used = "warn"
 expect_used = "warn"
+
+# Local builds and tests: line tables for the workspace crates, so panics and
+# backtraces still name file and line, and no debug info for dependencies.
+# Full debug info made every dev and test build several times larger and
+# slower to link, and the agents had turned it off with
+# CARGO_PROFILE_DEV_DEBUG=0 on every command. `test` inherits this profile;
+# release is unchanged. Attach a debugger with `CARGO_PROFILE_DEV_DEBUG=2`.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

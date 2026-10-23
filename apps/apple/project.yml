@@ -97,5 +97,9 @@ schemes:
       config: Debug
     test:
       config: Debug
+      # The VaultdayCore package tests run here too, so one `xcodebuild test`
+      # compiles the Swift once for the app, its tests and the package tests;
+      # `swift test` would compile the package a second time in its own .build.
       targets:
         - VaultdayTests
+        - package: VaultdayCore/VaultdayCoreTests

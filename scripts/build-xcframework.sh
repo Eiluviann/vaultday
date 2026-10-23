@@ -1,30 +1,64 @@
 #!/usr/bin/env bash
-# Builds the Vaultday core as `VaultdayCoreFFI.xcframework` for macOS (arm64 +
-# x86_64) and generates the Swift bindings into the `VaultdayCore` package.
+# Builds the Vaultday core as `VaultdayCoreFFI.xcframework` for macOS and
+# generates the Swift bindings into the `VaultdayCore` package.
+#
+# Two builds:
+#   release  arm64 + x86_64, optimised. The default on CI (`CI` set) and with
+#            `--release`: what ships and what the app runs day to day.
+#   debug    arm64 only, unoptimised. The local default: it compiles in a
+#            fraction of the time and is enough for `xcodebuild test`.
+#
+# A build is skipped when the core sources, the compiler, the build settings
+# from the environment and the build kind match the last one in this worktree
+# (`--force` builds anyway).
 #
 # Outputs (all gitignored):
 #   apps/apple/VaultdayCore/VaultdayCoreFFI.xcframework
 #   apps/apple/VaultdayCore/Sources/VaultdayCore/Generated/VaultdayCore.swift
+#   apps/apple/VaultdayCore/.xcframework-stamp
 #
 # The bindings generator is `crates/uniffi-bindgen`, built from the same
-# pinned `uniffi` version `crates/ffi` links against.
+# pinned `uniffi` version `crates/ffi` links against. Cargo builds into
+# `core/target` (`scripts/env.sh` explains why never a shared directory).
 #
-# Usage: scripts/build-xcframework.sh [--debug]
+# Usage: scripts/build-xcframework.sh [--release | --debug] [--force]
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/env.sh
+source "$repo_root/scripts/env.sh"
+
 core_dir="$repo_root/core"
 package_dir="$repo_root/apps/apple/VaultdayCore"
 generated_dir="$package_dir/Sources/VaultdayCore/Generated"
 xcframework="$package_dir/VaultdayCoreFFI.xcframework"
+stamp_file="$package_dir/.xcframework-stamp"
 module_name="VaultdayCoreFFI"
 library="libvaultday_ffi.a"
-targets=(aarch64-apple-darwin x86_64-apple-darwin)
+target_dir="${CARGO_TARGET_DIR:-$core_dir/target}"
 
-profile=release
-cargo_profile_flag=(--release)
-if [[ "${1:-}" == "--debug" ]]; then
-	profile=debug
+profile=debug
+if [[ -n "${CI:-}" ]]; then
+	profile=release
+fi
+force=false
+for argument in "$@"; do
+	case "$argument" in
+		--release) profile=release ;;
+		--debug) profile=debug ;;
+		--force) force=true ;;
+		*)
+			echo "usage: scripts/build-xcframework.sh [--release | --debug] [--force]" >&2
+			exit 64
+			;;
+	esac
+done
+
+if [[ "$profile" == release ]]; then
+	targets=(aarch64-apple-darwin x86_64-apple-darwin)
+	cargo_profile_flag=(--release)
+else
+	targets=(aarch64-apple-darwin)
 	cargo_profile_flag=()
 fi
 
@@ -32,36 +66,78 @@ fi
 # not the host SDK's, so the app links without version warnings.
 export MACOSX_DEPLOYMENT_TARGET=15.0
 
-build_dir="$core_dir/target/xcframework"
-rm -rf "$build_dir" "$xcframework" "$generated_dir"
+# Everything the XCFramework is built from, hashed by content: the build kind,
+# the compiler (a RUSTUP_TOOLCHAIN override included), the environment Cargo
+# and the core read at compile time (`option_env!("VAULTDAY_GRAPH_CLIENT_ID")`
+# in crates/ffi, RUSTFLAGS, profile overrides), tracked and untracked files
+# under core/ (minus the napi crate, which the FFI does not link), the
+# toolchain pin and this script.
+function source_fingerprint() {
+	{
+		echo "$profile ${targets[*]}"
+		(cd "$core_dir" && rustc -vV) || true
+		env | grep -E '^(VAULTDAY_|RUSTFLAGS=|CARGO_ENCODED_RUSTFLAGS=|RUSTC_WRAPPER=|RUSTUP_TOOLCHAIN=|CARGO_PROFILE_|CARGO_BUILD_)' | sort || true
+		# A tracked file deleted in the working tree has nothing to hash.
+		(cd "$repo_root" && git ls-files -z --cached --others --exclude-standard -- \
+			core rust-toolchain.toml scripts/build-xcframework.sh scripts/env.sh ':!core/crates/node' |
+			xargs -0 shasum -a 256 2>/dev/null) || true
+	} | shasum -a 256 | cut -d ' ' -f 1
+}
+
+fingerprint="$(source_fingerprint)"
+if [[ "$force" == false && -d "$xcframework" && -d "$generated_dir" && -f "$stamp_file" &&
+	"$(cat "$stamp_file")" == "$fingerprint" ]]; then
+	echo "XCFramework is up to date ($profile, ${targets[*]}); --force rebuilds it"
+	exit 0
+fi
+
+# Two builds in one worktree (the gates and a manual run, say) write the same
+# library: hold a lock from the build until the library is copied out.
+lock_dir="$target_dir/xcframework.lock"
+mkdir -p "$target_dir"
+until mkdir "$lock_dir" 2>/dev/null; do
+	lock_owner="$(cat "$lock_dir/pid" 2>/dev/null || true)"
+	if [[ -n "$lock_owner" ]] && ! kill -0 "$lock_owner" 2>/dev/null; then
+		rm -rf "$lock_dir"
+		continue
+	fi
+	echo "==> waiting for another XCFramework build in this worktree (pid ${lock_owner:-unknown})"
+	sleep 2
+done
+echo $$ >"$lock_dir/pid"
+
+build_dir="$(mktemp -d "${TMPDIR:-/tmp}/vaultday-xcframework.XXXXXX")"
+trap 'rm -rf "$lock_dir" "$build_dir"' EXIT
+rm -rf "$xcframework" "$generated_dir" "$stamp_file"
 mkdir -p "$build_dir/headers" "$generated_dir"
 
+slices=()
 for target in "${targets[@]}"; do
 	rustup target add "$target" >/dev/null 2>&1 || true
 	echo "==> cargo build -p vaultday-ffi --target $target ($profile)"
 	# `${a[@]+...}`: an empty array is "unbound" under `set -u` in macOS bash 3.2.
 	(cd "$core_dir" && cargo build -p vaultday-ffi --lib --target "$target" ${cargo_profile_flag[@]+"${cargo_profile_flag[@]}"})
+	cp "$target_dir/$target/$profile/$library" "$build_dir/$target-$library"
+	slices+=("$build_dir/$target-$library")
 done
 
-universal="$build_dir/$library"
-echo "==> lipo -create -> $universal"
-lipo -create \
-	"$core_dir/target/aarch64-apple-darwin/$profile/$library" \
-	"$core_dir/target/x86_64-apple-darwin/$profile/$library" \
-	-output "$universal"
+combined="$build_dir/$library"
+echo "==> lipo -create -> $combined"
+lipo -create "${slices[@]}" -output "$combined"
 
 echo "==> uniffi-bindgen-swift (from crates/uniffi-bindgen)"
 (cd "$core_dir" && cargo run --quiet -p vaultday-uniffi-bindgen --bin uniffi-bindgen-swift -- \
-	--swift-sources --module-name "$module_name" "$universal" "$generated_dir")
+	--swift-sources --module-name "$module_name" "$combined" "$generated_dir")
 (cd "$core_dir" && cargo run --quiet -p vaultday-uniffi-bindgen --bin uniffi-bindgen-swift -- \
 	--headers --modulemap --module-name "$module_name" --modulemap-filename module.modulemap \
-	"$universal" "$build_dir/headers")
+	"$combined" "$build_dir/headers")
 
 echo "==> xcodebuild -create-xcframework -> $xcframework"
 xcodebuild -create-xcframework \
-	-library "$universal" \
+	-library "$combined" \
 	-headers "$build_dir/headers" \
 	-output "$xcframework" >/dev/null
 
-echo "Built $xcframework"
+echo "$fingerprint" >"$stamp_file"
+echo "Built $xcframework ($profile, ${targets[*]})"
 echo "Generated $(ls "$generated_dir")"

@@ -138,6 +138,12 @@ jobs:
       # Signing disabled: the App Group and Keychain entitlements need a
       # development certificate, which CI does not have. The tests do not run
       # inside the app, so they need neither.
+      # The scheme's test action holds the app tests and the VaultdayCore
+      # package tests (models, Keychain store over the in-memory backend, file
+      # access, calendar source, keyboard), so this one step compiles and
+      # tests both; a separate `swift test` would compile the package again.
+      # Bounded: a test that blocks (for example a security-scoped bookmark
+      # waiting on the login keychain) fails the step, not the whole job.
       - run: >
           xcodebuild build test
           -project Vaultday.xcodeproj -scheme Vaultday
@@ -145,11 +151,8 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
           | tail -n 60
         shell: bash -o pipefail {0}
+        timeout-minutes: 20
         working-directory: apps/apple
-      # The package's own tests (models, Keychain store over the in-memory
-      # backend, file access, calendar source, keyboard) are not in the app scheme.
-      # Bounded: a test that blocks (for example a security-scoped bookmark
-      # waiting on the login keychain) fails the step, not the whole job.
-      - run: swift test
-        timeout-minutes: 10
-        working-directory: apps/apple/VaultdayCore
+      # A scheme that lost the package test target still passes the step above
+      # with the app tests alone.
+      - run: scripts/check-test-bundles.sh apps/apple/build
