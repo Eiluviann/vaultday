@@ -21,7 +21,12 @@ beforeAll(async () => {
 
 describe('task line rules', () => {
 	it('appends [id:: task-N] before the first inline field, normalises [k::v] and [X]', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const after = changeFor(plan, WIDGET_STORY).after;
 		expect(after).toContain(
 			'- [x] Alignment from business on the palette  [id:: task-',
@@ -39,13 +44,23 @@ describe('task line rules', () => {
 	});
 
 	it('never invents completion dates', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const after = changeFor(plan, WIDGET_STORY).after;
 		expect(after.match(/\[completion::/g)?.length).toBe(1);
 	});
 
 	it('turns - [1] hub lines into plain bullets', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const after = changeFor(plan, HUB).after;
 		expect(after).not.toContain('- [1]');
 		expect(after).toContain(
@@ -54,7 +69,12 @@ describe('task line rules', () => {
 	});
 
 	it('inserts ## Next Steps before ## Pending Input in stories, but not inside an AI unit', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const widget = changeFor(plan, WIDGET_STORY).after.split('\n');
 		expect(widget.indexOf('## Next Steps')).toBe(
 			widget.indexOf('## Pending Input') - 1,
@@ -72,7 +92,12 @@ describe('task line rules', () => {
 	});
 
 	it('leaves fenced code untouched', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const after = changeFor(plan, WIDGET_STORY).after;
 		expect(after).toContain(
 			'- [ ] a task inside a fence [assigned_to::GBS]\n[[Widget colour picker (new look)]]\n%% ai:begin claude-x · 2026-01-01 · 000000000000 %%',

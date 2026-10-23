@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { ALL_RULES, type RuleName } from './migration.ts';
 import { err, ok, type Result } from './result.ts';
@@ -26,8 +27,9 @@ export const USAGE = [
 	'vault-migrate lint-log --vault <path>            validate Log/*.md against the day-log grammar',
 	'',
 	'  --rules frontmatter,tasks,rename,queries,moves   rules to run (default: all)',
-	'  --profile <name>        config/<name>.json and config/<name>.moves.json (default: vault folder name, lowercased)',
-	'  --config-dir <dir>      where the profile files live (default: <package>/config)',
+	'  --profile <name>        <config-dir>/<name>.json and <name>.moves.json (default: vault folder name, lowercased)',
+	'  --config-dir <dir>      where the profile files live (default: $XDG_CONFIG_HOME/vault-tools/vault-migrate,',
+	'                          else ~/.config/vault-tools/vault-migrate)',
 	'  --birthtimes <tsv>      stat -f "%B%t%N" manifest of the live vault, source of `created`',
 	'  --state-dir <dir>       where apply manifests go (default: <package>/state)',
 	'  --id-state-dir <dir>    where task-id counters live (default: ~/.local/state/vaultday/ids)',
@@ -82,7 +84,8 @@ export function parseCliOptions(
 		rules: rulesResult.value,
 		profileName: values.get('profile'),
 		configDirectory:
-			values.get('config-dir') ?? path.join(packageRoot, 'config'),
+			values.get('config-dir') ??
+			defaultConfigDirectory(process.env.XDG_CONFIG_HOME),
 		stateDirectory: values.get('state-dir') ?? path.join(packageRoot, 'state'),
 		idStateDirectory: values.get('id-state-dir'),
 		birthtimesPath: values.get('birthtimes'),
@@ -125,4 +128,15 @@ export function guardVaultPath(options: CliOptions): Result<undefined> {
 		);
 	}
 	return ok(undefined);
+}
+
+/** `$XDG_CONFIG_HOME/vault-tools/vault-migrate` (absolute values only, per the XDG spec), else `~/.config/vault-tools/vault-migrate`. */
+export function defaultConfigDirectory(
+	xdgConfigHome: string | undefined,
+): string {
+	const configRoot =
+		xdgConfigHome !== undefined && path.isAbsolute(xdgConfigHome)
+			? xdgConfigHome
+			: path.join(homedir(), '.config');
+	return path.join(configRoot, 'vault-tools', 'vault-migrate');
 }

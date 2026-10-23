@@ -11,7 +11,7 @@ export const STORY_STATUSES = [
 	'done',
 	'cancelled',
 ] as const;
-export const Work_PROJECT_STATUSES = [
+export const WORK_PROJECT_STATUSES = [
 	'active',
 	'on-hold',
 	'done',

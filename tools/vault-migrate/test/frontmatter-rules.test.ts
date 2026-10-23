@@ -24,7 +24,12 @@ beforeAll(async () => {
 
 describe('story frontmatter rules', () => {
 	it('renames Number/Ticket/Status, adds type story, derives source_* and leaves source_id empty', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const frontmatter = frontmatterOf(changeFor(plan, WIDGET_STORY).after);
 		expect(frontmatter[0]).toBe('type: story');
 		expect(frontmatter).toContain('number: STRY0000001');
@@ -49,7 +54,12 @@ describe('story frontmatter rules', () => {
 	});
 
 	it('lowercases and hyphenates status values from the table', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		expect(frontmatterOf(changeFor(plan, WIDGET_STORY).after)).toContain(
 			'status: in-progress',
 		);
@@ -62,7 +72,12 @@ describe('story frontmatter rules', () => {
 	});
 
 	it('adds empty priority/due/estimate, created from the birthtime manifest and note_system 0.1', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const frontmatter = frontmatterOf(changeFor(plan, WIDGET_STORY).after);
 		expect(frontmatter).toContain('priority:');
 		expect(frontmatter).toContain('due:');
@@ -73,7 +88,12 @@ describe('story frontmatter rules', () => {
 	});
 
 	it('aliases carry the number and the old title when the story is renamed; unnumbered stories get none', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		expect(frontmatterOf(changeFor(plan, WIDGET_STORY).after)).toContain(
 			'aliases: [STRY0000001, "Widget colour picker (new look)"]',
 		);
@@ -85,7 +105,12 @@ describe('story frontmatter rules', () => {
 	});
 
 	it('story templates get the key renames and catalogue keys but no created or aliases', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const frontmatter = frontmatterOf(
 			changeFor(plan, '_templates/story-template.md').after,
 		);
@@ -136,7 +161,12 @@ describe('note_system version', () => {
 
 describe('hub and other-note rules', () => {
 	it('Work hubs get type project, key, status active and toggl_project', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const frontmatter = frontmatterOf(changeFor(plan, HUB).after);
 		expect(frontmatter.slice(0, 4)).toEqual([
 			'type: project',
@@ -149,7 +179,12 @@ describe('hub and other-note rules', () => {
 	});
 
 	it('applies the type-guess table (type, kind, status, story) and reports notes without a rule', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const frontmatter = frontmatterOf(
 			changeFor(
 				plan,

@@ -35,7 +35,12 @@ function markerLines(text: string): string[] {
 
 describe('provenance markers', () => {
 	it('marker lines stay byte-identical except for refreshed hashes; the verified token survives', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		for (const change of plan.changes) {
 			const before = markerLines(change.before);
 			const after = markerLines(change.after);
@@ -60,7 +65,12 @@ describe('provenance markers', () => {
 	});
 
 	it('refreshed hashes equal the hook core hash of the new unit body', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		for (const change of plan.changes) {
 			const lines = change.after.split('\n');
 			for (const unit of scanUnits(lines)) {
@@ -74,7 +84,12 @@ describe('provenance markers', () => {
 	});
 
 	it('id insertion, field spacing and link retargeting inside units refresh the fingerprint', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const kinds = Object.fromEntries(
 			plan.changes.flatMap((change) =>
 				change.refreshes.map((refresh) => [
@@ -103,7 +118,12 @@ describe('provenance markers', () => {
 	});
 
 	it('a blockquoted block keeps its prefix and is hashed without it', () => {
-		const { plan } = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const { plan } = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const after = changeFor(plan, 'Test users.md').after;
 		expect(after).toMatch(
 			/^> %% ai:begin claude-test-1 · 2026-10-01 · [0-9a-f]{12} %%$/m,

@@ -117,7 +117,12 @@ describe('apply, idempotence, links and tick', () => {
 		).toBe(2);
 		expect(readVaultFile(workspace.personal, 'Home.md')).toContain('`Daily/`');
 
-		const secondWork = planFixture(workspace.work, 'mini-work', workspace, hasher);
+		const secondWork = planFixture(
+			workspace.work,
+			'mini-work',
+			workspace,
+			hasher,
+		);
 		const secondPersonal = planFixture(
 			workspace.personal,
 			'mini-personal',
