@@ -600,7 +600,7 @@ mod tests {
         .unwrap();
         assert_eq!(report.subject_kind, "client");
         assert_eq!(report.stories.len(), 2);
-        assert_eq!(report.log.len(), 8);
+        assert_eq!(report.log.len(), 10);
         let reversed = super::report(
             &workspace,
             "Website".to_owned(),

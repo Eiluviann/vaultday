@@ -107,6 +107,7 @@ public final class ScreenShareModel {
 	public static let hiddenWorkspaceNotice = "That workspace is hidden while screen-share mode is on"
 	public static let startReason = "Screen-share mode starts from a work workspace"
 	public static let closeOutNotice = "The close-out shows tracked time: turn off screen-share mode to open it"
+	public static let noWorkWorkspaceNotice = "No work workspace is left to show: screen-share mode stays on until you turn it off"
 
 	public private(set) var isOn = false
 	/// Why the last switch or selection was refused; shown until dismissed.
@@ -137,8 +138,8 @@ public final class ScreenShareModel {
 		return nil
 	}
 
-	/// Whether `sphere`'s workspaces may be listed now: Settings and the
-	/// Accounts panel leave the life ones out while the mode is on.
+	/// Whether `sphere`'s workspaces may be listed now: Settings and setup's
+	/// Workspaces and Accounts steps leave the life ones out while the mode is on.
 	public func showsSphere(_ sphere: WorkspaceSphere) -> Bool {
 		!isOn || sphere == .work
 	}
@@ -154,6 +155,22 @@ public final class ScreenShareModel {
 	/// Whether `surface` shows its private part now.
 	public func hides(_ surface: ScreenShareSurface) -> Bool {
 		isOn
+	}
+
+	/// Whether a mail fetch's quiet notification is posted: never while the
+	/// mode is on. The Inbox and the sidebar badge count the new signals either way.
+	public var postsSignalNotifications: Bool {
+		!isOn
+	}
+
+	/// The header toggle's tooltip, with the toggle's key when it has one.
+	public static func toggleTooltip(isOn: Bool, keyLabel: String?) -> String {
+		if isOn {
+			let offHint = keyLabel.map { "; \($0) turns it off" } ?? ""
+			return "Screen-share mode is on: private workspaces are hidden and tracked time shows as private\(offHint)"
+		}
+		let keyHint = keyLabel.map { " (\($0))" } ?? ""
+		return "Screen-share mode: hide other workspaces and silence their notifications\(keyHint)"
 	}
 
 	// MARK: Workspaces
@@ -224,23 +241,23 @@ public final class ScreenShareModel {
 	}
 
 	/// At launch with the mode restored: a hidden selection (the app opened on
-	/// a life workspace) moves to the last work workspace.
+	/// a life workspace) moves to the last work workspace. With no work
+	/// workspace left to move to, nothing moves and the mode stays on with
+	/// ``noWorkWorkspaceNotice``: the person may be sharing their screen, so
+	/// the mode never turns itself off and reveals tracked time.
 	public func enforce(current: WorkspaceSelection?, entries: [WorkspaceEntry]) -> ScreenShareChange {
-		guard isOn else { return .none }
-		let change = leaveHiddenSelection(current: current, entries: entries)
-		if change != .none { persist(true, returnTo) }
-		return change
+		guard isOn, let current, isHidden(current, in: entries) else { return .none }
+		guard let target = workWorkspaceToShow(in: entries) else {
+			notice = Self.noWorkWorkspaceNotice
+			return .none
+		}
+		// An earlier move away from the same hidden selection keeps its way back.
+		returnTo = returnTo ?? current
+		persist(true, returnTo)
+		return .select(.workspace(target.id))
 	}
 
 	// MARK: Helpers
-
-	private func leaveHiddenSelection(current: WorkspaceSelection?, entries: [WorkspaceEntry]) -> ScreenShareChange {
-		guard let current, isHidden(current, in: entries) else { return .none }
-		guard let target = workWorkspaceToShow(in: entries) else { return .none }
-		// An earlier move away from the same hidden selection keeps its way back.
-		returnTo = returnTo ?? current
-		return .select(.workspace(target.id))
-	}
 
 	private func isHidden(_ selection: WorkspaceSelection, in entries: [WorkspaceEntry]) -> Bool {
 		switch selection {

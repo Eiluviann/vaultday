@@ -41,7 +41,8 @@ extension AppModel {
 	}
 
 	/// The mode is on and the open workspace is one it hides (a relaunch, a
-	/// workspace added or removed in Settings): show the last work workspace.
+	/// workspace added or removed in Settings): show the last work workspace,
+	/// or, when no work workspace is left, stay put with the mode on and a notice.
 	func leaveHiddenWorkspaceForScreenShare() {
 		guard screenShare.isOn else { return }
 		apply(screenShare.enforce(current: currentWorkspaceSelection, entries: workspaceEntries))

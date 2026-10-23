@@ -7,10 +7,12 @@ import VaultdayCore
 struct AccountsStep: View {
 	let workspaces: WorkspacesModel
 	let accounts: AccountsStepModel
+	/// Screen-share mode leaves the life workspaces out of the list.
+	var showsSphere: (WorkspaceSphere) -> Bool = { _ in true }
 
 	var body: some View {
 		StepPane(title: "Your accounts", lede: "Add the accounts you use for mail, calendars and reminders to a workspace, then pick what Vaultday brings in from each") {
-			AccountsPanel(workspaces: workspaces, accounts: accounts)
+			AccountsPanel(workspaces: workspaces, accounts: accounts, showsSphere: showsSphere)
 		}
 	}
 }
@@ -20,7 +22,7 @@ struct AccountsStep: View {
 struct AccountsPanel: View {
 	let workspaces: WorkspacesModel
 	let accounts: AccountsStepModel
-	/// Screen-share mode leaves the life workspaces out of Settings' list.
+	/// Screen-share mode leaves the life workspaces out of the list, in setup and in Settings.
 	var showsSphere: (WorkspaceSphere) -> Bool = { _ in true }
 
 	private let parts: [(AccountPartChoice, String, String)] = [
@@ -57,6 +59,7 @@ struct AccountsPanel: View {
 			if !isShown { accounts.cancelAdding() }
 		})) {
 			AddMailAccountSheet(accounts: accounts)
+				.mainWindowChildSheet()
 		}
 	}
 

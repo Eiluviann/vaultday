@@ -94,7 +94,7 @@ final class ReportsModelTests: XCTestCase {
 		XCTAssertEqual(bundle.range, model.range)
 		XCTAssertEqual(bundle.logLineCount, 0, "the mock vault's lines are in the week after")
 		model.select(preset: .thisWeek)
-		XCTAssertEqual(try XCTUnwrap(model.bundle).logLineCount, 6)
+		XCTAssertEqual(try XCTUnwrap(model.bundle).logLineCount, 8)
 	}
 
 	func testACustomRangeThatEndsBeforeItStartsIsSaidNotSent() throws {
@@ -125,7 +125,7 @@ final class ReportsModelTests: XCTestCase {
 		XCTAssertEqual(bundle.logGroups.map(\.title), ["Status", "Decision", "Session", "Blocker", "Done"])
 		XCTAssertEqual(ReportBundle.authorshipText, "Authorship: computed by the CLI")
 		XCTAssertNil(bundle.billing)
-		XCTAssertEqual(bundle.hours, .logged(minutes: 0, byStory: []))
+		XCTAssertEqual(bundle.hours, .logged(minutes: 135, byStory: [ReportStoryMinutes(story: "WEB-142", minutes: 135)]), "the mock vault's measured sessions")
 	}
 
 	func testAClientReportCoversItsStoriesAndTheWorkspaceListsItsClients() throws {
@@ -148,8 +148,9 @@ final class ReportsModelTests: XCTestCase {
 		model.show(subject: "WEB-142")
 		model.setCustomRange(from: day("2026-10-21"), to: day("2026-10-22"))
 		guard case let .logged(minutes, byStory)? = model.bundle?.hours else { return XCTFail("\(String(describing: model.bundle?.hours))") }
-		XCTAssertEqual(minutes, 105)
-		XCTAssertEqual(byStory, [ReportStoryMinutes(story: "WEB-142", minutes: 105)])
+		// 105 logged here and the mock vault's measured 135.
+		XCTAssertEqual(minutes, 240)
+		XCTAssertEqual(byStory, [ReportStoryMinutes(story: "WEB-142", minutes: 240)])
 	}
 
 	func testHourlyShowsBillableHoursByStoryAndNonBillableApart() throws {
@@ -164,8 +165,8 @@ final class ReportsModelTests: XCTestCase {
 			return XCTFail("\(String(describing: model.bundle?.hours))")
 		}
 		XCTAssertEqual(rounding, 15)
-		XCTAssertEqual(billableMinutes, 30, "25 minutes round up to the 15 minute increment")
-		XCTAssertEqual(billable, [ReportStoryMinutes(story: "WEB-142", minutes: 30)])
+		XCTAssertEqual(billableMinutes, 165, "25 minutes round up to 30; the mock vault's 90 and 45 are whole increments")
+		XCTAssertEqual(billable, [ReportStoryMinutes(story: "WEB-142", minutes: 165)])
 		XCTAssertEqual(nonBillableMinutes, 80)
 		XCTAssertEqual(nonBillable, [ReportStoryMinutes(story: "WEB-142", minutes: 80)])
 		XCTAssertEqual(model.bundle?.billing, .hourly)
@@ -177,11 +178,12 @@ final class ReportsModelTests: XCTestCase {
 		model.show(subject: "WEB-142")
 		model.setCustomRange(from: day("2026-10-21"), to: day("2026-10-22"))
 		guard case let .fixed(quoted, delivered, overrun, tasks)? = model.bundle?.hours else { return XCTFail("\(String(describing: model.bundle?.hours))") }
-		XCTAssertEqual([quoted, delivered, overrun], [165, 105, 35])
+		// task-5 has no quote, so the mock vault's 45 minutes on it are overrun too.
+		XCTAssertEqual([quoted, delivered, overrun], [165, 240, 80])
 		let declined = try XCTUnwrap(tasks.first { $0.task == "task-4" })
 		XCTAssertEqual(declined.summary, "Quoted 45m · delivered 1h 20m · 35m unpaid")
 		let wiring = try XCTUnwrap(tasks.first { $0.task == "task-2" })
-		XCTAssertEqual(wiring.summary, "Quoted 2h · delivered 25m")
+		XCTAssertEqual(wiring.summary, "Quoted 2h · delivered 1h 55m")
 	}
 
 	func testFTEShowsLoggedHoursAndNeverTrackedTimeOrMoney() throws {
@@ -191,7 +193,7 @@ final class ReportsModelTests: XCTestCase {
 			model.setCustomRange(from: day("2026-10-01"), to: day("2026-10-31"))
 			let bundle = try XCTUnwrap(model.bundle, model.errorMessage ?? "no bundle")
 			guard case let .fte(minutes, _) = bundle.hours else { return XCTFail("\(bundle.hours)") }
-			XCTAssertEqual(minutes, 105)
+			XCTAssertEqual(minutes, 240)
 			XCTAssertFalse(bundle.hours.hasMoneySection)
 			for text in [bundle.json, bundle.markdown] {
 				let lower = text.lowercased()

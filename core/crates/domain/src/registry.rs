@@ -57,7 +57,8 @@ pub struct FeatureManifest {
     pub requires: Vec<FeatureId>,
     /// Features this one adds to when they are on, and works without.
     pub enhances: Vec<FeatureId>,
-    /// Frontmatter keys this feature owns in story notes; no two features share one.
+    /// Keys this feature reads from story notes, as frontmatter or as a
+    /// task's inline field; no two features share one.
     pub owned_keys: Vec<String>,
     /// JSON Schema, as text, for the feature's entry under `features` in `settings.json`.
     pub settings_schema: String,

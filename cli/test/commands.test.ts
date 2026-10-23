@@ -255,9 +255,9 @@ describe('vaultday report', () => {
 			).out,
 		);
 		expect(client.authorship.logLines).toEqual({
-			total: 8,
+			total: 10,
 			byModel: 1,
-			byFact: 7,
+			byFact: 9,
 			models: { 'claude-fable-5-1': 1 },
 		});
 	});
@@ -271,6 +271,19 @@ describe('vaultday report', () => {
 		expect(run.code).toBe(0);
 		const bundle = JSON.parse(run.out);
 		expect(bundle.authorship).not.toBeNull();
+		// The order the README documents.
+		expect(Object.keys(bundle)).toEqual([
+			'subject',
+			'subjectKind',
+			'from',
+			'to',
+			'billing',
+			'stories',
+			'log',
+			'sessions',
+			'hours',
+			'authorship',
+		]);
 		// The golden is what the core's own test pins; the app shows the same bundle.
 		const golden = readFileSync(
 			path.join(path.dirname(MOCK_VAULT), 'golden', 'report-web-142.json'),
@@ -304,6 +317,8 @@ describe('vaultday report', () => {
 			'loggedMinutes',
 			'byStory',
 		]);
+		// The mock vault's measured sessions: 1h 30m and 45m.
+		expect(bundle.hours.loggedMinutes).toBe(135);
 		expect(run.out.toLowerCase()).not.toContain('tracked');
 	});
 

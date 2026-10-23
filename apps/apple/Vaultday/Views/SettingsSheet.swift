@@ -39,7 +39,7 @@ struct SettingsSheet: View {
 						AccountSettings(workspaces: workspaces, accounts: accounts, scheduler: app.mailScheduler, showsSphere: { app.screenShare.showsSphere($0) })
 							.tabItem { Label("Accounts", systemImage: "envelope") }
 					}
-					TogglSettingsTab(makePanels: { app.togglPanels() }, queue: app.togglQueue)
+					TogglSettingsTab(makePanels: { app.togglPanels() }, queue: app.togglQueue, isScreenShareOn: app.screenShare.isOn)
 						.tabItem { Label("Toggl and billing", systemImage: "clock.badge.checkmark") }
 					DeviceSettings(settings: settings)
 						.tabItem { Label("This Mac", systemImage: "desktopcomputer") }
@@ -189,6 +189,7 @@ private struct WorkspaceSettings: View {
 				workspaces.reload()
 				onChange()
 			})
+			.mainWindowChildSheet()
 		}
 	}
 }

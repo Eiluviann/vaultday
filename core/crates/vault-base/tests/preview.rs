@@ -120,8 +120,12 @@ fn a_task_preview_lists_its_subtasks_and_its_own_activity() {
         ]
     );
     assert_eq!(preview.subtasks[1].estimate.as_deref(), Some("45m"));
-    assert_eq!(preview.task_activity.len(), 1);
-    assert_eq!(preview.task_activity[0].text, "Session on the payment form");
+    assert_eq!(preview.task_activity.len(), 2);
+    assert_eq!(
+        preview.task_activity[0].text,
+        "session · Wire the payment form to the gateway sandbox · 1h 30m"
+    );
+    assert_eq!(preview.task_activity[1].text, "Session on the payment form");
     assert_eq!(
         preview
             .story
@@ -131,7 +135,7 @@ fn a_task_preview_lists_its_subtasks_and_its_own_activity() {
     );
 
     let with_activity = vault.task_preview("task-5", day("2026-10-22"), 5).unwrap();
-    assert_eq!(with_activity.task_activity.len(), 1);
+    assert_eq!(with_activity.task_activity.len(), 2);
     assert_eq!(
         with_activity.task_activity[0].kind.as_deref(),
         Some("session")

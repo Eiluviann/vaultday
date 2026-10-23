@@ -28,7 +28,7 @@ vaultday mcp
 
 - `today`: stories with open Next Steps and Pending Input tasks, the day's log lines and the waiting-on items with their age.
 - `log` appends `- HH:MM <kind> · <text> [story:: …] [kind:: …] [task:: …]` to `Log/YYYY-MM-DD.md` (creating the file with the convention's header).
-- `report` prints one JSON bundle: per story the frontmatter (each key an array of values), Next Steps and Pending Input state, the log lines in range, and an `authorship` summary computed with the vendored provenance core. A story number reports that story; a client (a project hub's key, title or folder name, or the workspace name) reports every story under it.
+- `report` prints one JSON bundle: per story the frontmatter (each key an array of values), Next Steps and Pending Input state, the log lines in range, and an `authorship` summary computed with the vendored provenance core. A story number reports that story; a client (a project hub's key, title or folder name, or the workspace name) reports every story under it. The keys come in the core's order, the same bundle the app hands out: `subject`, `subjectKind`, `from`, `to`, `billing` (the workspace's billing model, `null` until one is set), `stories`, `log`, `sessions` (the `kind:: session` lines: count, those without a duration, minutes logged, per story), `hours` (by billing model: logged, hourly billable and non-billable, fixed price against the quote, or FTE logged hours only) and `authorship`, the one key the CLI fills in.
 - `task add` writes `- [ ] text [id:: task-N] [created:: …]` under `## Next Steps` (default) or `## Pending Input`; `task done` ticks `[x]` and adds `[completion:: …]`, changing that one line.
 
 ### Model-written text

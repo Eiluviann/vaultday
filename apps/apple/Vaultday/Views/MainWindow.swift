@@ -9,6 +9,8 @@ struct MainWindow: View {
 	var body: some View {
 		Group {
 			switch app.mainWindow.root {
+			case .undecided:
+				Color.clear
 			case .setup:
 				SetupScreen(app: app)
 			case .home:
@@ -25,5 +27,6 @@ struct MainWindow: View {
 				SyncCheckSheet(app: app)
 			}
 		}
+		.environment(\.mainWindow, app.mainWindow)
 	}
 }

@@ -192,12 +192,13 @@ fn without_a_billing_model_hours_are_logged_time_only() {
     let ReportHours::Unbilled(logged) = &bundle.hours else {
         panic!("expected logged hours, got {:?}", bundle.hours);
     };
-    assert_eq!(logged.logged_minutes, 155);
+    // 155 logged here and the mock vault's measured 90 and 45.
+    assert_eq!(logged.logged_minutes, 290);
     assert_eq!(bundle.billing, None);
-    // The mock vault's two session lines carry no duration.
-    assert_eq!(bundle.sessions.count, 5);
+    // Two of the mock vault's four session lines carry no duration.
+    assert_eq!(bundle.sessions.count, 7);
     assert_eq!(bundle.sessions.unmeasured_count, 2);
-    assert_eq!(bundle.sessions.logged_minutes, 155);
+    assert_eq!(bundle.sessions.logged_minutes, 290);
 }
 
 #[test]
@@ -219,8 +220,9 @@ fn an_hourly_report_rounds_billable_sessions_up_and_keeps_non_billable_apart() {
     let ReportHours::Hourly(hourly) = &bundle.hours else {
         panic!("expected hourly hours, got {:?}", bundle.hours);
     };
-    // 25 -> 30 and 50 -> 60; 80 is not billable and stays as logged.
-    assert_eq!(hourly.billable_minutes, 90);
+    // 25 -> 30 and 50 -> 60, the mock vault's 90 stays and its 45 -> 60;
+    // 80 is not billable and stays as logged.
+    assert_eq!(hourly.billable_minutes, 240);
     assert_eq!(hourly.non_billable_minutes, 80);
     assert_eq!(
         hourly.billable_by_story[0].story.as_deref(),
@@ -230,7 +232,7 @@ fn an_hourly_report_rounds_billable_sessions_up_and_keeps_non_billable_apart() {
     let json = bundle.to_value();
     assert_eq!(json["hours"]["model"], "hourly");
     assert_eq!(json["billing"], "hourly");
-    assert!(bundle.to_markdown().contains("Billable: 1h 30m"));
+    assert!(bundle.to_markdown().contains("Billable: 4h"));
     assert!(bundle.to_markdown().contains("Non-billable: 1h 20m"));
 }
 
@@ -248,16 +250,19 @@ fn a_fixed_price_report_sets_the_quote_against_what_was_delivered() {
             .find(|task| task.task.as_deref() == Some(id))
             .unwrap()
     };
-    // task-2: quoted 2h, delivered 75m, inside the quote.
+    // task-2: quoted 2h, delivered 75m here and the mock vault's 90m, 45m over.
     assert_eq!(task("task-2").quoted_minutes, Some(120));
-    assert_eq!(task("task-2").delivered_minutes, 75);
-    assert_eq!(task("task-2").overrun_minutes, 0);
+    assert_eq!(task("task-2").delivered_minutes, 165);
+    assert_eq!(task("task-2").overrun_minutes, 45);
     // task-4: quoted 45m, delivered 80m, 35m unpaid.
     assert_eq!(task("task-4").quoted_minutes, Some(45));
     assert_eq!(task("task-4").overrun_minutes, 35);
     assert_eq!(fixed.quoted_minutes, 165);
-    assert_eq!(fixed.delivered_minutes, 155);
-    assert_eq!(fixed.overrun_minutes, 35);
+    // task-5 has no quote, so its measured 45m is overrun too.
+    assert_eq!(task("task-5").quoted_minutes, None);
+    assert_eq!(task("task-5").overrun_minutes, 45);
+    assert_eq!(fixed.delivered_minutes, 290);
+    assert_eq!(fixed.overrun_minutes, 125);
     assert!(
         bundle
             .to_markdown()
@@ -273,7 +278,7 @@ fn an_fte_report_carries_logged_hours_and_never_tracked_time_or_a_money_section(
         let ReportHours::Fte(logged) = &bundle.hours else {
             panic!("expected FTE hours, got {:?}", bundle.hours);
         };
-        assert_eq!(logged.logged_minutes, 155);
+        assert_eq!(logged.logged_minutes, 290);
         let json = bundle.to_json();
         let markdown = bundle.to_markdown();
         for text in [&json, &markdown] {
@@ -552,7 +557,7 @@ fn the_fte_safe_variant_of_any_billing_model_is_the_fte_report_of_the_same_sessi
         let ReportHours::Fte(logged) = &safe.hours else {
             panic!("{billing:?}: expected FTE hours, got {:?}", safe.hours);
         };
-        assert_eq!(logged.logged_minutes, 155, "{billing:?}");
+        assert_eq!(logged.logged_minutes, 290, "{billing:?}");
         assert_eq!(safe.to_json(), fte.to_json(), "{billing:?}");
         assert_eq!(safe.to_markdown(), fte.to_markdown(), "{billing:?}");
         let lower = safe.to_json().to_lowercase();

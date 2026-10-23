@@ -157,10 +157,28 @@
     {
       "relativePath": "Log/2026-10-21.md",
       "date": "2026-10-21",
+      "time": "11:40",
+      "kind": "session",
+      "text": "session · Wire the payment form to the gateway sandbox · 1h 30m",
+      "story": "WEB-142",
+      "task": "task-2"
+    },
+    {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
       "time": "12:30",
       "kind": "blocker",
       "text": "Gateway sandbox returns 502 on refunds",
       "story": "WEB-142"
+    },
+    {
+      "relativePath": "Log/2026-10-21.md",
+      "date": "2026-10-21",
+      "time": "15:10",
+      "kind": "session",
+      "text": "session · Write the end-to-end checkout test · 45m",
+      "story": "WEB-142",
+      "task": "task-5"
     },
     {
       "relativePath": "Log/2026-10-22.md",
@@ -182,15 +200,25 @@
     }
   ],
   "sessions": {
-    "count": 2,
+    "count": 4,
     "unmeasuredCount": 2,
-    "loggedMinutes": 0,
-    "byStory": []
+    "loggedMinutes": 135,
+    "byStory": [
+      {
+        "story": "WEB-142",
+        "minutes": 135
+      }
+    ]
   },
   "hours": {
     "model": null,
-    "loggedMinutes": 0,
-    "byStory": []
+    "loggedMinutes": 135,
+    "byStory": [
+      {
+        "story": "WEB-142",
+        "minutes": 135
+      }
+    ]
   },
   "authorship": null
 }

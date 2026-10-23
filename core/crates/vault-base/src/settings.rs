@@ -330,8 +330,9 @@ impl WorkspaceSettings {
     }
 
     /// The JSON Schema of this type, as emitted to `schema/settings.schema.json`.
-    /// Besides the derived shape it refuses the top-level forbidden keys
-    /// through `propertyNames`, so a schema-aware editor flags them too.
+    /// Besides the derived shape it refuses, through `propertyNames`, the
+    /// top-level forbidden keys and the money keys directly inside the
+    /// `billing` block, so a schema-aware editor flags them too.
     #[must_use]
     pub fn json_schema() -> Value {
         let mut schema = schemars::schema_for!(WorkspaceSettings).to_value();
@@ -341,6 +342,15 @@ impl WorkspaceSettings {
                 serde_json::json!({
                     "not": { "pattern": forbidden_key_pattern() },
                     "description": "The forbidden keys, compared without case.",
+                }),
+            );
+        }
+        if let Some(Value::Object(billing)) = schema.pointer_mut("/$defs/BillingSettings") {
+            billing.insert(
+                "propertyNames".to_owned(),
+                serde_json::json!({
+                    "not": { "pattern": billing_money_key_pattern() },
+                    "description": "Keys naming money (rate, currency, price, ...) as one of their words; rates and currencies live in the app-level document only. The reader refuses them at any depth, the schema only directly inside the block.",
                 }),
             );
         }
@@ -633,6 +643,57 @@ fn forbidden_key_pattern() -> String {
     format!("^({})$", alternatives.join("|"))
 }
 
+/// An ECMA-262 pattern that finds a money word among a key's words, the way
+/// [`key_words`] splits them, for ASCII keys: JSON Schema has no
+/// case-insensitive flag and no word splitter, so each spelling a word can
+/// take inside one word (an uppercase run, then a lowercase run) is listed
+/// with the boundaries that end a word around it.
+fn billing_money_key_pattern() -> String {
+    // `-` first, so that inside a class it is a literal and never a range.
+    const SEPARATOR: &str = "-_. ";
+    let mut lowercase = Vec::new();
+    let mut capitalised = Vec::new();
+    let mut uppercase = Vec::new();
+    for word in BILLING_MONEY_KEY_WORDS {
+        let length = word.chars().count();
+        for uppercase_length in 0..=length {
+            let spelling: String = word
+                .chars()
+                .enumerate()
+                .map(|(index, letter)| {
+                    if index < uppercase_length {
+                        letter.to_ascii_uppercase()
+                    } else {
+                        letter
+                    }
+                })
+                .collect();
+            match uppercase_length {
+                0 => lowercase.push(spelling),
+                _ if uppercase_length == length => uppercase.push(spelling),
+                _ => capitalised.push(spelling),
+            }
+        }
+    }
+    // A word starts at the key's start or after a separator; one that starts
+    // uppercase also after a lowercase letter or a digit (a camelCase hump).
+    // It ends at the key's end or before a separator; one that ends lowercase
+    // also before an uppercase letter.
+    let starts = format!("(^|[{SEPARATOR}])");
+    let starts_uppercase = format!("(^|[{SEPARATOR}a-z0-9])");
+    let ends = format!("($|[{SEPARATOR}])");
+    let ends_lowercase = format!("($|[{SEPARATOR}A-Z])");
+    [
+        format!("{starts}({}){ends_lowercase}", lowercase.join("|")),
+        format!(
+            "{starts_uppercase}({}){ends_lowercase}",
+            capitalised.join("|")
+        ),
+        format!("{starts_uppercase}({}){ends}", uppercase.join("|")),
+    ]
+    .join("|")
+}
+
 /// Lowercase words of a key: split on `_`, `-`, `.`, spaces and camelCase humps.
 fn key_words(key: &str) -> Vec<String> {
     let mut spaced = String::with_capacity(key.len() + 4);
@@ -658,7 +719,7 @@ mod tests {
         BillingModel, BillingSettings, SettingsError, WorkspaceKind, WorkspaceSettings,
         forbidden_key_pattern, is_secret_key,
     };
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     const FULL: &str = r#"{
   "schema_version": 1,
@@ -1067,6 +1128,50 @@ mod tests {
         // Words that only contain a money word are not money keys.
         let kept = with_billing(r#"{"model": "hourly", "separate": true, "accurate": 1}"#);
         assert!(WorkspaceSettings::from_json(&kept).is_ok());
+    }
+
+    #[test]
+    fn the_schema_and_the_reader_refuse_the_same_billing_keys() {
+        let schema = WorkspaceSettings::json_schema();
+        let pattern = schema["$defs"]["BillingSettings"]["propertyNames"]["not"]["pattern"]
+            .as_str()
+            .expect("billing propertyNames pattern");
+        let schema_refuses = regex::Regex::new(pattern).unwrap();
+        let parts = [
+            "rate", "Rate", "RATE", "RAte", "rates", "RATEs", "currency", "Currency", "CURRENCY",
+            "fee", "Fees", "price", "hourly", "Hourly", "HOURLY", "separate", "accurate", "pirate",
+            "x", "X", "2",
+        ];
+        let separators = ["", "_", "-", ".", " "];
+        let mut keys: Vec<String> = parts.iter().map(|part| (*part).to_owned()).collect();
+        for first in parts {
+            for separator in separators {
+                for second in parts {
+                    keys.push(format!("{first}{separator}{second}"));
+                }
+            }
+        }
+        let mut refused = 0;
+        for key in &keys {
+            let mut block = serde_json::Map::new();
+            block.insert("model".to_owned(), json!("hourly"));
+            block.insert(key.clone(), json!(true));
+            let text = with_billing(&Value::Object(block).to_string());
+            let is_refused_by_reader = WorkspaceSettings::from_json(&text).is_err();
+            assert_eq!(
+                schema_refuses.is_match(key),
+                is_refused_by_reader,
+                "{key:?}: schema and reader disagree"
+            );
+            refused += usize::from(is_refused_by_reader);
+        }
+        assert!(
+            refused > 0 && refused < keys.len(),
+            "the sample holds keys of both kinds"
+        );
+        for key in ["rate", "currency", "hourlyRate", "Currency", "day_rate"] {
+            assert!(schema_refuses.is_match(key), "{key}");
+        }
     }
 
     #[test]

@@ -339,7 +339,7 @@ fn todays_log_lines_come_in_time_order() {
     );
     assert_eq!(today[2].line.project(), Some("Website"));
     assert_eq!(today[2].line.field("agent"), Some("claude-fable-5-1"));
-    assert_eq!(vault.log_lines_on(date("2026-10-21")).len(), 4);
+    assert_eq!(vault.log_lines_on(date("2026-10-21")).len(), 6);
     assert!(vault.log_lines_on(date("2026-10-23")).is_empty());
 }
 

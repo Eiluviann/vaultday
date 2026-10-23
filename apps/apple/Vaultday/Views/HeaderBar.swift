@@ -118,10 +118,7 @@ private struct ScreenShareToggle: View {
 	}
 
 	private var tooltip: String {
-		let key = app.keyLabel(.toggleScreenShare).map { " (\($0))" } ?? ""
-		return isOn
-			? "Screen-share mode is on: private workspaces are hidden and tracked time shows as private\(key.isEmpty ? "" : "; \(key.dropFirst(2).dropLast()) turns it off")"
-			: "Screen-share mode: hide other workspaces and silence their notifications\(key)"
+		ScreenShareModel.toggleTooltip(isOn: isOn, keyLabel: app.keyLabel(.toggleScreenShare))
 	}
 }
 

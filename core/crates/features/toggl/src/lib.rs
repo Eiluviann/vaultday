@@ -42,7 +42,9 @@ pub use feature::{
 };
 pub use flat::{FlatDay, FlatDayStatus, FlatJobInput, FlatRunReport, flat_job_range};
 pub use http::{HttpTogglApi, LIVE_BASE_URL, RetryPolicy, has_token, token_id};
-pub use mapping::{TogglMapping, allow_live, set_allow_live};
+#[cfg(any(test, feature = "test-support"))]
+pub use mapping::set_allow_live;
+pub use mapping::{TogglMapping, allow_live};
 pub use queue::{DrainReport, EnqueueOutcome, QueueItem, QueueState};
 pub use reconcile::{
     FixedRow, HourlyRow, WorkItemFacts, WorkSession, reconcile_fixed, reconcile_hourly,

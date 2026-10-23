@@ -847,7 +847,11 @@ mod tests {
                 .obsidian_link
                 .ends_with("&file=Projects%2FWebsite%2FWEB-142%20Checkout%20redesign%2FWEB-142%20Checkout%20redesign")
         );
-        assert_eq!(preview.task_activity.len(), 1);
+        assert_eq!(
+            preview.task_activity.len(),
+            2,
+            "a session and a measured one"
+        );
         assert_eq!(preview.obsidian_link_notice, None, "inside its vault");
 
         let mut outside = workspace.workspace.clone();

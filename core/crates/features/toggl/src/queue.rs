@@ -6,8 +6,14 @@
 //! nothing, only the device that queued an entry sends it, a sent entry is
 //! never sent again, and every entry is written to disk as possibly sent
 //! before its post, so any later attempt (after a 5xx, a lost answer or a
-//! crash before the answer was recorded) looks it up before posting again. Retries are bounded: after
-//! [`MAX_ATTEMPTS`] an entry is marked failed and waits for the user.
+//! crash before the answer was recorded) looks it up before posting again.
+//! Retries are bounded: after [`MAX_ATTEMPTS`] an entry is marked failed and
+//! waits for the user.
+//!
+//! The lookup matches on workspace, start to the second and duration (see
+//! [`crate::api::TimeEntry::matches`]). When the user edits the start or the
+//! duration in Toggl between a lost answer and the retry, the lookup misses
+//! and the retry posts the entry a second time.
 
 use std::time::{Duration, Instant};
 

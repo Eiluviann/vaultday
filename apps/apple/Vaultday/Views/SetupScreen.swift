@@ -51,10 +51,10 @@ struct SetupScreen: View {
 	private func stepContent(_ setup: SetupModels) -> some View {
 		switch setup.onboarding.current {
 		case .welcome: WelcomeStep()
-		case .workspaces: WorkspacesStep(workspaces: setup.workspaces)
+		case .workspaces: WorkspacesStep(workspaces: setup.workspaces, showsSphere: { app.screenShare.showsSphere($0) })
 		case .folders: FoldersStep(workspaces: setup.workspaces)
 		case .syncAndBackup: SyncStep(sync: setup.sync).onAppear { setup.sync.refreshGitWorkspaces() }
-		case .accounts: AccountsStep(workspaces: setup.workspaces, accounts: setup.accounts)
+		case .accounts: AccountsStep(workspaces: setup.workspaces, accounts: setup.accounts, showsSphere: { app.screenShare.showsSphere($0) })
 		case .featureSets: FeatureSetsStep(workspaces: setup.workspaces, features: setup.features)
 		case .security: SecurityStep(workspaces: setup.workspaces, security: setup.security)
 		case .rituals: RitualsStep(rhythm: setup.rhythm)

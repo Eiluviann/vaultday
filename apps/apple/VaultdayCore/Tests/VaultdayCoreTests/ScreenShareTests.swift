@@ -246,6 +246,47 @@ final class ScreenShareTests: XCTestCase {
 		XCTAssertEqual(model.enforce(current: .workspace("ws-acme"), entries: entries), .none)
 	}
 
+	func testARelaunchWithTheModeOnAndNoWorkWorkspaceLeftKeepsTheModeOnWithANotice() {
+		let (model, persisted) = model()
+		model.restore(isOn: true, returnTo: "workspace:ws-home")
+		XCTAssertEqual(model.enforce(current: .workspace("ws-home"), entries: [home]), .none)
+		// The person may be sharing their screen: the mode never turns itself
+		// off, so tracked time, notifications and the mini tracker stay hidden.
+		XCTAssertTrue(model.isOn, "the mode fails closed")
+		XCTAssertTrue(ScreenShareSurface.allCases.allSatisfy(model.hides))
+		XCTAssertFalse(model.postsSignalNotifications)
+		XCTAssertEqual(model.returnTo, .workspace("ws-home"), "the way back is kept")
+		XCTAssertEqual(model.notice, ScreenShareModel.noWorkWorkspaceNotice)
+		XCTAssertTrue(persisted.writes.isEmpty, "nothing changed to write")
+		XCTAssertEqual(model.setOn(false, current: .workspace("ws-home"), entries: [home]), .select(.workspace("ws-home")), "turning it off is the person's call")
+		XCTAssertFalse(model.isOn)
+		XCTAssertEqual(persisted.writes, [Write(isOn: false, returnTo: nil)])
+
+		let (opened, untouched) = self.model(isOn: true)
+		XCTAssertEqual(opened.enforce(current: nil, entries: [home]), .none, "no workspace open yet")
+		XCTAssertTrue(opened.isOn)
+		XCTAssertTrue(untouched.writes.isEmpty)
+	}
+
+	func testTheToggleTooltipNamesItsKeyWithoutCuttingAFormattedString() {
+		XCTAssertEqual(
+			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: "⇧⌘S"),
+			"Screen-share mode is on: private workspaces are hidden and tracked time shows as private; ⇧⌘S turns it off",
+		)
+		XCTAssertEqual(
+			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: nil),
+			"Screen-share mode is on: private workspaces are hidden and tracked time shows as private",
+		)
+		XCTAssertEqual(
+			ScreenShareModel.toggleTooltip(isOn: false, keyLabel: "⇧⌘S"),
+			"Screen-share mode: hide other workspaces and silence their notifications (⇧⌘S)",
+		)
+		XCTAssertEqual(
+			ScreenShareModel.toggleTooltip(isOn: false, keyLabel: nil),
+			"Screen-share mode: hide other workspaces and silence their notifications",
+		)
+	}
+
 	func testTheSelectionToReturnToIsKeptAsPlainText() {
 		XCTAssertEqual(WorkspaceSelection.all.storedText, "all")
 		XCTAssertEqual(WorkspaceSelection.workspace("ws-1").storedText, "workspace:ws-1")

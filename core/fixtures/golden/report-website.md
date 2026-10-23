@@ -5,8 +5,8 @@ Client · 2026-10-21 to 2026-10-22
 ## Summary
 
 - Stories: 2
-- Log lines: 8
-- Sessions: 2 (0m logged, 2 without a duration)
+- Log lines: 10
+- Sessions: 4 (2h 15m logged, 2 without a duration)
 - Billing: not set
 
 ## Stories
@@ -67,9 +67,11 @@ Pending Input (1: 1 open)
 
 - 2026-10-21 10:00 Coupon field stays above the fold (WEB-142)
 
-### Session (2)
+### Session (4)
 
 - 2026-10-21 10:05 Session on the payment form (WEB-142 · task-2)
+- 2026-10-21 11:40 session · Wire the payment form to the gateway sandbox · 1h 30m (WEB-142 · task-2)
+- 2026-10-21 15:10 session · Write the end-to-end checkout test · 45m (WEB-142 · task-5)
 - 2026-10-22 09:30 Session on the end-to-end test (WEB-142 · task-5)
 
 ### Blocker (1)
@@ -87,7 +89,8 @@ Pending Input (1: 1 open)
 
 ## Hours
 
-Logged: 0m
+Logged: 2h 15m
+- WEB-142: 2h 15m
 
 ## Authorship
 

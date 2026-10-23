@@ -6,6 +6,8 @@ import VaultdayCore
 /// step adds further ones.
 struct WorkspacesStep: View {
 	let workspaces: WorkspacesModel
+	/// Screen-share mode leaves the life sphere out.
+	var showsSphere: (WorkspaceSphere) -> Bool = { _ in true }
 	@State private var configuring: ConfigureTarget?
 	@State private var removing: WorkspaceEntry?
 	@State private var addingTo: WorkspaceSphere?
@@ -20,7 +22,7 @@ struct WorkspacesStep: View {
 				SetupCallout(tone: .caution, icon: "exclamationmark.triangle", text: "\(problem.path.abbreviatedPath): \(problem.reason)")
 			}
 			LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: Tokens.Spacing.space16, alignment: .top)], alignment: .leading, spacing: Tokens.Spacing.space16) {
-				ForEach(WorkspaceSphere.allCases, id: \.self) { sphere in
+				ForEach(WorkspaceSphere.allCases.filter(showsSphere), id: \.self) { sphere in
 					SpherePanel(sphere: sphere) {
 						addButton(sphere)
 					} content: {
@@ -40,6 +42,7 @@ struct WorkspacesStep: View {
 		}
 		.sheet(item: $configuring) { target in
 			ConfigureSheet(model: target.model, onDone: { workspaces.reload() })
+				.mainWindowChildSheet()
 		}
 		.confirmationDialog(
 			removing.map { "Remove \($0.name)?" } ?? "",

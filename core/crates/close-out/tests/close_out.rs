@@ -595,6 +595,123 @@ fn a_closed_week_raises_no_alert() {
     assert!(notifier.sent().is_empty());
 }
 
+#[test]
+fn a_retry_after_the_record_was_lost_writes_no_second_closing_line() {
+    let mut fixture = fixture(None);
+    let settings_fixture = fixture.settings.clone();
+    let off = DaysOff::default();
+    let (work, draft) = (PeriodWork::default(), BTreeMap::new());
+    let ctx = context(&settings_fixture, week(), &off, &work, None, &draft);
+    let empty: BTreeMap<Date, Vec<Allotment>> = close_out::close_out(fixture.sync.state(), &ctx)
+        .unwrap()
+        .allocation
+        .iter()
+        .map(|day| (day.allocation.date, Vec::new()))
+        .collect();
+    edit(&mut fixture.sync, |state| {
+        close_out::confirm_allocation(state, &ctx, &empty)
+    })
+    .unwrap();
+    let workspace = Workspace::open(&fixture.root, &PlainFileAccess).unwrap();
+    let writer = VaultWriter::new(&PlainFileAccess, &workspace);
+    let now = local(date(2026, 10, 23), 16, 5);
+
+    // The line reaches the day log, then the edit fails and the document
+    // drops the closing: a failed second write.
+    let failed = edit(&mut fixture.sync, |state| {
+        close_out::close(state, &writer, &ctx, now, instant(now))?;
+        Err::<(), _>(CloseOutError::InvalidInput(
+            "the document write failed".to_owned(),
+        ))
+    });
+    assert!(failed.is_err());
+    assert!(
+        !close_out::close_out(fixture.sync.state(), &ctx)
+            .unwrap()
+            .is_closed()
+    );
+
+    let retried = edit(&mut fixture.sync, |state| {
+        close_out::close(state, &writer, &ctx, now, instant(now))
+    })
+    .unwrap();
+    assert_eq!(retried.line, None, "the day log already holds the line");
+    assert!(
+        close_out::close_out(fixture.sync.state(), &ctx)
+            .unwrap()
+            .is_closed()
+    );
+    let log = std::fs::read_to_string(fixture.root.join("Log/2026-10-23.md")).unwrap();
+    assert_eq!(log.matches(WEEK_CLOSED).count(), 1, "{log}");
+}
+
+#[test]
+fn the_alert_key_is_per_week_so_the_next_week_alerts_again() {
+    let mut fixture = fixture(Some(BillingModel::Fte));
+    let settings_fixture = fixture.settings.clone();
+    let (off, work, draft) = (leave(), fte_work(), BTreeMap::new());
+    let this_week = context(&settings_fixture, week(), &off, &work, None, &draft);
+    let next_week = context(
+        &settings_fixture,
+        Period::week_containing(date(2026, 10, 26)).unwrap(),
+        &off,
+        &work,
+        None,
+        &draft,
+    );
+    let notifier = RecordingNotifier::new();
+    let clock = |at: DateTime| FixedClock::new(instant(at), at.date());
+
+    let monday = clock(local(date(2026, 10, 26), 7, 30));
+    assert!(
+        edit(&mut fixture.sync, |state| close_out::run_alert(
+            state, &this_week, &monday, &notifier
+        ))
+        .unwrap()
+    );
+    // The clock steps into the next week's window, Monday 2 November 07:30:
+    // the first week's window has closed, and the next week has a key of its
+    // own, so its alert fires although the first week's is recorded.
+    let next_monday = clock(local(date(2026, 11, 2), 7, 30));
+    assert!(
+        !edit(&mut fixture.sync, |state| close_out::run_alert(
+            state,
+            &this_week,
+            &next_monday,
+            &notifier
+        ))
+        .unwrap()
+    );
+    assert!(
+        edit(&mut fixture.sync, |state| close_out::run_alert(
+            state,
+            &next_week,
+            &next_monday,
+            &notifier
+        ))
+        .unwrap()
+    );
+    assert!(
+        !edit(&mut fixture.sync, |state| close_out::run_alert(
+            state,
+            &next_week,
+            &next_monday,
+            &notifier
+        ))
+        .unwrap(),
+        "once per week"
+    );
+    let weeks: Vec<Date> = notifier
+        .sent()
+        .iter()
+        .filter_map(|sent| match sent {
+            Notification::CloseOutMissing { week_start, .. } => Some(*week_start),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(weeks, [date(2026, 10, 19), date(2026, 10, 26)]);
+}
+
 fn session(id: &str, day: i8, task: &str, minutes: u64) -> WorkSession {
     WorkSession {
         session: id.to_owned(),

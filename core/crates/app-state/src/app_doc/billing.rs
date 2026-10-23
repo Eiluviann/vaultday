@@ -1,8 +1,8 @@
 //! Billing rates and per-feature values in the app-level document.
 //!
-//! Rates and currencies live here and in the Workspace note only, never in
-//! `settings.json` or the vault's synced files: this document is encrypted
-//! and signed. Feature values are opaque strings a feature set keeps for
+//! Rates and currencies live here only, never in `settings.json`, a
+//! Workspace note or any other synced vault file: this document is
+//! encrypted and signed. Feature values are opaque strings a feature set keeps for
 //! itself (the Toggl mapping, its `allow_live` switch), stored as scalars
 //! under composite keys so two devices never create competing objects.
 

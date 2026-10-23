@@ -137,6 +137,11 @@ impl TimeEntry {
     /// only values Vaultday chose and Toggl returns as sent; description and
     /// project are left out, since the user may edit them in Toggl and the
     /// project mapping may change between attempts.
+    ///
+    /// The key misses when the user edits the entry's start or duration in
+    /// Toggl after a post whose answer was lost and before the retry: the
+    /// lookup finds nothing and the retry posts a second entry. Vaultday
+    /// cannot tell that edited entry from one the user made by hand.
     #[must_use]
     pub fn matches(&self, wanted: &NewTimeEntry) -> bool {
         self.workspace_id == wanted.workspace_id
