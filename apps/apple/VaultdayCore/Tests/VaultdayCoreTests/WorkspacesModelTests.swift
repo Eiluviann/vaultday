@@ -245,6 +245,100 @@ final class WorkspacesModelTests: XCTestCase {
 		XCTAssertFalse(FileManager.default.fileExists(atPath: root.appending(path: "Projects").path))
 	}
 
+	// MARK: Moving between spheres and workspaces
+
+	func testAWorkspaceMovedToTheOtherSphereChangesItsKind() throws {
+		let (_, workspaces, entry, root) = try personalWorkspace()
+		var changes = 0
+		workspaces.onChange = { changes += 1 }
+
+		XCTAssertNil(workspaces.moveWorkspace(entry.id, to: .work))
+		XCTAssertEqual(workspaces.entry(id: entry.id)?.sphere, .work)
+		XCTAssertEqual(try TestFixtures.settingsJSON(in: root)["kind"] as? String, "work")
+		XCTAssertEqual(try TestFixtures.settingsJSON(in: root)["name"] as? String, "Personal", "every other key stays")
+		XCTAssertEqual(changes, 1)
+		XCTAssertNil(workspaces.moveWorkspace(entry.id, to: .work), "a move to its own sphere does nothing")
+		XCTAssertEqual(changes, 1)
+	}
+
+	func testAMoveToWorkThatWouldNestClientWorkIsRefused() throws {
+		let outer = try TestFixtures.emptyFolder(self, named: "clients")
+		let workspaces = WorkspacesModel(session: try OnboardingHarness(self).session)
+		XCTAssertNotNil(workspaces.addWorkspace(folder: outer, sphere: .work, name: "Clients"))
+		let inner = outer.appending(path: "acme", directoryHint: .isDirectory)
+		try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
+		let acme = try XCTUnwrap(workspaces.addWorkspace(folder: inner, sphere: .life, name: "Acme life"))
+
+		let problem = try XCTUnwrap(workspaces.moveWorkspace(acme.id, to: .work))
+		XCTAssertEqual(problem.workspaceName, "Clients")
+		XCTAssertTrue(problem.message.contains("overlap"), problem.message)
+		XCTAssertEqual(workspaces.entry(id: acme.id)?.sphere, .life)
+		XCTAssertEqual(try TestFixtures.settingsJSON(in: inner)["kind"] as? String, "life")
+	}
+
+	func testALinkedFolderMovesToAnotherWorkspaceAsALinkOrIntoItsRoot() throws {
+		let (harness, workspaces, personal, personalRoot) = try personalWorkspace()
+		let studioRoot = try TestFixtures.emptyFolder(self, named: "Studio")
+		let studio = try XCTUnwrap(workspaces.addWorkspace(folder: studioRoot, sphere: .work, name: "Studio"))
+		let recipes = try TestFixtures.emptyFolder(self, named: "Recipes")
+		XCTAssertTrue(workspaces.linkFolder(try ready(workspaces.offerFolder(recipes, to: personal.id))))
+		let linked = try XCTUnwrap(workspaces.entry(id: personal.id)?.folders.last)
+
+		let offer = try ready(workspaces.offerMove(.linked(folderId: linked.id), from: personal.id, to: studio.id))
+		XCTAssertTrue(offer.canLink)
+		XCTAssertTrue(workspaces.linkFolder(offer), workspaces.message ?? "")
+		XCTAssertFalse(FileManager.default.fileExists(atPath: personalRoot.appending(path: "Recipes").path), "the old link goes")
+		XCTAssertNotNil(try? FileManager.default.destinationOfSymbolicLink(atPath: studioRoot.appending(path: "Recipes").path))
+		XCTAssertEqual(workspaces.entry(id: personal.id)?.folders.map(\.role), [.root])
+		XCTAssertEqual(workspaces.entry(id: studio.id)?.folders.count, 2)
+		XCTAssertEqual(harness.session.appState.folderGrants().count, 3, "two roots and the one target")
+
+		let back = try XCTUnwrap(workspaces.entry(id: studio.id)?.folders.last)
+		let move = try ready(workspaces.offerMove(.linked(folderId: back.id), from: studio.id, to: personal.id))
+		XCTAssertTrue(workspaces.moveFolder(move), workspaces.message ?? "")
+		XCTAssertFalse(FileManager.default.fileExists(atPath: recipes.path), "the folder itself moved")
+		XCTAssertEqual(workspaces.entry(id: personal.id)?.subfolders, ["Recipes"])
+		XCTAssertEqual(workspaces.entry(id: studio.id)?.folders.map(\.role), [.root])
+		XCTAssertEqual(harness.session.appState.folderGrants().count, 2)
+	}
+
+	func testAFolderInsideARootMovesToAnotherRootButCannotBeLinked() throws {
+		let (_, workspaces, personal, personalRoot) = try personalWorkspace()
+		let studioRoot = try TestFixtures.emptyFolder(self, named: "Studio")
+		let studio = try XCTUnwrap(workspaces.addWorkspace(folder: studioRoot, sphere: .work, name: "Studio"))
+		XCTAssertTrue(workspaces.createFolder(named: "Journal", in: personal.id))
+
+		let offer = try ready(workspaces.offerMove(.inside(name: "Journal"), from: personal.id, to: studio.id))
+		XCTAssertFalse(offer.canLink, "a folder inside one root cannot be linked into another")
+		XCTAssertFalse(workspaces.linkFolder(offer))
+		XCTAssertTrue(workspaces.moveFolder(offer), workspaces.message ?? "")
+		XCTAssertFalse(FileManager.default.fileExists(atPath: personalRoot.appending(path: "Journal").path))
+		XCTAssertEqual(workspaces.entry(id: studio.id)?.subfolders, ["Journal"])
+	}
+
+	func testARootFolderCannotBeMoved() throws {
+		let (_, workspaces, personal, _) = try personalWorkspace()
+		let studio = try XCTUnwrap(workspaces.addWorkspace(folder: try TestFixtures.emptyFolder(self, named: "Studio"), sphere: .work, name: "Studio"))
+		guard case .failed = workspaces.offerMove(.linked(folderId: personal.rootConnection), from: personal.id, to: studio.id) else {
+			return XCTFail("a workspace's own folder stays its root")
+		}
+		guard case .failed = workspaces.offerMove(.inside(name: ".vaultday"), from: personal.id, to: studio.id) else {
+			return XCTFail("only plain folders inside the root move")
+		}
+	}
+
+	func testDragItemsSurviveTheirTextForm() {
+		let items: [SetupDragItem] = [
+			.workspace(id: "ws-1"),
+			.folder(workspaceId: "ws-1", origin: .linked(folderId: "con-2")),
+			.folder(workspaceId: "ws-1", origin: .inside(name: "Recipes and more")),
+		]
+		for item in items {
+			XCTAssertEqual(SetupDragItem(text: item.text), item)
+		}
+		XCTAssertNil(SetupDragItem(text: "plain text from elsewhere"))
+	}
+
 	// MARK: Converting further folders
 
 	func testFurtherFoldersOfAnEarlierBuildAreAskedAboutOnceAndLinked() throws {

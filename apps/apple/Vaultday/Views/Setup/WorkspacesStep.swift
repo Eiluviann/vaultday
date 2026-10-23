@@ -17,6 +17,8 @@ struct WorkspacesStep: View {
 	@State private var removing: WorkspaceEntry?
 	@State private var addingTo: WorkspaceSphere?
 	@State private var refusal: RefusedPick?
+	@State private var moveProblem: FolderProblem?
+	@State private var targetedSphere: WorkspaceSphere?
 
 	var body: some View {
 		StepPane(title: "Your workspaces", lede: "Each sphere holds one or more workspaces. A workspace has its own folder, color and rules; other folders join it in the next step") {
@@ -41,8 +43,19 @@ struct WorkspacesStep: View {
 						}
 						ForEach(inSphere) { entry in
 							card(entry)
+								.draggable(SetupDragItem.workspace(id: entry.id).text)
 						}
 					}
+					.dropDestination(for: String.self) { texts, _ in
+						drop(texts, on: sphere)
+					} isTargeted: { isTargeted in
+						if isTargeted {
+							targetedSphere = sphere
+						} else if targetedSphere == sphere {
+							targetedSphere = nil
+						}
+					}
+					.setupDropZone(isTargeted: targetedSphere == sphere)
 				}
 			}
 		}
@@ -65,6 +78,15 @@ struct WorkspacesStep: View {
 			Button("Cancel", role: .cancel) {}
 		} message: { pick in
 			Text(pick.problem.message)
+		}
+		.alert(
+			moveProblem?.title ?? "",
+			isPresented: Binding(get: { moveProblem != nil }, set: { if !$0 { moveProblem = nil } }),
+			presenting: moveProblem,
+		) { _ in
+			Button("OK", role: .cancel) {}
+		} message: { problem in
+			Text(problem.message)
 		}
 		.confirmationDialog(
 			removing.map { "Remove \($0.name)?" } ?? "",
@@ -115,6 +137,8 @@ struct WorkspacesStep: View {
 				}
 				.buttonStyle(SetupButtonStyle(isSmall: true))
 				Menu {
+					let otherSphere: WorkspaceSphere = entry.sphere == .work ? .life : .work
+					Button(otherSphere == .work ? "Move to Work" : "Move to Life") { move(entry, to: otherSphere) }
 					if entry.isActive {
 						Button("Deactivate") { workspaces.setActive(false, workspaceId: entry.id) }
 					} else {
@@ -143,6 +167,17 @@ struct WorkspacesStep: View {
 					.truncationMode(.middle)
 			}
 		}
+	}
+
+	/// A card dropped on a sphere: the workspace moves there.
+	private func drop(_ texts: [String], on sphere: WorkspaceSphere) -> Bool {
+		guard let text = texts.first, case let .workspace(id) = SetupDragItem(text: text), let entry = workspaces.entry(id: id) else { return false }
+		move(entry, to: sphere)
+		return true
+	}
+
+	private func move(_ entry: WorkspaceEntry, to sphere: WorkspaceSphere) {
+		moveProblem = workspaces.moveWorkspace(entry.id, to: sphere)
 	}
 
 	private func choose(sphere: WorkspaceSphere, choice: AddWorkspaceChoice) {

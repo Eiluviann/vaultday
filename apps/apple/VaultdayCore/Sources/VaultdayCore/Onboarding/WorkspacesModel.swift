@@ -163,7 +163,8 @@ public enum WorkspaceDraftOutcome {
 	case failed(String)
 }
 
-/// A folder picked for a workspace that may join it; the user picks link or move.
+/// A folder that may join a workspace, picked or moving from another one;
+/// the user picks link or move.
 public struct PendingFolder: Identifiable, Sendable {
 	public let id = UUID()
 	public let workspaceId: String
@@ -171,7 +172,20 @@ public struct PendingFolder: Identifiable, Sendable {
 	/// The folder, canonical.
 	public let folder: URL
 	let picked: URL
+	/// The workspace the folder leaves, and how it holds it, for a move between workspaces.
+	let leaving: (workspaceId: String, origin: FolderOrigin)?
+	/// False for a folder inside another root: it can only move.
+	public let canLink: Bool
 	public var name: String { folder.lastPathComponent }
+
+	init(workspaceId: String, workspaceName: String, folder: URL, picked: URL, leaving: (workspaceId: String, origin: FolderOrigin)? = nil, canLink: Bool = true) {
+		self.workspaceId = workspaceId
+		self.workspaceName = workspaceName
+		self.folder = folder
+		self.picked = picked
+		self.leaving = leaving
+		self.canLink = canLink
+	}
 }
 
 public enum FolderOffer {
@@ -333,7 +347,7 @@ public final class WorkspacesModel {
 		session.environment.grants.startAccessing(picked)
 		session.environment.files.allow(url)
 		do {
-			if let refusal = try checkFolderPlacement(candidate: url.path, workspaceId: workspaceId, workspaces: placedWorkspaces()) {
+			if let refusal = try checkFolderPlacement(candidate: url.path, workspaceId: workspaceId, workspaces: placedWorkspaces(), leavingRoot: nil) {
 				releaseAccess(picked: picked, folder: url)
 				return .refused(Self.problem(refusal, folderName: url.lastPathComponent))
 			}
@@ -344,8 +358,47 @@ public final class WorkspacesModel {
 		return .ready(PendingFolder(workspaceId: workspaceId, workspaceName: workspace.name, folder: url, picked: picked))
 	}
 
+	/// Offers a folder of one workspace to another, as a drop or the row's
+	/// Move to menu does: a linked folder may be linked or moved, a plain
+	/// folder inside the root may only move, and the root itself stays.
+	public func offerMove(_ origin: FolderOrigin, from sourceId: String, to targetId: String) -> FolderOffer {
+		message = nil
+		guard let source = entry(id: sourceId), let target = entry(id: targetId), source.id != target.id else {
+			return .failed("Pick another workspace to move the folder to")
+		}
+		let folder: URL
+		switch origin {
+		case let .linked(folderId):
+			guard let held = source.folders.first(where: { $0.id == folderId }), !held.isWorkspaceRoot else {
+				return .failed("A workspace's own folder stays its root; move the folders inside it instead")
+			}
+			folder = URL(filePath: held.path, directoryHint: .isDirectory)
+		case let .inside(name):
+			guard source.subfolders.contains(name) else {
+				return .failed("\(name) is not a folder of \(source.name)")
+			}
+			folder = URL(filePath: source.rootPath, directoryHint: .isDirectory).appending(path: name, directoryHint: .isDirectory)
+		}
+		let placed = placedWorkspaces().compactMap { placed -> PlacedWorkspaceView? in
+			guard placed.id == source.id else { return placed }
+			guard case .linked = origin else { return nil }
+			return PlacedWorkspaceView(id: placed.id, name: placed.name, kind: placed.kind, root: placed.root, linkedTargets: placed.linkedTargets.filter { $0 != folder.path })
+		}
+		do {
+			let leavingRoot: String? = if case .inside = origin { source.rootPath } else { nil }
+			if let refusal = try checkFolderPlacement(candidate: folder.path, workspaceId: target.id, workspaces: placed, leavingRoot: leavingRoot) {
+				return .refused(Self.problem(refusal, folderName: folder.lastPathComponent))
+			}
+		} catch {
+			return .failed(coreErrorMessage(error))
+		}
+		let canLink = if case .linked = origin { true } else { false }
+		return .ready(PendingFolder(workspaceId: target.id, workspaceName: target.name, folder: folder, picked: folder, leaving: (source.id, origin), canLink: canLink))
+	}
+
 	/// Drops a pending folder the user did not link or move.
 	public func cancel(_ pending: PendingFolder) {
+		guard pending.leaving == nil else { return }
 		releaseAccess(picked: pending.picked, folder: pending.folder)
 	}
 
@@ -357,17 +410,25 @@ public final class WorkspacesModel {
 	public func linkFolder(_ pending: PendingFolder) -> Bool {
 		message = nil
 		guard let workspace = entry(id: pending.workspaceId) else { return false }
+		guard pending.canLink else {
+			message = "\(pending.name) lies inside another workspace's folder, so it can only move"
+			return false
+		}
 		let root = URL(filePath: workspace.rootPath, directoryHint: .isDirectory)
 		var link: URL?
 		do {
 			let bookmark = try session.environment.grants.makeBookmark(for: pending.picked)
+			if let leaving = pending.leaving {
+				try release(leaving.origin, of: leaving.workspaceId)
+			}
 			let made = try makeLink(in: root, to: pending.folder)
 			link = made
 			try record(folder: pending.folder, bookmark: bookmark, workspaceId: workspace.id)
 		} catch {
 			if let link { try? FileManager.default.removeItem(at: link) }
-			releaseAccess(picked: pending.picked, folder: pending.folder)
+			if pending.leaving == nil { releaseAccess(picked: pending.picked, folder: pending.folder) }
 			message = coreErrorMessage(error)
+			changed()
 			return false
 		}
 		changed()
@@ -382,12 +443,20 @@ public final class WorkspacesModel {
 		message = nil
 		guard let workspace = entry(id: pending.workspaceId) else { return false }
 		let root = URL(filePath: workspace.rootPath, directoryHint: .isDirectory)
-		defer { releaseAccess(picked: pending.picked, folder: pending.folder) }
+		defer { if pending.leaving == nil { releaseAccess(picked: pending.picked, folder: pending.folder) } }
 		do {
 			try moveIntoRoot(pending.folder, root: root)
 		} catch {
 			message = Self.moveMessage(error, folder: pending.folder, workspaceName: workspace.name)
 			return false
+		}
+		if let leaving = pending.leaving, case .linked = leaving.origin {
+			// The folder is inside the new root now: the old link and grant go.
+			do {
+				try release(leaving.origin, of: leaving.workspaceId)
+			} catch {
+				message = coreErrorMessage(error)
+			}
 		}
 		changed()
 		return true
@@ -457,6 +526,41 @@ public final class WorkspacesModel {
 		}
 		changed()
 		return true
+	}
+
+	/// Moves a workspace to the other sphere by changing its kind in
+	/// `settings.json`; the app document keeps no kind. A move to Work that
+	/// would nest two client workspaces is refused, as a new root would be.
+	///
+	/// - Returns: The refusal, or `nil` when the workspace moved or was already there.
+	@discardableResult
+	public func moveWorkspace(_ workspaceId: String, to sphere: WorkspaceSphere) -> FolderProblem? {
+		message = nil
+		guard let workspace = entry(id: workspaceId), workspace.sphere != sphere else { return nil }
+		let others = placedWorkspaces().filter { $0.id != workspace.id }
+		if let refusal = checkWorkspaceRootPlacement(candidate: workspace.rootPath, kind: sphere.core, workspaces: others) {
+			return Self.problem(refusal, folderName: workspace.name)
+		}
+		do {
+			let form = try readWorkspaceForm(root: workspace.rootPath)
+			let moved = WorkspaceFormView(
+				name: form.name,
+				kind: sphere.core,
+				accent: form.accent,
+				ticketPattern: form.ticketPattern,
+				ticketUrl: form.ticketUrl,
+				hosts: form.hosts,
+				browser: form.browser,
+				hoursPerDay: form.hoursPerDay,
+				logFolder: form.logFolder,
+				storyTemplate: form.storyTemplate,
+			)
+			_ = try updateWorkspaceForm(root: workspace.rootPath, form: moved)
+		} catch {
+			return FolderProblem(title: "\(workspace.name) did not move", message: coreErrorMessage(error), workspaceName: workspace.name)
+		}
+		changed()
+		return nil
 	}
 
 	// MARK: Converting an earlier build's folders
@@ -681,7 +785,19 @@ public final class WorkspacesModel {
 			guard placed.id == workspace.id else { return placed }
 			return PlacedWorkspaceView(id: placed.id, name: placed.name, kind: placed.kind, root: placed.root, linkedTargets: placed.linkedTargets.filter { $0 != folder.path })
 		}
-		return try checkFolderPlacement(candidate: folder.path, workspaceId: workspace.id, workspaces: others)
+		return try checkFolderPlacement(candidate: folder.path, workspaceId: workspace.id, workspaces: others, leavingRoot: nil)
+	}
+
+	/// Takes a folder out of the workspace it leaves: a link and its grant go;
+	/// a plain folder inside the root needs nothing, since the move takes it.
+	private func release(_ origin: FolderOrigin, of workspaceId: String) throws {
+		guard case let .linked(folderId) = origin,
+		      let folder = entry(id: workspaceId)?.folders.first(where: { $0.id == folderId })
+		else { return }
+		if case let .linked(link) = folder.role {
+			try FileManager.default.removeItem(atPath: link)
+		}
+		try session.edit { try $0.removeConnection(id: folderId) }
 	}
 
 	private func makeLink(in root: URL, to folder: URL) throws -> URL {

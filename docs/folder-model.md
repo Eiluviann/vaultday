@@ -54,3 +54,9 @@ Add asks for the folder, checks it (placement rule, empty for Create, `.vaultday
 - Inactive workspaces stay on the setup Workspaces and Folders steps and in Settings, with the badge "Inactive", and leave the switcher, the sidebar, Today, All, Browse, Hours, the palette, quick add and every planning view. The app never opens one at launch.
 - The CLI refuses an inactive workspace with "<name> is inactive; reactivate it in Vaultday". It does not fall through to an outer workspace: the inactive workspace still owns its files.
 - A running timer on the open workspace is stopped first, and the stop writes the usual day-log line; then the workspace closes and the next active one opens.
+
+## Moving workspaces and folders (item 20)
+
+- **A workspace card dragged to the other sphere** changes the workspace's `kind` in `settings.json`; the app document keeps no kind, so nothing else is written. A move to Work that would nest two client roots is refused with a popup naming the other workspace, as a new root would be. The card's `…` menu has the same move (Move to Work / Move to Life) for the keyboard.
+- **A folder row dragged to another workspace** re-homes the folder. A linked folder can be linked into the target root or moved into it, asked on drop; the old link and its grant go either way. A plain folder inside the source root can only move: linked from another root it would belong to two workspaces. A workspace's root is not draggable and has no Move to. The placement rule runs on drop with the folder's current workspace left out, so a folder holding another workspace is still refused. The row's `…` menu has Move to for the keyboard.
+- The drop target shows a dashed border only while a drag hovers over it (`setupDropZone`), never at rest.

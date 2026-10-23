@@ -355,7 +355,10 @@ pub fn check_workspace_root_placement(
 
 /// Whether `candidate` may join the workspace `workspace_id`, linked or moved
 /// into its root; `None` when it may. A folder inside a workspace the app
-/// does not know yet (a `.vaultday/` at or above it) is refused too.
+/// does not know yet (a `.vaultday/` at or above it) is refused too, except
+/// the root in `leaving_root`: a folder moving out of a root to another
+/// workspace, whose caller leaves that workspace's claim on it out of
+/// `workspaces`.
 ///
 /// # Errors
 /// [`CoreError::FileAccess`] when the folders above it cannot be read,
@@ -365,6 +368,7 @@ pub fn check_folder_placement(
     candidate: String,
     workspace_id: String,
     workspaces: Vec<PlacedWorkspaceView>,
+    leaving_root: Option<String>,
 ) -> Result<Option<FolderRefusalView>, CoreError> {
     let candidate = PathBuf::from(candidate);
     let placed = placed_workspaces(workspaces);
@@ -375,6 +379,11 @@ pub fn check_folder_placement(
     else {
         return Ok(None);
     };
+    let is_leaving =
+        leaving_root.is_some_and(|leaving| vault_base::normalize_path(Path::new(&leaving)) == root);
+    if is_leaving {
+        return Ok(None);
+    }
     let workspace =
         vault_base::Workspace::open(&root, &PlainFileAccess).map_err(workspace_error)?;
     Ok(Some(refusal_view(&FolderRefusal::BelongsTo {
@@ -751,14 +760,26 @@ mod tests {
             None,
             "life nests"
         );
-        let belongs = check_folder_placement(nested, "ws-other".to_owned(), placed)
+        let belongs = check_folder_placement(nested.clone(), "ws-other".to_owned(), placed, None)
             .expect("checked")
             .expect("refused");
+        assert_eq!(
+            check_folder_placement(
+                nested,
+                "ws-other".to_owned(),
+                Vec::new(),
+                Some(one.to_string_lossy().into_owned())
+            )
+            .expect("checked"),
+            None,
+            "a folder leaving its root is not held back by that root"
+        );
         assert_eq!(belongs.kind, FolderRefusalKindView::BelongsTo);
         let unknown = check_folder_placement(
             two.join("notes").to_string_lossy().into_owned(),
             "ws-one".to_owned(),
             Vec::new(),
+            None,
         )
         .expect("checked")
         .expect("a workspace the app does not know still owns its folder");

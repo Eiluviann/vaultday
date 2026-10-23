@@ -11,6 +11,7 @@ struct FoldersStep: View {
 	@State private var newFolderName = ""
 	@State private var joining: PendingFolder?
 	@State private var refusal: RefusedFolder?
+	@State private var targetedWorkspace: String?
 
 	var body: some View {
 		StepPane(title: "Your folders", lede: "Notes are the heart of Vaultday: markdown pages with the tasks, links and dates inside them. Each workspace keeps its notes in its own folder") {
@@ -28,7 +29,7 @@ struct FoldersStep: View {
 						SpherePanel(sphere: sphere) {
 							EmptyView()
 						} content: {
-							ForEach(inSphere) { entry in workspaceCard(entry) }
+							ForEach(inSphere) { entry in droppableCard(entry) }
 						}
 					}
 				}
@@ -50,19 +51,23 @@ struct FoldersStep: View {
 			titleVisibility: .visible,
 			presenting: joining,
 		) { pending in
-			Button("Link it") { join(pending, by: .link) }
-				.keyboardShortcut(.defaultAction)
+			if pending.canLink {
+				Button("Link it") { join(pending, by: .link) }
+					.keyboardShortcut(.defaultAction)
+			}
 			Button("Move it into \(pending.workspaceName)") { join(pending, by: .move) }
 			Button("Cancel", role: .cancel) { dropUnjoinedFolder() }
-		} message: { _ in
-			Text("A link leaves the folder where it is, on this Mac only. Moving puts it inside the workspace's folder, where every device sees it")
+		} message: { pending in
+			Text(pending.canLink
+				? "A link leaves the folder where it is, on this Mac only. Moving puts it inside the workspace's folder, where every device sees it"
+				: "\(pending.name) sits inside another workspace's folder, so it moves")
 		}
 		.alert(
 			refusal?.problem.title ?? "",
 			isPresented: Binding(get: { refusal != nil }, set: { if !$0 { refusal = nil } }),
 			presenting: refusal,
 		) { refused in
-			if let entry = workspaces.entry(id: refused.workspaceId) {
+			if refused.canChooseAgain, let entry = workspaces.entry(id: refused.workspaceId) {
 				Button("Choose another folder") { Task { await addExistingFolder(to: entry) } }
 					.keyboardShortcut(.defaultAction)
 			}
@@ -70,6 +75,21 @@ struct FoldersStep: View {
 		} message: { refused in
 			Text(refused.problem.message)
 		}
+	}
+
+	/// A workspace card that takes a folder row dropped from another workspace.
+	private func droppableCard(_ entry: WorkspaceEntry) -> some View {
+		workspaceCard(entry)
+			.dropDestination(for: String.self) { texts, _ in
+				drop(texts, on: entry)
+			} isTargeted: { isTargeted in
+				if isTargeted {
+					targetedWorkspace = entry.id
+				} else if targetedWorkspace == entry.id {
+					targetedWorkspace = nil
+				}
+			}
+			.setupDropZone(isTargeted: targetedWorkspace == entry.id)
 	}
 
 	private func workspaceCard(_ entry: WorkspaceEntry) -> some View {
@@ -113,10 +133,16 @@ struct FoldersStep: View {
 			.padding(Tokens.Spacing.space12)
 			VStack(spacing: 0) {
 				ForEach(entry.folders) { folder in
-					folderRow(folder, in: entry)
+					if folder.isWorkspaceRoot {
+						folderRow(folder, in: entry)
+					} else {
+						folderRow(folder, in: entry)
+							.draggable(SetupDragItem.folder(workspaceId: entry.id, origin: .linked(folderId: folder.id)).text)
+					}
 				}
 				ForEach(entry.subfolders, id: \.self) { name in
 					subfolderRow(name, in: entry)
+						.draggable(SetupDragItem.folder(workspaceId: entry.id, origin: .inside(name: name)).text)
 				}
 			}
 			.padding(.horizontal, Tokens.Spacing.space12)
@@ -148,6 +174,7 @@ struct FoldersStep: View {
 			Spacer(minLength: 0)
 			if !folder.isWorkspaceRoot {
 				Menu {
+					moveMenu(.linked(folderId: folder.id), from: entry)
 					if folder.role == .unlinked {
 						Button("Link again") { workspaces.relinkFolder(folder.id, in: entry.id) }
 						Button("Remove folder", role: .destructive) { workspaces.unlinkFolder(folder.id, from: entry.id) }
@@ -181,8 +208,50 @@ struct FoldersStep: View {
 					.foregroundStyle(Tokens.Colors.inkMuted)
 			}
 			Spacer(minLength: 0)
+			if workspaces.entries.count > 1 {
+				Menu {
+					moveMenu(.inside(name: name), from: entry)
+				} label: {
+					Image(systemName: "ellipsis")
+				}
+				.menuStyle(.borderlessButton)
+				.menuIndicator(.hidden)
+				.frame(width: Tokens.Size.sizeControlSm)
+				.accessibilityLabel("Folder options for \(name)")
+			}
 		}
 		.padding(.vertical, Tokens.Spacing.space8)
+	}
+
+	/// The keyboard's way to what a drag does: the folder moves to another workspace.
+	@ViewBuilder
+	private func moveMenu(_ origin: FolderOrigin, from entry: WorkspaceEntry) -> some View {
+		let others = workspaces.entries.filter { $0.id != entry.id }
+		if !others.isEmpty {
+			Menu("Move to") {
+				ForEach(others) { other in
+					Button(other.name) { offerMove(origin, from: entry.id, to: other.id) }
+				}
+			}
+		}
+	}
+
+	/// A folder row dropped on a workspace card.
+	private func drop(_ texts: [String], on target: WorkspaceEntry) -> Bool {
+		guard let text = texts.first, case let .folder(sourceId, origin) = SetupDragItem(text: text), sourceId != target.id else { return false }
+		offerMove(origin, from: sourceId, to: target.id)
+		return true
+	}
+
+	private func offerMove(_ origin: FolderOrigin, from sourceId: String, to targetId: String) {
+		switch workspaces.offerMove(origin, from: sourceId, to: targetId) {
+		case let .ready(pending):
+			joining = pending
+		case let .refused(problem):
+			refusal = RefusedFolder(problem: problem, workspaceId: targetId, canChooseAgain: false)
+		case let .failed(reason):
+			refusal = RefusedFolder(problem: FolderProblem(title: "The folder did not move", message: reason, workspaceName: ""), workspaceId: targetId, canChooseAgain: false)
+		}
 	}
 
 	private func addExistingFolder(to entry: WorkspaceEntry) async {
@@ -222,4 +291,6 @@ private struct RefusedFolder: Identifiable {
 	var id: String { problem.id }
 	let problem: FolderProblem
 	let workspaceId: String
+	/// Whether the popup offers the picker again: not for a folder that was moving between workspaces.
+	var canChooseAgain = true
 }
