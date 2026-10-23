@@ -232,13 +232,18 @@ struct ChangeFieldEditor: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space8) {
 			Text(request.title)
 				.font(Tokens.Typography.headline.font)
-			TextField(placeholder, text: $value)
+			VimTextField(placeholder, text: $value, focusesOnAppear: true) {
+				// Esc in Normal mode cancels, as Esc does under Standard.
+				app.keyboard.cancelChange()
+				return true
+			}
 				.textFieldStyle(.plain)
 				.focused($isFocused)
 				.padding(.horizontal, 10)
 				.frame(height: 30)
 				.background(Tokens.Colors.surface, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
 				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(Tokens.Colors.focus))
+				.vimModeLineBelow()
 				.onSubmit { app.keyboard.submitChange(value) }
 				.onExitCommand { app.keyboard.cancelChange() }
 			Text("\(request.taskId) · ⏎ saves, Esc cancels, u undoes")
@@ -251,6 +256,8 @@ struct ChangeFieldEditor: View {
 		.shadow(color: .black.opacity(0.18), radius: 16, y: 10)
 		.onAppear {
 			value = request.initialValue
+			// `c` changes in Vim: the editor types at once, as `cc` does.
+			VimFieldRouter.shared.startNextFieldInInsert()
 			isFocused = true
 		}
 		.onChange(of: isFocused) { app.setTextField("change", isFocused: isFocused) }

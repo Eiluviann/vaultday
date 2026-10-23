@@ -30,7 +30,7 @@ struct AiProvidersStep: View {
 			}
 			Eyebrow(text: "Limits")
 			SetupCard(icon: "dollarsign.circle", title: "Monthly cloud budget", description: "Cloud models pause when it is reached; on-device models keep working", tags: [SetupTag(text: "Planned")]) {
-				TextField("No limit", text: $budgetText)
+				VimTextField("No limit", text: $budgetText)
 					.textFieldStyle(.roundedBorder)
 					.frame(width: 100)
 					.multilineTextAlignment(.trailing)
@@ -140,7 +140,7 @@ struct AddKeySheet: View {
 				}
 			}
 			field("Name", issue: providers.issues["name"]) {
-				TextField("Work key", text: $draft.name).textFieldStyle(.roundedBorder)
+				VimTextField("Work key", text: $draft.name).textFieldStyle(.roundedBorder)
 			}
 			if provider.needsKey {
 				field("API key", issue: providers.issues["key"]) {
@@ -150,7 +150,7 @@ struct AddKeySheet: View {
 			}
 			if provider.needsEndpoint {
 				field("Address", issue: providers.issues["endpoint"]) {
-					TextField("http://localhost:11434", text: $draft.endpoint).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+					VimTextField("http://localhost:11434", text: $draft.endpoint).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
 				}
 			}
 			usedIn

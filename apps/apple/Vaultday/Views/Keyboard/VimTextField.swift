@@ -14,61 +14,112 @@ import VaultdayCore
 extension EnvironmentValues {
 	/// The keyboard scheme the app runs; text inputs read it.
 	@Entry var keyScheme: KeyScheme = .vim
+	/// A field's chrome around it draws the mode line, below its own bottom-left corner.
+	@Entry var drawsVimModeLineOutside = false
+}
+
+/// The Vim field inside a view, for the chrome around it to draw its mode line.
+private struct VimFieldPreferenceKey: PreferenceKey {
+	static let defaultValue: VimFieldController? = nil
+
+	static func reduce(value: inout VimFieldController?, nextValue: () -> VimFieldController?) {
+		value = value ?? nextValue()
+	}
+}
+
+extension View {
+	/// Draws the mode line of the Vim field inside this view under this
+	/// view's bottom-left corner: for a field whose border and padding are
+	/// drawn around it (quick add), so the line sits below the whole box.
+	func vimModeLineBelow() -> some View {
+		environment(\.drawsVimModeLineOutside, true)
+			.overlayPreferenceValue(VimFieldPreferenceKey.self, alignment: .bottomLeading) { controller in
+				if let controller { VimModeLine(controller: controller).hangingBelow() }
+			}
+	}
 }
 
 /// A one-line text input with Vim modes under the Vim motions scheme.
 struct VimTextField: View {
 	let placeholder: String
 	@Binding var text: String
+	/// Bumped to put the keys in this field (`i`, `/`, ⌘L).
+	var focusRequest = 0
+	/// Whether the field takes the keys when it appears (the change editor, a popover's first field).
+	var focusesOnAppear = false
 	/// Esc in Normal mode, before the field gives the keys up: `true` keeps
 	/// the field focused (the quick-add confirmation closes first).
 	var onEscape: (() -> Bool)?
-	@Environment(\.keyScheme) private var scheme
 	@State private var controller = VimFieldController(isMultiline: false)
 
-	init(_ placeholder: String, text: Binding<String>, onEscape: (() -> Bool)? = nil) {
+	init(_ placeholder: String, text: Binding<String>, focusRequest: Int = 0, focusesOnAppear: Bool = false, onEscape: (() -> Bool)? = nil) {
 		self.placeholder = placeholder
 		_text = text
+		self.focusRequest = focusRequest
+		self.focusesOnAppear = focusesOnAppear
 		self.onEscape = onEscape
 	}
 
 	var body: some View {
-		if scheme == .vim {
-			TextField(placeholder, text: $text)
-				.vimField(controller, onEscape: onEscape)
-		} else {
-			TextField(placeholder, text: $text)
-		}
+		TextField(placeholder, text: $text)
+			.vimField(controller, focusRequest: focusRequest, focusesOnAppear: focusesOnAppear, onEscape: onEscape)
 	}
 }
 
 /// The multi-line text input with Vim modes under the Vim motions scheme.
 struct VimTextEditor: View {
 	@Binding var text: String
-	@Environment(\.keyScheme) private var scheme
 	@State private var controller = VimFieldController(isMultiline: true)
 
 	var body: some View {
+		TextEditor(text: $text)
+			.vimField(controller, focusRequest: 0, focusesOnAppear: false, onEscape: nil)
+	}
+}
+
+/// Ties a field to its controller: the anchor that finds its AppKit view,
+/// the mode line under its bottom-left corner, and, under Vim motions, the
+/// router that reads its keys. Under Standard it is the plain field.
+private struct VimFieldModifier: ViewModifier {
+	let controller: VimFieldController
+	let focusRequest: Int
+	let focusesOnAppear: Bool
+	let onEscape: (() -> Bool)?
+	@Environment(\.keyScheme) private var scheme
+	@Environment(\.drawsVimModeLineOutside) private var drawsModeLineOutside
+
+	func body(content: Content) -> some View {
+		content
+			.background(VimFieldAnchor(controller: controller))
+			.overlay(alignment: .bottomLeading) {
+				if scheme == .vim, !drawsModeLineOutside { VimModeLine(controller: controller).hangingBelow() }
+			}
+			.preference(key: VimFieldPreferenceKey.self, value: scheme == .vim ? controller : nil)
+			.onAppear {
+				controller.onEscape = onEscape
+				register(for: scheme)
+				// The anchor joins the window a turn after the view appears.
+				if focusesOnAppear { Task { @MainActor in controller.focusField() } }
+			}
+			.onChange(of: scheme) { _, scheme in register(for: scheme) }
+			.onDisappear { VimFieldRouter.shared.unregister(controller) }
+			// SwiftUI's focus state cannot move the keys from the Home window's
+			// focusable root into a field inside it; AppKit's first responder can.
+			.onChange(of: focusRequest) { controller.focusField() }
+	}
+
+	private func register(for scheme: KeyScheme) {
 		if scheme == .vim {
-			TextEditor(text: $text)
-				.vimField(controller, onEscape: nil)
+			VimFieldRouter.shared.register(controller)
 		} else {
-			TextEditor(text: $text)
+			VimFieldRouter.shared.unregister(controller)
 		}
 	}
 }
 
 extension View {
-	/// Ties the field to its Vim controller: the anchor that finds its text
-	/// view, and the mode line under its bottom-left corner.
-	fileprivate func vimField(_ controller: VimFieldController, onEscape: (() -> Bool)?) -> some View {
-		background(VimFieldAnchor(controller: controller))
-			.overlay(alignment: .bottomLeading) { VimModeLine(controller: controller) }
-			.onAppear {
-				controller.onEscape = onEscape
-				VimFieldRouter.shared.register(controller)
-			}
-			.onDisappear { VimFieldRouter.shared.unregister(controller) }
+	fileprivate func vimField(_ controller: VimFieldController, focusRequest: Int, focusesOnAppear: Bool, onEscape: (() -> Bool)?) -> some View {
+		modifier(VimFieldModifier(controller: controller, focusRequest: focusRequest, focusesOnAppear: focusesOnAppear, onEscape: onEscape))
 	}
 }
 
@@ -90,12 +141,18 @@ private struct VimModeLine: View {
 			}
 			.font(.custom(Tokens.Typography.mono.family, size: 10))
 			.fixedSize()
-			.padding(.top, 3)
-			// Hangs under the field without taking room in the layout.
-			.alignmentGuide(.bottom) { $0[.top] }
 			.allowsHitTesting(false)
 			.accessibilityLabel("Field in \(controller.mode.title.lowercased()) mode")
 		}
+	}
+}
+
+extension View {
+	/// Hangs a bottom-leading overlay under its parent's bottom edge without
+	/// taking room in the layout.
+	fileprivate func hangingBelow() -> some View {
+		frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+			.offset(y: 16)
 	}
 }
 
@@ -126,6 +183,8 @@ final class VimFieldController {
 	@ObservationIgnored var editor: VimEditor
 	@ObservationIgnored weak var anchor: NSView?
 	@ObservationIgnored var onEscape: (() -> Bool)?
+	/// The AppKit view `focusField()` found, so the next request skips the search.
+	@ObservationIgnored private weak var editableView: NSView?
 	/// The text view's selection as this controller last set it, to tell a click from its own write.
 	@ObservationIgnored private var lastWrittenRange: NSRange?
 	@ObservationIgnored private var originalSelectionAttributes: [NSAttributedString.Key: Any]?
@@ -133,6 +192,30 @@ final class VimFieldController {
 	init(isMultiline: Bool) {
 		self.isMultiline = isMultiline
 		editor = VimEditor(isMultiline: isMultiline)
+	}
+
+	/// Puts the keys in the field: the AppKit text view or field inside the
+	/// anchor's frame, found once and kept while it stays in the window.
+	func focusField() {
+		guard let anchor, let window = anchor.window, let root = window.contentView else { return }
+		if editableView?.window !== window {
+			let frame = anchor.convert(anchor.bounds, to: nil).insetBy(dx: -2, dy: -2)
+			editableView = Self.editableView(in: root, inside: frame)
+		}
+		guard let editableView else { return }
+		window.makeFirstResponder(editableView)
+	}
+
+	/// The first editable text view or field whose centre lies inside `frame`, in window coordinates.
+	private static func editableView(in view: NSView, inside frame: CGRect) -> NSView? {
+		for subview in view.subviews where !subview.isHidden {
+			let bounds = subview.convert(subview.bounds, to: nil)
+			guard bounds.intersects(frame) else { continue }
+			let isEditable = (subview as? NSTextField)?.isEditable == true || (subview as? NSTextView)?.isEditable == true
+			if isEditable, frame.contains(CGPoint(x: bounds.midX, y: bounds.midY)) { return subview }
+			if let found = editableView(in: subview, inside: frame) { return found }
+		}
+		return nil
 	}
 
 	/// Whether `textView` is this field's: it lies inside the field's frame in the same window.

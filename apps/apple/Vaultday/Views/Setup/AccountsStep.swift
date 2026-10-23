@@ -155,7 +155,7 @@ struct AddMailAccountSheet: View {
 			if accounts.draft != nil {
 				SegmentedChoice(label: "Account type", options: MailProviderChoice.allCases.map { ($0, $0.title) }, selection: binding(\.provider))
 				field("Address") {
-					TextField("you@example.com", text: binding(\.address)).textFieldStyle(.roundedBorder)
+					VimTextField("you@example.com", text: binding(\.address)).textFieldStyle(.roundedBorder)
 				}
 				if accounts.draft?.provider == .imap {
 					imapFields
@@ -184,10 +184,10 @@ struct AddMailAccountSheet: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space12) {
 			HStack(alignment: .top, spacing: Tokens.Spacing.space12) {
 				field("Server") {
-					TextField("imap.example.com", text: binding(\.host)).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
+					VimTextField("imap.example.com", text: binding(\.host)).textFieldStyle(.roundedBorder).font(Tokens.Typography.mono.font)
 				}
 				field("Port") {
-					TextField("993", value: binding(\.port), format: .number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width: 80)
+					VimTextField("993", text: portText).textFieldStyle(.roundedBorder).frame(width: 80)
 				}
 			}
 			Toggle("The server signs in with Microsoft (XOAUTH2)", isOn: binding(\.usesMicrosoftSignIn))
@@ -271,6 +271,17 @@ struct AddMailAccountSheet: View {
 	}
 
 	/// A binding into the draft; editing it voids the last test.
+	/// The port as text for the Vim field: digits only, an empty field keeps the last port.
+	private var portText: Binding<String> {
+		let port = binding(\.port)
+		return Binding(
+			get: { String(port.wrappedValue) },
+			set: { text in
+				if let value = Int(text.filter(\.isNumber)) { port.wrappedValue = value }
+			},
+		)
+	}
+
 	private func binding<Value: Equatable>(_ keyPath: WritableKeyPath<MailAccountDraft, Value>) -> Binding<Value> {
 		Binding(
 			get: { accounts.draft?[keyPath: keyPath] ?? MailAccountDraft(workspace: "")[keyPath: keyPath] },

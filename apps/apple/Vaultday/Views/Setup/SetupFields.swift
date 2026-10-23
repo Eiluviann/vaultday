@@ -58,7 +58,7 @@ struct DayTimeField: View {
 			if let day {
 				SetupMenu(label: "\(label) day", options: WeekdayChoice.allCases.map { ($0, $0.title) }, selection: Binding(get: { day }, set: setDay), width: 74)
 			}
-			TextField(label, text: $text)
+			VimTextField(label, text: $text)
 				.textFieldStyle(.plain)
 				.focused($isFocused)
 				.multilineTextAlignment(.trailing)

@@ -204,7 +204,7 @@ private struct PresetRow: View {
 				.disabled(browse.queryMessage != nil)
 				.popover(isPresented: $isNaming, arrowEdge: .bottom) {
 					HStack {
-						TextField("Preset name", text: $presetName)
+						VimTextField("Preset name", text: $presetName, focusesOnAppear: true)
 							.textFieldStyle(.roundedBorder)
 							.frame(width: 180)
 							.onSubmit(save)
@@ -246,7 +246,7 @@ private struct QueryLine: View {
 				Text("/")
 					.font(.custom(Tokens.Typography.mono.family, size: 13))
 					.foregroundStyle(Tokens.Colors.inkMuted)
-				TextField("status:open story:WEB-142 due:<=week section:pending estimate:none", text: Bindable(browse).queryText)
+				VimTextField("status:open story:WEB-142 due:<=week section:pending estimate:none", text: Bindable(browse).queryText, focusRequest: app.browseQueryFocusRequest)
 					.textFieldStyle(.plain)
 					.font(.custom(Tokens.Typography.mono.family, size: 12))
 					.foregroundStyle(Tokens.Colors.ink)
@@ -280,13 +280,13 @@ private struct QueryLine: View {
 			.frame(height: Tokens.Size.sizeControl)
 			.background(Tokens.Colors.surfaceSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
 			.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(browse.queryMessage == nil ? Tokens.Colors.line : Tokens.Colors.danger))
+			.vimModeLineBelow()
 			if let message = browse.queryMessage {
 				Text(message)
 					.font(Tokens.Typography.caption.font)
 					.foregroundStyle(Tokens.Colors.danger)
 			}
 		}
-		.onChange(of: app.browseQueryFocusRequest) { isFocused = true }
 		.onChange(of: isFocused) { app.setTextField("browse-query", isFocused: isFocused) }
 		.onDisappear { app.setTextField("browse-query", isFocused: false) }
 	}

@@ -206,7 +206,7 @@ final class AppModel {
 		guard workspace == nil, setupError == nil else { return }
 		do {
 			#if DEBUG
-				let environment = try CoreEnvironment.forThisMac(allowsUnsignedFallback: true)
+				let environment = try Self.debugEnvironment() ?? CoreEnvironment.forThisMac(allowsUnsignedFallback: true)
 			#else
 				let environment = try CoreEnvironment.forThisMac()
 			#endif
@@ -274,6 +274,16 @@ final class AppModel {
 	}
 
 	#if DEBUG
+		/// `VAULTDAY_DEBUG_IN_MEMORY=1`: a run on an in-memory Keychain and a
+		/// fresh temporary folder, sharing no state or Keychain item with any
+		/// other build on this Mac, so two worktrees can run the app at once.
+		private static func debugEnvironment() throws -> CoreEnvironment? {
+			guard ProcessInfo.processInfo.environment["VAULTDAY_DEBUG_IN_MEMORY"] == "1" else { return nil }
+			let container = FileManager.default.temporaryDirectory
+				.appending(path: "Vaultday debug run \(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
+			return try CoreEnvironment.inMemory(container: container, grants: FolderGrants(), signingMode: .inMemory)
+		}
+
 		/// Manual runs of an unsigned build start on an empty container each
 		/// time: `VAULTDAY_DEBUG_WORKSPACE=<folder>` adds that folder as a work
 		/// workspace without the open panel. Use a copy of the mock vault only.

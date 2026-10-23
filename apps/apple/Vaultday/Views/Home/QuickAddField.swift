@@ -11,13 +11,14 @@ struct QuickAddField: View {
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space8) {
-			VimTextField("Add a task · a day, a time, an estimate and a story route it", text: $quickAdd.text, onEscape: closeConfirmation)
+			VimTextField("Add a task · a day, a time, an estimate and a story route it", text: $quickAdd.text, focusRequest: app.quickAddFocusRequest, onEscape: closeConfirmation)
 				.textFieldStyle(.plain)
 				.font(Tokens.Typography.body.font)
 				.padding(.horizontal, 10)
 				.frame(height: 32)
 				.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
 				.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(isFocused ? Tokens.Colors.focus : Tokens.Colors.lineButton))
+				.vimModeLineBelow()
 				.focused($isFocused)
 				.onSubmit(submit)
 				.onExitCommand {
@@ -48,7 +49,6 @@ struct QuickAddField: View {
 					.offset(y: 36)
 			}
 		}
-		.onChange(of: app.quickAddFocusRequest) { isFocused = true }
 		.onChange(of: isFocused) { app.setTextField("quick-add", isFocused: isFocused) }
 		// ⌘0 or a workspace switch can take the field away while it has focus; no change of isFocused follows.
 		.onDisappear { app.setTextField("quick-add", isFocused: false) }
