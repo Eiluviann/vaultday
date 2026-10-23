@@ -190,6 +190,8 @@ struct SegmentedChoice<Value: Hashable>: View {
 						.font(Tokens.Typography.callout.font.weight(isSelected ? .semibold : .regular))
 						.foregroundStyle(isSelected ? Tokens.Colors.ink : Tokens.Colors.inkSecondary)
 						.lineLimit(1)
+						// A segment is never narrower than its label: a filling track shares out only the room left over.
+						.fixedSize()
 						.padding(.horizontal, Tokens.Spacing.space6)
 						.frame(maxWidth: fills ? .infinity : nil)
 						.frame(height: Tokens.Size.sizeControlSm)
