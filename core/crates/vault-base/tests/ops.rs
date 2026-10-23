@@ -5,9 +5,9 @@ mod common;
 
 use common::{WEB_142, diff, read, sandbox, snapshot, workspace};
 use vault_base::ops::{
-    AddTaskRequest, LogRequest, OpError, add_story_task, append_day_log, build_report, edit_task,
-    format_task_line, next_task_id, open_vault, resolve_workspace, restore_task_line, task_by_id,
-    tick_task_done, waiting_items,
+    AddTaskRequest, LogRequest, OpError, SessionLogRequest, add_story_task, append_day_log,
+    append_session_log, build_report, edit_task, format_task_line, next_task_id, open_vault,
+    resolve_workspace, restore_task_line, task_by_id, tick_task_done, waiting_items,
 };
 use vault_base::writer::TaskEdit;
 use vault_base::{Date, PlainFileAccess, Time};
@@ -320,6 +320,75 @@ fn a_model_line_names_its_agent_and_facts_do_not() {
     request.text = "Fact line".to_owned();
     let change = append_day_log(&workspace, &PlainFileAccess, &request).unwrap();
     assert!(!change.new_line.contains("agent"));
+}
+
+fn session_request(minutes: u64) -> SessionLogRequest {
+    SessionLogRequest {
+        date: date("2026-10-23"),
+        time: Time::new(10, 0).unwrap(),
+        session: "ses-41".to_owned(),
+        task: Some("task-5".to_owned()),
+        story: Some("WEB-142".to_owned()),
+        fallback_text: "task-5".to_owned(),
+        minutes,
+    }
+}
+
+#[test]
+fn a_stopped_session_is_logged_once_with_its_task_text_and_time() {
+    let sandbox = sandbox();
+    let workspace = workspace(&sandbox.root);
+    let before = snapshot(&sandbox.root);
+    let change = append_session_log(&workspace, &PlainFileAccess, &session_request(65))
+        .unwrap()
+        .unwrap();
+    assert!(
+        change.new_line.starts_with("- 10:00 session · "),
+        "{}",
+        change.new_line
+    );
+    assert!(
+        change
+            .new_line
+            .contains(" · 1h 5m [story:: WEB-142] [kind:: session] [id:: ses-41] [task:: task-5]"),
+        "{}",
+        change.new_line
+    );
+    assert!(
+        !change.new_line.contains("session · task-5 ·"),
+        "the task's text, not its id"
+    );
+    assert_eq!(change.relative_path, "Log/2026-10-23.md");
+    let again = append_session_log(&workspace, &PlainFileAccess, &session_request(70)).unwrap();
+    assert_eq!(again, None, "the same session is never logged twice");
+    let changes = diff(&before, &snapshot(&sandbox.root));
+    assert_eq!(changes.len(), 1, "one new day log");
+    let session_lines: Vec<&String> = changes[0]
+        .added
+        .iter()
+        .filter(|line| line.contains("[kind:: session]"))
+        .collect();
+    assert_eq!(session_lines, [&format!("{}\n", change.new_line)]);
+}
+
+#[test]
+fn a_session_without_a_vault_task_uses_its_fallback_text() {
+    let sandbox = sandbox();
+    let workspace = workspace(&sandbox.root);
+    let request = SessionLogRequest {
+        task: None,
+        story: None,
+        fallback_text: "Standup | team [sync]".to_owned(),
+        minutes: 0,
+        ..session_request(0)
+    };
+    let change = append_session_log(&workspace, &PlainFileAccess, &request)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        change.new_line,
+        "- 10:00 session · Standup / team (sync) · 0m [kind:: session] [id:: ses-41]"
+    );
 }
 
 #[test]

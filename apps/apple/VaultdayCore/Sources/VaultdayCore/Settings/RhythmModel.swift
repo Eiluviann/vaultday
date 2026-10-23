@@ -57,12 +57,16 @@ public enum Ritual: String, CaseIterable, Identifiable, Hashable, Sendable {
 public final class RhythmModel {
 	public static let minimumWorkloadMinutes = 15
 	public static let maximumWorkloadMinutes = 24 * 60
+	public static let minimumLongTimerMinutes = 15
+	public static let maximumLongTimerMinutes = 24 * 60
 
 	public private(set) var breakPattern: BreakPatternSetting = .fiftyTen
 	public private(set) var rolloverPosition: ListPositionSetting = .top
 	public private(set) var newTaskPosition: ListPositionSetting = .bottom
 	public private(set) var overrunWarning: OverrunWarningSetting = .intoFreeTime
 	public private(set) var workloadThresholdMinutes = 8 * 60
+	/// How long a session may run before the long-timer check asks "still working on this?".
+	public private(set) var longTimerLimitMinutes = 3 * 60
 	public private(set) var workingHours = WorkingHoursSetting(
 		kind: .fixed,
 		start: DayTime(minuteOfDay: 9 * 60) ?? DayTime(minuteOfDay: 0)!,
@@ -92,6 +96,7 @@ public final class RhythmModel {
 		newTaskPosition = ListPositionSetting(appState.newTaskPosition())
 		overrunWarning = OverrunWarningSetting(appState.overrunWarning())
 		workloadThresholdMinutes = Int(appState.workloadThresholdMinutes())
+		longTimerLimitMinutes = Int(appState.longTimerLimitMinutes())
 		let hours = appState.workingHours()
 		if let start = DayTime(minuteOfDay: Int(hours.startMinute)), let end = DayTime(minuteOfDay: Int(hours.endMinute)) {
 			workingHours = WorkingHoursSetting(kind: WorkingHoursKindSetting(hours.kind), start: start, end: end, days: Set(hours.days.map(WeekdayChoice.init)))
@@ -200,6 +205,23 @@ public final class RhythmModel {
 
 	public func setRemindersRing(_ isOn: Bool) {
 		write { try $0.setReminderTimesRing(isOn: isOn) }
+	}
+
+	/// The limit the long-timer check uses: the long-timer limit or the
+	/// workload threshold, whichever comes first.
+	public var longTimerCheckMinutes: Int {
+		min(longTimerLimitMinutes, workloadThresholdMinutes)
+	}
+
+	/// Sets how long a session may run before the long-timer check asks; 15 minutes to a full day.
+	@discardableResult
+	public func setLongTimerLimit(minutes: Int) -> Bool {
+		guard (Self.minimumLongTimerMinutes ... Self.maximumLongTimerMinutes).contains(minutes) else {
+			issues["longTimer"] = "Between 15 minutes and 24 hours"
+			return false
+		}
+		issues["longTimer"] = nil
+		return write { try $0.setLongTimerLimitMinutes(minutes: UInt32(minutes)) }
 	}
 
 	/// Sets the planned work a day may hold before planning warns, in minutes; 15 minutes to a full day.

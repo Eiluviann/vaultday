@@ -468,3 +468,12 @@ bindings:
     group: "Browse"
     vim: "z a"
     standard: ""
+  # Timer surfaces (PR 11). Space (`timer.toggle`) pauses and resumes the
+  # running session. ⌥⌘T toggles the mini tracker; the app also registers it
+  # as a global hotkey, so it works while another app is frontmost. ⌘N, the
+  # arrows and Return in the menu-bar extra act inside its popover only.
+  - action: tracker.toggle
+    label: "Show or hide the mini tracker"
+    group: "Panes and tabs"
+    vim: "alt+cmd+t"
+    standard: "alt+cmd+t"

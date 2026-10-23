@@ -1,4 +1,8 @@
-/** Why a command did not run. The kinds mirror the codes of the native binding, plus two of the CLI's own. */
+/**
+ * Why a command did not run. The kinds mirror the codes of the native binding,
+ * plus the CLI's own: usage and internal, and the two answers of the app's
+ * localhost API that are not about the request (not running, refused token).
+ */
 export type FailureKind =
 	| 'not-a-workspace'
 	| 'invalid-settings'
@@ -8,7 +12,9 @@ export type FailureKind =
 	| 'conflict'
 	| 'file-access'
 	| 'usage'
-	| 'internal';
+	| 'internal'
+	| 'app-not-running'
+	| 'refused-token';
 
 export type Failure = {
 	readonly kind: FailureKind;
@@ -25,6 +31,8 @@ const FAILURE_KINDS: readonly FailureKind[] = [
 	'file-access',
 	'usage',
 	'internal',
+	'app-not-running',
+	'refused-token',
 ];
 
 export function usageFailure(message: string): Failure {

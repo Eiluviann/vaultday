@@ -210,6 +210,27 @@ pub struct LogRequest {
     pub agent: Option<String>,
 }
 
+/// One stopped timer session, as [`append_session_log`] writes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionLogRequest {
+    /// The day whose log gets the line: the session's local start day.
+    pub date: Date,
+    /// The local start time, the line's time prefix.
+    pub time: Time,
+    /// The session id, written as `[id:: …]`; a day log that already holds
+    /// it is left alone, so a session is logged once.
+    pub session: String,
+    /// The task the session ran on.
+    pub task: Option<String>,
+    /// The story the session belongs to.
+    pub story: Option<String>,
+    /// What the line calls the session when its task is not in the vault:
+    /// the meeting title, the story or the task id.
+    pub fallback_text: String,
+    /// The time counted, pauses cut out, in whole minutes.
+    pub minutes: u64,
+}
+
 /// One frontmatter key with its values (a scalar has one, a list several).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrontmatterEntry {
@@ -520,6 +541,53 @@ pub fn append_day_log(
     Ok(change_record(receipt))
 }
 
+/// Appends the `session` line of a stopped timer session to its day log:
+/// `- HH:MM session · <task text> · 1h 5m [story:: …] [kind:: session] [id:: ses-…] [task:: …]`.
+/// Returns `None` when that day's log already holds the session's id.
+///
+/// # Errors
+/// [`OpError::InvalidInput`] when the session id or the text cannot be
+/// written as a log line, [`OpError::FileAccess`] otherwise.
+pub fn append_session_log(
+    workspace: &Workspace,
+    file_access: &dyn FileAccess,
+    request: &SessionLogRequest,
+) -> Result<Option<ChangeRecord>, OpError> {
+    let vault = open_vault(workspace, file_access)?;
+    let is_logged = vault.log_lines_on(request.date).iter().any(|entry| {
+        entry
+            .line
+            .fields
+            .iter()
+            .any(|field| field.key == "id" && field.value == request.session)
+    });
+    if is_logged {
+        return Ok(None);
+    }
+    let task_text = request
+        .task
+        .as_deref()
+        .and_then(|id| vault.task_by_id(id))
+        .map(|found| found.task.text.clone());
+    let subject = log_safe_text(task_text.as_deref().unwrap_or(&request.fallback_text));
+    let text = format!(
+        "{subject} {} {}",
+        crate::log::VERB_SEPARATOR,
+        minutes_text(request.minutes)
+    );
+    let mut entry = LogAppend::new(request.time, text)
+        .with_kind(LogKind::Session)
+        .with_id(request.session.clone());
+    if let Some(story) = &request.story {
+        entry = entry.with_story(story.clone());
+    }
+    if let Some(task) = &request.task {
+        entry = entry.with_task(task.clone());
+    }
+    let receipt = VaultWriter::new(file_access, workspace).append_log(request.date, &entry)?;
+    Ok(Some(change_record(receipt)))
+}
+
 /// Builds the report for a story number or a client over `from..=to`.
 ///
 /// `subject` is a story number (`WEB-142`) or a client: a project hub's key,
@@ -757,6 +825,31 @@ fn parse_section(section: &str) -> Result<TaskSection, OpError> {
         other => Err(OpError::InvalidInput(format!(
             "unknown section {other:?}; expected next-steps or pending-input"
         ))),
+    }
+}
+
+/// A task text as a log line may carry it: one line, no pipes, no field brackets.
+fn log_safe_text(text: &str) -> String {
+    let flattened: String = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('|', "/")
+        .replace("[", "(")
+        .replace("]", ")");
+    if flattened.is_empty() {
+        "Timer".to_owned()
+    } else {
+        flattened
+    }
+}
+
+/// `0m`, `47m`, `1h`, `1h 5m`.
+fn minutes_text(minutes: u64) -> String {
+    match (minutes / 60, minutes % 60) {
+        (0, rest) => format!("{rest}m"),
+        (hours, 0) => format!("{hours}h"),
+        (hours, rest) => format!("{hours}h {rest}m"),
     }
 }
 

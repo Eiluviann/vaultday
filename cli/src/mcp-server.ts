@@ -14,6 +14,12 @@ import {
 } from './commands.ts';
 import { resolveWorkspaceFrom } from './core.ts';
 import { modelTextPolicy } from './provenance.ts';
+import {
+	runStatus,
+	runTimerContinue,
+	runTimerStart,
+	runTimerStop,
+} from './timer-commands.ts';
 
 type ToolContext = Pick<CliContext, 'workingDirectory' | 'environment'>;
 
@@ -144,7 +150,86 @@ export function createVaultdayServer(context: ToolContext): McpServer {
 		({ id }) => answer(context, (workspace) => runTaskDone(workspace, id)),
 	);
 
+	registerTimerTools(server, context);
+
 	return server;
+}
+
+/**
+ * The timer and status tools: they talk to the running app over its
+ * localhost API, like `vaultday timer` and `vaultday status`, and answer
+ * "Vaultday is not running" when it is not.
+ */
+function registerTimerTools(server: McpServer, context: ToolContext): void {
+	server.registerTool(
+		'timer_start',
+		{
+			title: 'Start timer',
+			description:
+				'Start the Vaultday timer on a task: a task id (task-5), a story number (WEB-142) or text matching an open task of today. Needs the app running.',
+			inputSchema: {
+				target: z
+					.string()
+					.min(1)
+					.describe('Task id, story number, or text of an open task.'),
+				minutesAgo: z
+					.number()
+					.int()
+					.min(1)
+					.max(1440)
+					.optional()
+					.describe('Start the session this many minutes ago.'),
+			},
+		},
+		async ({ target, minutesAgo }) =>
+			answerResult(
+				await runTimerStart(context.environment, { target, minutesAgo }),
+			),
+	);
+
+	server.registerTool(
+		'timer_stop',
+		{
+			title: 'Stop timer',
+			description:
+				'Stop the running or paused session; the app writes its session line to the day log once.',
+			inputSchema: {},
+		},
+		async () => answerResult(await runTimerStop(context.environment)),
+	);
+
+	server.registerTool(
+		'timer_continue',
+		{
+			title: 'Continue latest',
+			description: 'Start a new session on the task the last timer ran on.',
+			inputSchema: {},
+		},
+		async () => answerResult(await runTimerContinue(context.environment)),
+	);
+
+	server.registerTool(
+		'status',
+		{
+			title: 'Timer status',
+			description:
+				"The running timer (task, elapsed time, paused or not) and today's logged and tracked time, as JSON.",
+			inputSchema: {},
+		},
+		async () => {
+			const result = await runStatus(context.environment, 'json');
+			return result.ok
+				? {
+						content: [
+							{
+								type: 'text' as const,
+								text: JSON.stringify(result.value.value, undefined, 2),
+							},
+						],
+					}
+				: answerResult(result);
+		},
+	);
 }
 
 /** Serves the tools over stdio until the client disconnects. */
@@ -157,7 +242,10 @@ function answer(
 	run: (workspace: Parameters<typeof runToday>[0]) => CommandResult,
 ) {
 	const workspace = resolveWorkspaceFrom(context.workingDirectory);
-	const result = workspace.ok ? run(workspace.value) : workspace;
+	return answerResult(workspace.ok ? run(workspace.value) : workspace);
+}
+
+function answerResult(result: CommandResult) {
 	if (!result.ok) {
 		return {
 			isError: true,

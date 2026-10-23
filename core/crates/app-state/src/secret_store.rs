@@ -25,6 +25,10 @@ pub enum SecretKind {
     /// An AI provider's API key, named by the key's id. It stays on this
     /// device: never synchronised, never written to any file.
     ProviderApiKey,
+    /// The bearer token of the app's localhost API, named `local-api`. It
+    /// stays on this device; the app also writes it, mode 0600, into its App
+    /// Group container for the command line.
+    LocalApiToken,
 }
 
 /// Whether an item travels to the user's other devices.
@@ -124,7 +128,9 @@ impl SecretKind {
             SecretKind::WorkspaceDataKey | SecretKind::AppDataKey | SecretKind::DevicePublicKey => {
                 Availability::Synchronisable
             }
-            SecretKind::DeviceSigningKey | SecretKind::ProviderApiKey => Availability::DeviceOnly,
+            SecretKind::DeviceSigningKey
+            | SecretKind::ProviderApiKey
+            | SecretKind::LocalApiToken => Availability::DeviceOnly,
         }
     }
 
@@ -137,6 +143,7 @@ impl SecretKind {
             SecretKind::DeviceSigningKey => "device-signing-key",
             SecretKind::DevicePublicKey => "device-public-key",
             SecretKind::ProviderApiKey => "provider-api-key",
+            SecretKind::LocalApiToken => "local-api-token",
         }
     }
 }

@@ -39,5 +39,13 @@ struct VaultdayApp: App {
 			SyncCheckWindow(app: app)
 		}
 		.windowResizability(.contentSize)
+
+		// The timer from anywhere: the running entry, recent tasks, ⌘N.
+		MenuBarExtra {
+			MenuBarContent(app: app)
+		} label: {
+			MenuBarLabel(app: app)
+		}
+		.menuBarExtraStyle(.window)
 	}
 }

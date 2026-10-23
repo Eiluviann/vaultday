@@ -232,7 +232,7 @@ private struct SubtaskRow: View {
 			if let taskId = subtask.taskId, !subtask.isDone {
 				if isRunning, let session = app.sessions.openSession {
 					CardIconButton(symbol: session.isPaused ? "play.fill" : "pause.fill", label: session.isPaused ? "Resume timer" : "Pause timer") {
-						app.sessions.togglePause()
+						app.togglePauseTimer()
 					}
 				} else {
 					CardIconButton(symbol: "play.fill", label: "Start timer on this subtask") {

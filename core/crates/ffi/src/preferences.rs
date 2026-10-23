@@ -347,6 +347,27 @@ impl AppStateHandle {
         self.edit_state(|state| state.set_workload_threshold(threshold))
     }
 
+    /// How long a session may run before the long-timer check asks, in minutes.
+    pub fn long_timer_limit_minutes(&self) -> u32 {
+        let minutes = self.read_state(|state| state.long_timer_limit().as_secs() / 60);
+        u32::try_from(minutes).unwrap_or(u32::MAX)
+    }
+
+    /// Sets the long-timer limit, from one minute to a full day.
+    ///
+    /// # Errors
+    /// [`CoreError::InvalidInput`] outside 1 to 1440 minutes; the document
+    /// refused the edit.
+    pub fn set_long_timer_limit_minutes(&self, minutes: u32) -> Result<(), CoreError> {
+        if !(1..=24 * 60).contains(&minutes) {
+            return Err(CoreError::InvalidInput(format!(
+                "{minutes} minutes is not a long-timer limit: 1 to 1440"
+            )));
+        }
+        let limit = std::time::Duration::from_secs(u64::from(minutes) * 60);
+        self.edit_state(|state| state.set_long_timer_limit(limit))
+    }
+
     /// When a ritual runs, as minutes after midnight.
     pub fn ritual_minute(&self, ritual: String) -> Option<u32> {
         self.read_state(|state| state.ritual_times().get(&ritual).copied())

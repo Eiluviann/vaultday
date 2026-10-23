@@ -9,6 +9,7 @@ import {
 } from './commands.ts';
 import { type Failure, usageFailure } from './failure.ts';
 import { err, ok, type Result } from './result.ts';
+import { STATUS_FORMATS, type StatusFormat } from './timer-commands.ts';
 
 export type ParsedCommand =
 	| { readonly name: 'help'; readonly isRequested: boolean }
@@ -49,7 +50,27 @@ export type ParsedCommand =
 			readonly name: 'task-done';
 			readonly id: string;
 			readonly shouldPrintJson: boolean;
+	  }
+	| {
+			readonly name: 'timer-start';
+			readonly target: string;
+			readonly minutesAgo?: number | undefined;
+			readonly shouldPrintJson: boolean;
+	  }
+	| {
+			readonly name: 'timer-stop' | 'timer-continue';
+			readonly shouldPrintJson: boolean;
+	  }
+	| {
+			readonly name: 'status';
+			readonly format: StatusFormat;
 	  };
+
+/** The commands that talk to the running app instead of the vault files. */
+export type ApiCommand = Extract<
+	ParsedCommand,
+	{ name: 'timer-start' | 'timer-stop' | 'timer-continue' | 'status' }
+>;
 
 export const USAGE = `Usage:
   vaultday today [path] [--date YYYY-MM-DD] [--json]
@@ -57,9 +78,14 @@ export const USAGE = `Usage:
   vaultday report <story number|client> --from YYYY-MM-DD --to YYYY-MM-DD
   vaultday task add <text> --story <number> [--section next|pending] [--assigned-to <who>] [--ai|--human] [--json]
   vaultday task done <id> [--json]
+  vaultday timer start <task-id|text> [--ago <minutes>] [--json]
+  vaultday timer stop [--json]
+  vaultday timer continue [--json]
+  vaultday status [--format text|json|sketchybar] [--json]
   vaultday mcp
 
 The workspace is the deepest .vaultday/ at or above the working directory.
+timer and status talk to the running Vaultday app over its localhost API.
 Text a model wrote (--ai, or AI_PROVENANCE_AUTHOR set) is marked as model text.`;
 
 const FLAGS = {
@@ -74,6 +100,8 @@ const FLAGS = {
 	ai: { type: 'boolean' },
 	human: { type: 'boolean' },
 	json: { type: 'boolean' },
+	format: { type: 'string' },
+	ago: { type: 'string' },
 	help: { type: 'boolean', short: 'h' },
 } as const;
 
@@ -127,6 +155,10 @@ function interpret(argv: readonly string[]): Result<ParsedCommand, Failure> {
 		}
 		case 'task':
 			return parseTask(rest, values, isModelText, shouldPrintJson);
+		case 'timer':
+			return parseTimer(rest, values, shouldPrintJson);
+		case 'status':
+			return parseStatus(values, shouldPrintJson);
 		default:
 			return err(usageFailure(`unknown command ${command}`));
 	}
@@ -192,4 +224,61 @@ function parseTask(
 		isModelText,
 		shouldPrintJson,
 	});
+}
+
+const MAXIMUM_MINUTES_AGO = 24 * 60;
+
+function parseTimer(
+	rest: readonly string[],
+	values: Flags,
+	shouldPrintJson: boolean,
+): Result<ParsedCommand, Failure> {
+	const [action, ...words] = rest;
+	switch (action) {
+		case 'start':
+			return parseTimerStart(words, values, shouldPrintJson);
+		case 'stop':
+			return ok({ name: 'timer-stop', shouldPrintJson });
+		case 'continue':
+			return ok({ name: 'timer-continue', shouldPrintJson });
+		default:
+			return err(usageFailure('timer needs start, stop or continue'));
+	}
+}
+
+function parseTimerStart(
+	words: readonly string[],
+	values: Flags,
+	shouldPrintJson: boolean,
+): Result<ParsedCommand, Failure> {
+	const target = words.join(' ').trim();
+	if (target === '') {
+		return err(usageFailure('timer start needs a task id or text'));
+	}
+	if (values.ago === undefined) {
+		return ok({ name: 'timer-start', target, shouldPrintJson });
+	}
+	const minutesAgo = Number(values.ago);
+	const isUsableMinutes =
+		Number.isInteger(minutesAgo) &&
+		minutesAgo > 0 &&
+		minutesAgo <= MAXIMUM_MINUTES_AGO;
+	if (!isUsableMinutes) {
+		return err(usageFailure('--ago takes whole minutes from 1 to 1440'));
+	}
+	return ok({ name: 'timer-start', target, minutesAgo, shouldPrintJson });
+}
+
+function parseStatus(
+	values: Flags,
+	shouldPrintJson: boolean,
+): Result<ParsedCommand, Failure> {
+	const format = values.format ?? (shouldPrintJson ? 'json' : 'text');
+	const statusFormat = STATUS_FORMATS.find((candidate) => candidate === format);
+	if (statusFormat === undefined) {
+		return err(
+			usageFailure(`--format must be one of ${STATUS_FORMATS.join(', ')}`),
+		);
+	}
+	return ok({ name: 'status', format: statusFormat });
 }

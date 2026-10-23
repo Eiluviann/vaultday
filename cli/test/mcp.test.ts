@@ -29,8 +29,12 @@ describe('the MCP server', () => {
 		expect(tools.map((tool) => tool.name).sort()).toEqual([
 			'log',
 			'report',
+			'status',
 			'task_add',
 			'task_done',
+			'timer_continue',
+			'timer_start',
+			'timer_stop',
 			'today',
 		]);
 		const log = tools.find((tool) => tool.name === 'log');

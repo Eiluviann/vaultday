@@ -1099,7 +1099,7 @@ pub(crate) fn count(value: usize) -> u32 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
@@ -1117,7 +1117,7 @@ mod tests {
     }
 
     /// A writable copy of the mock vault.
-    fn sandbox() -> tempfile::TempDir {
+    pub(crate) fn sandbox() -> tempfile::TempDir {
         let temp = tempfile::tempdir().unwrap();
         copy_dir(&mock_vault(), temp.path());
         temp
@@ -1136,11 +1136,11 @@ mod tests {
         }
     }
 
-    fn open(root: &Path) -> Arc<WorkspaceHandle> {
+    pub(crate) fn open(root: &Path) -> Arc<WorkspaceHandle> {
         open_workspace(root.to_string_lossy().into_owned()).unwrap()
     }
 
-    fn state(root: &Path) -> Arc<WorkspaceStateHandle> {
+    pub(crate) fn state(root: &Path) -> Arc<WorkspaceStateHandle> {
         let keychain = Arc::new(Keychain::default());
         let device = load_device_id(keychain.clone()).unwrap();
         create_workspace_state(

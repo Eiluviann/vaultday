@@ -158,10 +158,10 @@ private struct NowCard: View {
 				}
 				Spacer()
 				NowButton(symbol: session.isPaused ? "play.fill" : "pause.fill", label: session.isPaused ? "Resume timer" : "Pause timer", help: app.keyLabel(.toggleTimer).map { session.isPaused ? "Resume (\($0))" : "Pause (\($0))" } ?? "Pause") {
-					app.sessions.togglePause()
+					app.togglePauseTimer()
 				}
-				NowButton(symbol: "stop.fill", label: "Stop timer", help: "Stop · ends the session") {
-					app.sessions.stop()
+				NowButton(symbol: "stop.fill", label: "Stop timer", help: "Stop · ends the session and logs it") {
+					app.stopTimer()
 				}
 			}
 			.padding(.top, Tokens.Spacing.space2)
@@ -182,6 +182,25 @@ private struct NowCard: View {
 			Text("Drop a task here to start its timer")
 				.font(Tokens.Typography.callout.font)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
+			HStack(spacing: Tokens.Spacing.space8) {
+				if let latest = app.sessions.latestTimerSession {
+					Button("Continue latest") { app.continueLatestTimer() }
+						.help("Continue latest · \(app.sessionText(latest))")
+				}
+				if let item = app.selectedItem, !item.isDone {
+					Menu("Start minutes ago") {
+						ForEach([5, 10, 15, 30], id: \.self) { minutes in
+							Button("\(minutes) minutes ago") { app.startTimer(taskId: item.taskId, minutesAgo: minutes) }
+						}
+					}
+					.menuStyle(.borderlessButton)
+					.fixedSize()
+					.help("Start \(item.text) as if it began earlier")
+				}
+			}
+			.buttonStyle(.borderless)
+			.font(Tokens.Typography.caption.font)
+			.padding(.top, Tokens.Spacing.space2)
 		}
 		.padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
 		.frame(maxWidth: .infinity, alignment: .leading)

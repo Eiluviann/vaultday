@@ -37,6 +37,8 @@ pub use preferences::{
 pub const APP_SCHEMA_VERSION: u16 = 1;
 /// The workload threshold until the user sets one: an eight-hour day.
 pub const DEFAULT_WORKLOAD_THRESHOLD: Duration = Duration::from_secs(8 * 60 * 60);
+/// The long-timer limit until the user sets one: three hours.
+pub const DEFAULT_LONG_TIMER_LIMIT: Duration = Duration::from_secs(3 * 60 * 60);
 const SCHEMA_ACTOR: &str = "vaultday:schema:app:1";
 
 const CONNECTIONS: &str = "connections";
@@ -476,6 +478,27 @@ impl AppState {
         Ok(())
     }
 
+    /// How long a session may run before the long-timer check asks whether
+    /// you are still working on it.
+    #[must_use]
+    pub fn long_timer_limit(&self) -> Duration {
+        get_u64(&self.doc, &self.objects.settings, "long_timer_limit_secs")
+            .map_or(DEFAULT_LONG_TIMER_LIMIT, Duration::from_secs)
+    }
+
+    /// Sets the long-timer limit, in whole seconds.
+    ///
+    /// # Errors
+    /// The document refused the edit.
+    pub fn set_long_timer_limit(&mut self, limit: Duration) -> Result<(), AppStateError> {
+        self.doc.put(
+            &self.objects.settings,
+            "long_timer_limit_secs",
+            limit.as_secs(),
+        )?;
+        Ok(())
+    }
+
     /// The keyboard scheme.
     #[must_use]
     pub fn keyboard_scheme(&self) -> KeyboardScheme {
@@ -636,6 +659,7 @@ mod tests {
         let state = state("mac-a");
         assert!(state.hover_selects());
         assert_eq!(state.workload_threshold(), DEFAULT_WORKLOAD_THRESHOLD);
+        assert_eq!(state.long_timer_limit(), DEFAULT_LONG_TIMER_LIMIT);
         assert_eq!(state.keyboard_scheme(), KeyboardScheme::Standard);
         assert_eq!(
             state.security(&WorkspaceId::new("acme")),
@@ -652,6 +676,8 @@ mod tests {
         mac.set_hover_selects(false).unwrap();
         mac.set_workload_threshold(Duration::from_secs(6 * 3600))
             .unwrap();
+        mac.set_long_timer_limit(Duration::from_secs(90 * 60))
+            .unwrap();
         mac.set_keyboard_scheme(KeyboardScheme::Vim).unwrap();
         mac.set_ritual_time("planning", Some(Time::constant(8, 30, 0, 0)))
             .unwrap();
@@ -662,6 +688,7 @@ mod tests {
         assert!(!mac.hover_selects());
         assert!(other.hover_selects(), "hover selects is set per device");
         assert_eq!(other.workload_threshold(), Duration::from_secs(6 * 3600));
+        assert_eq!(other.long_timer_limit(), Duration::from_secs(90 * 60));
         assert_eq!(other.keyboard_scheme(), KeyboardScheme::Vim);
         assert_eq!(
             other.ritual_times().into_iter().collect::<Vec<_>>(),

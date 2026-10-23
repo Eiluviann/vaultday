@@ -1,4 +1,9 @@
-import { type ParsedCommand, parseArguments, USAGE } from './arguments.ts';
+import {
+	type ApiCommand,
+	type ParsedCommand,
+	parseArguments,
+	USAGE,
+} from './arguments.ts';
 import {
 	type CommandResult,
 	runLog,
@@ -10,6 +15,12 @@ import {
 import { resolveWorkspaceFrom } from './core.ts';
 import type { Environment } from './provenance.ts';
 import { modelTextPolicy } from './provenance.ts';
+import {
+	runStatus,
+	runTimerContinue,
+	runTimerStart,
+	runTimerStop,
+} from './timer-commands.ts';
 
 export type CliContext = {
 	readonly workingDirectory: string;
@@ -45,6 +56,9 @@ export async function runCli(
 		await runStdioServer(context);
 		return 0;
 	}
+	if (isApiCommand(command)) {
+		return printApiResult(context, await executeApi(command, context), command);
+	}
 	const startDirectory =
 		command.name === 'today' && command.startDirectory !== undefined
 			? command.startDirectory
@@ -60,8 +74,54 @@ export async function runCli(
 	return 0;
 }
 
+function isApiCommand(command: ParsedCommand): command is ApiCommand {
+	return (
+		command.name === 'timer-start' ||
+		command.name === 'timer-stop' ||
+		command.name === 'timer-continue' ||
+		command.name === 'status'
+	);
+}
+
+/** The timer and status commands: API only, so they need no workspace. */
+function executeApi(
+	command: ApiCommand,
+	context: CliContext,
+): Promise<CommandResult> {
+	switch (command.name) {
+		case 'timer-start':
+			return runTimerStart(context.environment, {
+				target: command.target,
+				minutesAgo: command.minutesAgo,
+			});
+		case 'timer-stop':
+			return runTimerStop(context.environment);
+		case 'timer-continue':
+			return runTimerContinue(context.environment);
+		case 'status':
+			return runStatus(context.environment, command.format);
+	}
+}
+
+function printApiResult(
+	context: CliContext,
+	result: CommandResult,
+	command: ApiCommand,
+): number {
+	if (!result.ok) return fail(context, result.error.message);
+	const shouldPrintJson =
+		command.name === 'status'
+			? command.format === 'json'
+			: command.shouldPrintJson;
+	const { value, text } = result.value;
+	context.writeOut(
+		`${shouldPrintJson ? JSON.stringify(value, undefined, 2) : text}\n`,
+	);
+	return 0;
+}
+
 function execute(
-	command: Exclude<ParsedCommand, { name: 'help' | 'mcp' }>,
+	command: Exclude<ParsedCommand, { name: 'help' | 'mcp' } | ApiCommand>,
 	workspace: Parameters<typeof runToday>[0],
 	context: CliContext,
 ): { result: CommandResult; shouldPrintJson: boolean } {

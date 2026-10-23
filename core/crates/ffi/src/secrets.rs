@@ -27,6 +27,8 @@ pub enum SecretKind {
     DevicePublicKey,
     /// An AI provider's API key, named by the key's id; this device only.
     ProviderApiKey,
+    /// The localhost API's bearer token, named `local-api`; this device only.
+    LocalApiToken,
 }
 
 /// Names one item.
@@ -186,6 +188,7 @@ impl From<SecretKind> for CoreSecretKind {
             SecretKind::DeviceSigningKey => CoreSecretKind::DeviceSigningKey,
             SecretKind::DevicePublicKey => CoreSecretKind::DevicePublicKey,
             SecretKind::ProviderApiKey => CoreSecretKind::ProviderApiKey,
+            SecretKind::LocalApiToken => CoreSecretKind::LocalApiToken,
         }
     }
 }
@@ -198,6 +201,7 @@ impl From<CoreSecretKind> for SecretKind {
             CoreSecretKind::DeviceSigningKey => SecretKind::DeviceSigningKey,
             CoreSecretKind::DevicePublicKey => SecretKind::DevicePublicKey,
             CoreSecretKind::ProviderApiKey => SecretKind::ProviderApiKey,
+            CoreSecretKind::LocalApiToken => SecretKind::LocalApiToken,
         }
     }
 }
@@ -403,6 +407,11 @@ mod tests {
         assert!(secret_kind_is_synchronisable(SecretKind::WorkspaceDataKey));
         assert!(!secret_kind_is_synchronisable(SecretKind::DeviceSigningKey));
         assert!(!secret_kind_is_synchronisable(SecretKind::ProviderApiKey));
+        assert!(!secret_kind_is_synchronisable(SecretKind::LocalApiToken));
+        assert_eq!(
+            secret_kind_label(SecretKind::LocalApiToken),
+            "local-api-token"
+        );
         assert_eq!(
             secret_kind_label(SecretKind::ProviderApiKey),
             "provider-api-key"

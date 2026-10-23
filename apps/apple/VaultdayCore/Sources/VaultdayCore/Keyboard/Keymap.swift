@@ -123,6 +123,8 @@ public enum KeyAction: Hashable, Sendable {
 	case openInClaudeCode
 	/// A side panel tab by its place on the rail, counted from 1.
 	case showSidePanelTab(Int)
+	/// ⌥⌘T: shows the mini tracker, or toggles its expanded form.
+	case toggleMiniTracker
 
 	/// The action named `name` in Keymap.yaml.
 	init?(name: String) {
@@ -209,6 +211,7 @@ public enum KeyAction: Hashable, Sendable {
 		"peek": .peek,
 		"item.open-link": .openLink,
 		"item.claude-code": .openInClaudeCode,
+		"tracker.toggle": .toggleMiniTracker,
 	]
 }
 

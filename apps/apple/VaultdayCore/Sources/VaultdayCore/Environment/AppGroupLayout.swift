@@ -30,8 +30,10 @@ public struct AppGroupLayout: Sendable, Equatable {
 		container.appending(path: "Presets/browse-\(workspaceId).json")
 	}
 
-	/// Reserved for the localhost API's token (PR 11); `vaultday status` reads it here.
+	/// The localhost API's bearer token, mode 0600; `vaultday timer` and `vaultday status` read it here.
 	public var apiTokenFile: URL { container.appending(path: "API/token") }
+	/// The port the localhost API listens on, written at each start and removed at the stop.
+	public var apiPortFile: URL { container.appending(path: "API/port") }
 
 	/// Creates the folders the app writes into.
 	public func createFolders() throws {

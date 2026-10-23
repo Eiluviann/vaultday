@@ -1,8 +1,11 @@
 # @vaultday/cli
 
 The `vaultday` command line and a stdio MCP server over the Rust core
-(`@vaultday/core-node`, the napi-rs binding). It touches **vault files only**:
-it never reads or writes `.vaultday/sync/` and does not depend on the app.
+(`@vaultday/core-node`, the napi-rs binding). `today`, `log`, `report` and
+`task` touch **vault files only**: they never read or write `.vaultday/sync/`
+and do not depend on the app. `timer` and `status` are the exception: they
+talk **only** to the running Vaultday app over its localhost API, so the timer
+has one owner (see [Timer and status](#timer-and-status)).
 
 The workspace is the deepest `.vaultday/` at or above the working directory.
 Outside a workspace every command prints why and exits 1; usage errors exit 2.
@@ -16,6 +19,10 @@ vaultday log <session|done|decision|blocker|status|note> <text>
 vaultday report <story number|client> --from YYYY-MM-DD --to YYYY-MM-DD
 vaultday task add <text> --story <number> [--section next|pending] [--assigned-to <who>] [--ai|--human] [--json]
 vaultday task done <id> [--json]
+vaultday timer start <task-id|text> [--ago <minutes>] [--json]
+vaultday timer stop [--json]
+vaultday timer continue [--json]
+vaultday status [--format text|json|sketchybar] [--json]
 vaultday mcp
 ```
 
@@ -32,9 +39,112 @@ Text a model wrote is marked; fact lines are not.
 - A **log line** names its author in `[agent:: <author>]`, the attribution the provenance core accepts for day-log lines (the `Log/` folder is exempt from block markers).
 - A **task line** is wrapped in `%% ai:begin <author> · <date> · <hash> %%` … `%% ai:end %%`, with the hash computed by `@vaultday/provenance-core` so the block reads as intact.
 
+## Timer and status
+
+`vaultday timer` and `vaultday status` need the app running; they never touch
+the vault or the synced session document themselves.
+
+- `timer start <task-id|text>` starts the timer on a task id of the day's list (or any `task-N`), a story number (`WEB-142`, a session on the story), or the first open task of the day whose text holds all the words. `--ago 10` is "Start minutes ago": the session began ten minutes before now. A running session is stopped and logged first, as on the Now card.
+- `timer stop` stops the running or paused session. The app writes its line to the day log through the core's writer, `- 09:30 session · <task text> · 47m [story:: …] [kind:: session] [id:: ses-…] [task:: …]`, once per session: a day log that already holds the session's id is left alone, whichever surface stopped it. The command prints that line.
+- `timer continue` is "Continue latest": a new session on the task the last timer ran on.
+- `status` prints the running timer and the day's logged time; `--format json` (or `--json`) the app's JSON, `--format sketchybar` the lines below.
+
+When the app is not running (no port file, or nothing listens) every one of
+them exits 1 with `Vaultday is not running`; when the app answers 401 they exit
+1 with `Vaultday refused the token`. Any other refusal carries the app's own
+message (`No open task of today matches "lunch"`, `No timer is running`).
+
+### How the CLI finds the app
+
+At each start the app writes two files, mode 0600, in a 0700 folder of its App
+Group container:
+
+```
+~/Library/Group Containers/group.com.eiluviann.vaultday/API/token   # 64 hex digits
+~/Library/Group Containers/group.com.eiluviann.vaultday/API/port    # e.g. 47390
+```
+
+The token is random, made by the app on its first run and kept in the
+Keychain (this Mac only, never synchronised, never in `settings.json` or the
+vault); the file is rewritten from the Keychain at every launch. The port file
+is removed when the app quits. `VAULTDAY_API_DIR=<folder>` points the CLI at
+another folder holding `token` and `port` (an unsigned debug build runs on a
+temporary container; the tests use a fake app).
+
+macOS may ask once whether your terminal may read another app's data the
+first time the CLI reads the App Group container.
+
+### The localhost API
+
+The app serves HTTP/1.1 on `127.0.0.1` only (the listener binds the loopback
+address and refuses any peer that is not loopback). Every request but
+`/v1/hello` needs `Authorization: Bearer <token>`, compared in constant time; bodies over 64 KB
+are refused with 413. Nothing is rate-limited. Answers are JSON; failures are
+`{"error": "<message>"}`.
+
+Before it sends the token, the CLI asks `GET /v1/hello` with a fresh
+`X-Vaultday-Challenge: <64 hex digits>` and checks the answer `{"proof":
+"<hex>"}` against HMAC-SHA256(key: token, message: `vaultday-server-proof\n`
+followed by the challenge). A program squatting on a stale port, from another
+account on the Mac for one, cannot make the proof and never sees the token; the
+CLI then says `Vaultday refused the token`.
+
+| Method and path | Body | Answer |
+| --- | --- | --- |
+| `GET /v1/hello` | | `{proof}`, no token needed |
+| `GET /v1/status` | | status |
+| `GET /v1/today` | | `{workspace, date, tasks: [{taskId, text, story, isDone, estimateMinutes}]}` |
+| `POST /v1/timer/start` | `{"target": "task-5", "minutesAgo": 10}` | 201, status |
+| `POST /v1/timer/stop` | | status with `logLine` |
+| `POST /v1/timer/continue` | | 201, status |
+| `POST /v1/tasks/<id>/done` | | `{taskId, isDone}` |
+
+A status is `{workspace, timer: {sessionId, taskId, story, text, isPaused, startedAt, elapsedSeconds} | absent, day: {date, spentSeconds, loggedSeconds, workloadSeconds}}`.
+Status codes: 400 bad body, 401 bad or missing token, 403 non-loopback peer,
+404 no such route or no matching task, 405 wrong method, 409 a session already
+runs or none does, 413 body too large, 503 no workspace open.
+
+```bash
+curl -s -H "Authorization: Bearer $(cat ~/Library/Group\ Containers/group.com.eiluviann.vaultday/API/token)" \
+  "http://127.0.0.1:$(cat ~/Library/Group\ Containers/group.com.eiluviann.vaultday/API/port)/v1/status"
+```
+
+### sketchybar
+
+`vaultday status --format sketchybar` prints one `key=value` per line, values
+on one line and never quoted, in this order:
+
+```
+state=running            # running, paused or idle
+elapsed=0:47:12          # H:MM:SS; empty when idle
+task=task-5              # the running task's id; may be empty
+story=WEB-142            # its story; may be empty
+text=Write the end-to-end checkout test
+label=0:47:12 task-5 · Write the end-to-end checkout test
+logged=2h30              # logged today, short form
+workload=8h              # the workload threshold
+ring=2h30 / 8h           # logged / workload
+workspace=Mock Studio
+```
+
+[`sketchybar/vaultday.sh`](sketchybar/vaultday.sh) is a sample item script: it
+polls the command, reads the lines with `IFS='=' read -r key value` (never
+`eval`), shows the label while a timer runs and the ring when idle, and hides
+the item while the app is not running. A click stops the running timer, or
+continues the latest one. Register it in `sketchybarrc`:
+
+```bash
+sketchybar --add item vaultday right \
+           --set vaultday update_freq=2 \
+                 script="$PLUGIN_DIR/vaultday.sh" \
+                 click_script="$PLUGIN_DIR/vaultday.sh click"
+```
+
+Each poll starts Node; keep `update_freq` at 1 or above.
+
 ## MCP server
 
-Tools: `today`, `log`, `report`, `task_add`, `task_done`, with JSON schemas. Text sent through the tools is model text unless `isModelText` is `false`. The workspace comes from the server's working directory, which Claude Code sets to the session's folder.
+Tools: `today`, `log`, `report`, `task_add`, `task_done`, and the API-only `timer_start`, `timer_stop`, `timer_continue` and `status` (they answer "Vaultday is not running" without the app), with JSON schemas. Text sent through the tools is model text unless `isModelText` is `false`. The workspace comes from the server's working directory, which Claude Code sets to the session's folder.
 
 Register the **built** server (never `tsx`):
 

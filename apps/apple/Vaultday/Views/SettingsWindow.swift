@@ -47,6 +47,11 @@ private struct GeneralSettings: View {
 			SetupCard(icon: "cursorarrow.motionlines", title: "Hover selects", description: "Pointing at a row selects it, on this Mac") {
 				SetupSwitch(label: "Hover selects", isOn: Binding(get: { settings.hoverSelects }, set: { app.setHoverSelects($0) }))
 			}
+			SetupCard(icon: "terminal", title: "Command line", description: app.localAPI?.statusText ?? "The localhost API has not started", footnote: "vaultday timer and vaultday status read the token in the App Group container") {
+				EmptyView()
+			} extra: {
+				EmptyView()
+			}
 			SetupCard(icon: "command", title: "Shortcut caps", description: "How the shortcut caps arrive with the selection; Reduce Motion always crossfades") {
 				SegmentedChoice(
 					label: "Shortcut caps",
@@ -74,6 +79,18 @@ private struct DaySettings: View {
 				.accessibilityLabel("Workload threshold")
 			} extra: {
 				if let issue = rhythm.issues["workload"] {
+					Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
+				}
+			}
+			SetupCard(icon: "timer", title: "Long-running timer", description: "A session running this long, or past the workload threshold, asks whether you are still working on it") {
+				Stepper(value: Binding(get: { rhythm.longTimerLimitMinutes }, set: { rhythm.setLongTimerLimit(minutes: $0) }), in: RhythmModel.minimumLongTimerMinutes ... RhythmModel.maximumLongTimerMinutes, step: 15) {
+					Text(Self.duration(rhythm.longTimerLimitMinutes))
+						.font(Tokens.Typography.body.font.monospacedDigit())
+						.frame(minWidth: 70, alignment: .trailing)
+				}
+				.accessibilityLabel("Long-running timer limit")
+			} extra: {
+				if let issue = rhythm.issues["longTimer"] {
 					Text(issue).font(Tokens.Typography.caption.font).foregroundStyle(Tokens.Colors.caution)
 				}
 			}

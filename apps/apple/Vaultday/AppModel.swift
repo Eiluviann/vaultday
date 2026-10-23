@@ -42,6 +42,26 @@ final class AppModel {
 	private(set) var setup: SetupModels?
 	let dayPlan = DayPlanModel()
 	let sessions = SessionModel()
+	/// The menu-bar extra's list of tasks to start.
+	let timerPicker = TimerPickerModel()
+	/// The localhost API over the same models the surfaces use.
+	@ObservationIgnored let timerBackend: AppTimerAPIBackend
+	/// The localhost API; `nil` until the environment is open.
+	var localAPI: LocalAPIService?
+	/// The mini tracker bar: on until hidden from its expanded form.
+	var isMiniTrackerEnabled = true
+	var isMiniTrackerExpanded = false
+	/// Whether Vaultday's own main window is frontmost, which hides the mini tracker.
+	var isMainWindowFrontmost = false
+	/// Ticks every second while a session is open, for the clocks outside the main window.
+	var timerClock = Date()
+	/// Why the last action of a timer surface did not run.
+	var timerMessage: String?
+	@ObservationIgnored let miniTracker = MiniTrackerController()
+	@ObservationIgnored var timerSurfacesTask: Task<Void, Never>?
+	@ObservationIgnored var hotKey: GlobalHotKey?
+	@ObservationIgnored var windowObservers: [any NSObjectProtocol] = []
+	@ObservationIgnored var longTimerAlert: UserNotificationLongTimerAlert?
 	let quickAdd = QuickAddModel()
 	/// The side panel's Calendar tab and the Today column's three-day and week grids.
 	let calendarPanel = CalendarPanelModel()
@@ -112,6 +132,7 @@ final class AppModel {
 		}
 		dispatcher = KeyDispatcher(keymap: keymap, scheme: .standard)
 		focus = PaneFocusModel()
+		timerBackend = AppTimerAPIBackend(sessions: sessions, dayPlan: dayPlan)
 		let register = PlanRegister(plan: dayPlan) { text in
 			NSPasteboard.general.clearContents()
 			NSPasteboard.general.setString(text, forType: .string)
@@ -122,6 +143,7 @@ final class AppModel {
 		keyboard.onAction = { [weak self] in self?.performAppAction($0) }
 		keyboard.isEnabled = { [weak self] in self?.isEnabled($0) ?? false }
 		keyboard.onOwnAction = { [weak self] in self?.registerChanged($0) }
+		configureTimerBackend()
 	}
 
 	/// Opens the environment and the app document, restores the folder grants.
@@ -174,6 +196,7 @@ final class AppModel {
 			startSidePanel()
 			reloadWorkspaceContent()
 			refreshSetupSteps()
+			startTimerSurfaces(environment: environment)
 		} catch {
 			setupError = error.localizedDescription
 		}
@@ -374,6 +397,8 @@ final class AppModel {
 			jumpGroup(by: -1)
 		case .peek:
 			if let subject = peekSubject { peek.toggle(subject) }
+		case .toggleMiniTracker:
+			toggleMiniTracker()
 		case .openLink:
 			openLinkOfSelection()
 		case .openInClaudeCode:
@@ -617,23 +642,25 @@ final class AppModel {
 		}
 	}
 
-	/// Space: starts the timer on the selected task, or pauses and resumes the running one.
+	/// Space: starts the timer on the selected task, or pauses and resumes
+	/// the running one; a pause and its resume stay one session.
 	func toggleTimer() {
 		if sessions.openSession != nil {
-			sessions.togglePause()
+			togglePauseTimer()
 		} else if let item = selectedItem, !item.isDone {
 			startTimer(taskId: item.taskId)
 		}
 	}
 
-	/// A task dropped on the Now card, or Space on a selected one.
-	func startTimer(taskId: String) {
+	/// A task dropped on the Now card, Space on a selected one, or a row of
+	/// the menu-bar extra; with `minutesAgo`, "Start minutes ago".
+	func startTimer(taskId: String, minutesAgo: Int? = nil) {
 		// A drop carries any text; only a task of the list starts the timer.
 		guard taskText(taskId) != nil else { return }
 		touchStory(ofTask: taskId)
 		let story = dayPlan.items.first { $0.taskId == taskId }?.storyNumber
-		sessions.start(taskId: taskId, story: story)
-		dayPlan.reload()
+		sessions.start(taskId: taskId, story: story, minutesAgo: minutesAgo)
+		timerChanged()
 	}
 
 	/// The task a session runs on, by its text, for the Now card.
