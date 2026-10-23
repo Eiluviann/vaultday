@@ -91,13 +91,13 @@ pub use vault::{
 };
 pub use watcher::{DEFAULT_WATCH_DEBOUNCE, VaultWatcher, WatchBatch, is_ignored};
 pub use workspace::{
-    WORKSPACE_DIR_NAME, Workspace, WorkspaceError, WorkspaceSet, find_vault_root,
-    find_workspace_root, normalize_path,
+    LinkedFolder, WORKSPACE_DIR_NAME, Workspace, WorkspaceError, WorkspaceSet, find_vault_root,
+    find_workspace_root, linked_folders, normalize_path,
 };
 pub use workspace_form::{
-    FieldIssue, FolderClaim, FolderRefusal, WorkspaceFormError, WorkspacePrefill,
-    check_folder_claim, create_settings_file, form_issues, new_workspace_settings,
-    prefill_from_note, read_note_prefill, update_settings_file,
+    FieldIssue, FolderRefusal, PlacedWorkspace, WorkspaceFormError, WorkspacePrefill,
+    check_folder_for_workspace, check_new_workspace_root, create_settings_file, form_issues,
+    new_workspace_settings, prefill_from_note, read_note_prefill, update_settings_file,
 };
 pub use writer::{
     DEFAULT_DEBOUNCE, DEFAULT_STORY_TEMPLATE, NewStory, NewTask, QueueOutcome, TaskEdit,

@@ -7,8 +7,12 @@ and do not depend on the app. `timer` and `status` are the exception: they
 talk **only** to the running Vaultday app over its localhost API, so the timer
 has one owner (see [Timer and status](#timer-and-status)).
 
-The workspace is the deepest `.vaultday/` at or above the working directory.
-Outside a workspace every command prints why and exits 1; usage errors exit 2.
+The workspace is the nearest `.vaultday/` at or above the working directory,
+taken as the shell names it, so a folder linked into a workspace root resolves
+to that workspace. Started inside a linked folder's real path, the CLI finds no
+workspace, since it never reads the app's list of links. Outside a workspace,
+or in one deactivated in the app, every command prints why and exits 1; usage
+errors exit 2.
 
 ## Commands
 

@@ -7,7 +7,7 @@
 //! The functions are thin wrappers over `vault_base::ops`; the records that
 //! carry its results are defined once, by `vault_base::binding_records!`, and
 //! shared with the UniFFI crate. A failed call throws an `Error` whose `code`
-//! is `not-a-workspace`, `invalid-settings`, `invalid-input`, `not-found`,
+//! is `not-a-workspace`, `inactive-workspace`, `invalid-settings`, `invalid-input`, `not-found`,
 //! `conflict` or `file-access`.
 
 use napi_derive::napi;

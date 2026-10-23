@@ -87,8 +87,9 @@ pub enum FileAccessError {
 pub trait FileAccess: Send + Sync {
     /// Lists the entries of a directory in no particular order. The plain
     /// implementation does not follow symlinks: a link is reported as
-    /// [`EntryKind::Other`], so linked notes and folders stay out of walks,
-    /// while [`FileAccess::stat`] follows links.
+    /// [`EntryKind::Other`], so linked notes and folders stay out of walks
+    /// unless a walk follows a workspace's linked folders on purpose, while
+    /// [`FileAccess::stat`] follows links.
     ///
     /// # Errors
     /// [`FileAccessError::NotFound`] when the directory is missing, otherwise I/O errors.
@@ -99,6 +100,26 @@ pub trait FileAccess: Send + Sync {
     /// # Errors
     /// I/O errors other than "not found".
     fn stat(&self, path: &Path) -> Result<Option<DirEntry>, FileAccessError>;
+
+    /// What the symlink at `path` points at, as written in the link; `None`
+    /// when `path` is not a symlink or does not exist. Ports without symlinks
+    /// keep the default, which never reports one, so no link is followed.
+    ///
+    /// # Errors
+    /// I/O errors other than "not found".
+    fn link_target(&self, path: &Path) -> Result<Option<PathBuf>, FileAccessError> {
+        let _ = path;
+        Ok(None)
+    }
+
+    /// `path` with every symlink resolved, `None` when nothing exists there.
+    /// The default returns the path as it is.
+    ///
+    /// # Errors
+    /// I/O errors other than "not found".
+    fn real_path(&self, path: &Path) -> Result<Option<PathBuf>, FileAccessError> {
+        Ok(Some(path.to_path_buf()))
+    }
 
     /// Reads a UTF-8 text file.
     ///
@@ -180,6 +201,39 @@ impl FileAccess for PlainFileAccess {
                 Ok(None)
             }
             Err(source) => Err(io_error("stat", path, source)),
+        }
+    }
+
+    fn link_target(&self, path: &Path) -> Result<Option<PathBuf>, FileAccessError> {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => fs::read_link(path)
+                .map(Some)
+                .map_err(|source| io_error("read_link", path, source)),
+            Ok(_) => Ok(None),
+            Err(source)
+                if matches!(
+                    source.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                ) =>
+            {
+                Ok(None)
+            }
+            Err(source) => Err(io_error("stat", path, source)),
+        }
+    }
+
+    fn real_path(&self, path: &Path) -> Result<Option<PathBuf>, FileAccessError> {
+        match fs::canonicalize(path) {
+            Ok(resolved) => Ok(Some(resolved)),
+            Err(source)
+                if matches!(
+                    source.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                ) =>
+            {
+                Ok(None)
+            }
+            Err(source) => Err(io_error("canonicalize", path, source)),
         }
     }
 

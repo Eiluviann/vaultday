@@ -44,6 +44,7 @@ const AI_PREVIEW_KEY: &str = "ai_preview_before_sending";
 const AI_ACTIVITY_LOG_KEY: &str = "ai_activity_log";
 const PROVIDER_KEY_PREFIX: &str = "provider_key";
 const LAST_WORKSPACE_KEY: &str = "last_single_workspace";
+const FOLDERS_CONVERTED_KEY: &str = "folders_converted";
 
 /// The target an [`AiScopeChoice`] tier is stored under when it applies to
 /// everything the scope covers.
@@ -835,6 +836,31 @@ impl AppState {
         }
     }
 
+    // The one-root folder model.
+
+    /// Whether this device has converted the further folders of an earlier
+    /// build into linked or moved folders, or found none to convert. The
+    /// question is asked once per device, since grants are per device.
+    #[must_use]
+    pub fn folders_converted(&self) -> bool {
+        get_bool(
+            &self.doc,
+            &self.objects.device_settings,
+            &self.device_key(FOLDERS_CONVERTED_KEY),
+        )
+        .unwrap_or(false)
+    }
+
+    /// Records that this device's folders follow the one-root model.
+    ///
+    /// # Errors
+    /// The document refused the edit.
+    pub fn set_folders_converted(&mut self) -> Result<(), AppStateError> {
+        let key = self.device_key(FOLDERS_CONVERTED_KEY);
+        self.doc.put(&self.objects.device_settings, key, true)?;
+        Ok(())
+    }
+
     // Helpers.
 
     fn setting_str(&self, key: &str) -> Option<String> {
@@ -1088,5 +1114,19 @@ mod tests {
         assert_eq!(other.last_single_workspace(), None);
         mac.set_last_single_workspace(None).unwrap();
         assert_eq!(mac.last_single_workspace(), None);
+    }
+
+    #[test]
+    fn the_folder_conversion_is_answered_once_per_device() {
+        let mut mac = fresh("mac-a");
+        let mut other = fresh("mac-b");
+        assert!(!mac.folders_converted());
+        mac.set_folders_converted().unwrap();
+        other.doc.merge(&mut mac.doc).unwrap();
+        assert!(mac.folders_converted());
+        assert!(
+            !other.folders_converted(),
+            "each Mac converts the grants it holds"
+        );
     }
 }

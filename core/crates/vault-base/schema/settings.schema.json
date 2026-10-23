@@ -99,6 +99,10 @@
       ],
       "description": "The name of the workspace whose `Leave.md` lists leave and public\nholidays; the life workspace when absent."
     },
+    "active": {
+      "type": "boolean",
+      "description": "False for a workspace the user deactivated: the app document keeps it\nand its folder grant, but no surface, planning view or CLI call opens\nit. Absent means active."
+    },
     "features": {
       "type": "object",
       "additionalProperties": true,

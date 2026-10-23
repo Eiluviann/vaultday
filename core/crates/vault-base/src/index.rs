@@ -10,14 +10,16 @@ use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use thiserror::Error;
 
 use crate::file_access::{DirEntry, EntryKind, FileAccess, FileAccessError};
-use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME};
+use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME, find_linked_folders};
 
 /// Which files an index covers. Globs match root-relative paths with `/`
 /// separators; `*` does not cross a `/`, `**` does. A folder is pruned when an
 /// exclude pattern matches its path with a trailing `/` (so `**/Archive/**`
 /// prunes every `Archive` folder). Folders that are themselves workspaces
 /// (they hold `.vaultday/settings.json`) are always pruned: an index never
-/// reads another workspace's notes.
+/// reads another workspace's notes. The root's linked folders (see
+/// [`crate::linked_folders`]) are walked through their links, so their files
+/// keep root-relative paths; no other symlink is followed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexScope {
     /// Glob patterns a file must match.
@@ -187,7 +189,8 @@ impl FileIndex {
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<IndexDelta, FileAccessError> {
-        let seen = self.collect_below(&self.root, file_access, now)?;
+        let links = self.followed_links(file_access)?;
+        let seen = self.collect_below(&self.root, &links, file_access, now)?;
         let mut delta = IndexDelta::default();
         for (path, stamp) in &seen {
             match self.entries.get(path) {
@@ -220,13 +223,17 @@ impl FileIndex {
         now: SystemTime,
     ) -> Result<IndexDelta, FileAccessError> {
         let mut delta = IndexDelta::default();
+        let links = self.followed_links(file_access)?;
         for relative in relative_paths {
             let absolute = self.root.join(relative);
-            let seen = if self.is_inside_foreign_workspace(relative, file_access)? {
-                BTreeMap::new()
-            } else {
-                self.collect_changed(relative, &absolute, file_access, now)?
-            };
+            let is_unfollowed_link =
+                file_access.link_target(&absolute)?.is_some() && !links.contains(&absolute);
+            let seen =
+                if is_unfollowed_link || self.is_inside_foreign_workspace(relative, file_access)? {
+                    BTreeMap::new()
+                } else {
+                    self.collect_changed(relative, &absolute, &links, file_access, now)?
+                };
             let stale: Vec<PathBuf> = self
                 .entries
                 .keys()
@@ -271,10 +278,22 @@ impl FileIndex {
         Ok(index)
     }
 
+    /// The links of the root's linked folders, the only symlinks a walk follows.
+    fn followed_links(
+        &self,
+        file_access: &dyn FileAccess,
+    ) -> Result<Vec<PathBuf>, FileAccessError> {
+        Ok(find_linked_folders(&self.root, file_access)?
+            .into_iter()
+            .map(|linked| linked.link)
+            .collect())
+    }
+
     /// Walks `start` (a folder below the root) and stamps every file in scope.
     fn collect_below(
         &self,
         start: &Path,
+        links: &[PathBuf],
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<BTreeMap<PathBuf, FileStamp>, FileAccessError> {
@@ -302,7 +321,12 @@ impl FileIndex {
                             seen.insert(relative.to_path_buf(), stamp_of(&entry));
                         }
                     }
-                    EntryKind::Other => {}
+                    EntryKind::Other => {
+                        let is_excluded = self.exclude.is_match(format!("{}/", glob_key(relative)));
+                        if !is_excluded && links.contains(&entry.path) {
+                            pending.push(entry.path.clone());
+                        }
+                    }
                 }
             }
         }
@@ -315,13 +339,14 @@ impl FileIndex {
         &self,
         relative: &Path,
         absolute: &Path,
+        links: &[PathBuf],
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<BTreeMap<PathBuf, FileStamp>, FileAccessError> {
         let mut seen = BTreeMap::new();
         match file_access.stat(absolute)? {
             Some(entry) if entry.kind == EntryKind::Directory => {
-                seen = self.collect_below(absolute, file_access, now)?;
+                seen = self.collect_below(absolute, links, file_access, now)?;
             }
             Some(entry) if entry.kind == EntryKind::File => {
                 if self.is_in_scope(relative, entry.modified, now) {

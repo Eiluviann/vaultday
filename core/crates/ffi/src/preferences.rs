@@ -736,6 +736,20 @@ impl AppStateHandle {
         let workspace = workspace.map(WorkspaceId::new);
         self.edit_state(|state| state.set_last_single_workspace(workspace.as_ref()))
     }
+
+    /// Whether this Mac's folders follow the one-root model, so the
+    /// conversion question is not asked again.
+    pub fn folders_converted(&self) -> bool {
+        self.read_state(app_state::AppState::folders_converted)
+    }
+
+    /// Records that this Mac's folders follow the one-root model.
+    ///
+    /// # Errors
+    /// The document refused the edit.
+    pub fn set_folders_converted(&self) -> Result<(), CoreError> {
+        self.edit_state(app_state::AppState::set_folders_converted)
+    }
 }
 
 fn list_position_view(position: ListPosition) -> ListPositionView {

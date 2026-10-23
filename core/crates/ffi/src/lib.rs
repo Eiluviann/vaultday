@@ -493,7 +493,9 @@ impl From<OpError> for CoreError {
     fn from(error: OpError) -> Self {
         let message = error.to_string();
         match error {
-            OpError::NotAWorkspace(_) => CoreError::NotAWorkspace(message),
+            OpError::NotAWorkspace(_) | OpError::InactiveWorkspace(_) => {
+                CoreError::NotAWorkspace(message)
+            }
             OpError::InvalidSettings(_) => CoreError::InvalidSettings(message),
             OpError::InvalidDate(_) => CoreError::InvalidDate(message),
             OpError::InvalidInput(_) => CoreError::InvalidInput(message),
