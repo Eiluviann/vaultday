@@ -16,6 +16,7 @@
 			"!!**/fixtures",
 			"!!**/state",
 			"!!tools/vault-migrate/config",
+			"!!**/*.xcassets",
 			"!pnpm-lock.yaml",
 			"!**/*.md"
 		]
