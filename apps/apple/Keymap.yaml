@@ -452,7 +452,7 @@ bindings:
     vim: "y m"
     standard: "shift+cmd+m"
   - action: report.open-claude-code
-    label: "Write the report and open it in Claude Code"
+    label: "Write the report for Claude Code"
     group: "Reports"
     pane: "story-panel"
     vim: "y c"

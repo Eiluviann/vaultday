@@ -3,7 +3,8 @@ import VaultdayCore
 
 /// The Reports tab, in the story panel and the side panel: a range, the bundle
 /// as a readable summary, Copy as JSON and as markdown, and Open in Claude
-/// Code. No model runs here; the tab hands the bundle to Claude Code.
+/// Code. No model runs here; the tab writes the bundle for Claude Code and
+/// emits a link nothing handles yet.
 struct ReportsView: View {
 	let app: AppModel
 	@Bindable var model: ReportsModel
@@ -83,7 +84,7 @@ struct ReportsView: View {
 			ReportActionButton(title: "Copy markdown", symbol: "doc.on.doc", help: help("Copy the report as markdown", .copyReportMarkdown), isEnabled: model.bundle != nil) {
 				model.copyMarkdown()
 			}
-			ReportActionButton(title: "Claude Code", symbol: "terminal", help: help("Write the report to _agent/reports and open the folder in Claude Code", .openReportInClaudeCode), isEnabled: model.bundle != nil) {
+			ReportActionButton(title: "Claude Code", symbol: "terminal", help: help("Write the report to _agent/reports for Claude Code; nothing opens the folder yet", .openReportInClaudeCode), isEnabled: model.bundle != nil) {
 				app.openReportInClaudeCode()
 			}
 		}

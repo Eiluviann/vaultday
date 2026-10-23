@@ -6,6 +6,38 @@ import XCTest
 /// check as sheets over either, ⌘, through the keymap.
 @MainActor
 final class MainWindowModelTests: XCTestCase {
+	func testTheWindowDrawsNothingUntilTheLaunchDecides() {
+		XCTAssertEqual(MainWindowModel().root, .undecided, "no empty Home before setup")
+		let failed = MainWindowModel()
+		failed.launchFailed()
+		XCTAssertEqual(failed.root, .home, "Home's Today column says why")
+	}
+
+	func testAChildSheetHoldsOffSettingsAndTheSyncCheckWithNoStateChange() {
+		let window = MainWindowModel()
+		window.launched(needsSetup: false)
+		let closeOut = UUID()
+		window.childSheetOpened(closeOut)
+		window.toggleSettings()
+		XCTAssertNil(window.panel, "⌘, is ignored while the close-out sheet is open")
+		window.showSyncCheck()
+		XCTAssertNil(window.panel)
+		window.childSheetClosed(closeOut)
+		XCTAssertFalse(window.hasChildSheet)
+		window.toggleSettings()
+		XCTAssertEqual(window.panel, .settings)
+
+		let configure = UUID()
+		window.childSheetOpened(configure)
+		window.childSheetOpened(configure)
+		window.toggleSettings()
+		window.showSyncCheck()
+		XCTAssertEqual(window.panel, .settings, "Settings stays over its own Configure sheet")
+		window.childSheetClosed(configure)
+		window.toggleSettings()
+		XCTAssertNil(window.panel)
+	}
+
 	func testAFreshUserLandsInSetupAndAReturningOneInHome() {
 		let fresh = MainWindowModel()
 		fresh.launched(needsSetup: true)

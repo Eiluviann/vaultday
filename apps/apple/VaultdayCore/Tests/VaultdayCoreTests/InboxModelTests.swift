@@ -318,6 +318,17 @@ final class InboxModelTests: XCTestCase {
 		XCTAssertEqual(QuietSignalNotification.body(added: 2, waiting: 5), "2 new signals · 5 to decide")
 	}
 
+	func testTheBadgeCountsNewSignalsWhileScreenShareSkipsTheNotification() throws {
+		let screenShare = ScreenShareModel()
+		XCTAssertTrue(screenShare.postsSignalNotifications)
+		screenShare.restore(isOn: true, returnTo: nil)
+		XCTAssertFalse(screenShare.postsSignalNotifications, "the quiet notification is skipped")
+		let (inbox, _) = try model()
+		XCTAssertEqual(inbox.newCount, 3, "the badge still counts every new signal")
+		inbox.reload()
+		XCTAssertEqual(inbox.newCount, 3)
+	}
+
 	// MARK: Drops
 
 	func testDropPayloadsTellSignalsFromTasks() {

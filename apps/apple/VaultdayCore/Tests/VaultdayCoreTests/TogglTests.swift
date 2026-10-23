@@ -41,6 +41,24 @@ final class TogglTests: XCTestCase {
 
 	// MARK: Settings panel
 
+	func testRefreshedPanelsFollowTheListAndKeepWhatIsTyped() throws {
+		let harness = try OnboardingHarness(self)
+		let workspace = try openWorkspace(harness)
+		let panel = { (id: String) in TogglSettingsModel(session: harness.session, workspaceId: id, workspaceName: id) }
+		let work = panel(workspace.workspaceId)
+		work.tokenDraft = "typed, not stored"
+		let life = panel("ws-life")
+
+		let hidden = TogglSettingsModel.refreshed([work, life], with: [panel(workspace.workspaceId)])
+		XCTAssertEqual(hidden.map(\.workspaceId), [workspace.workspaceId], "the mode turned on: the life panel leaves")
+		XCTAssertTrue(hidden.first === work, "the open panel stays")
+		XCTAssertEqual(hidden.first?.tokenDraft, "typed, not stored")
+
+		let shown = TogglSettingsModel.refreshed(hidden, with: [panel(workspace.workspaceId), panel("ws-life")])
+		XCTAssertEqual(shown.map(\.workspaceId), [workspace.workspaceId, "ws-life"], "the mode turned off: it comes back")
+		XCTAssertTrue(shown.first === work)
+	}
+
 	func testTheTokenGoesToTheKeychainOnlyAndThePanelSaysTokenStored() throws {
 		let harness = try OnboardingHarness(self)
 		let workspace = try openWorkspace(harness)

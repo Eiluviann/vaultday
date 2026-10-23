@@ -197,7 +197,7 @@ final class AppModel {
 			#endif
 			signingNotice = environment.signingNotice
 			Logger(subsystem: "com.eiluviann.vaultday", category: "signing").notice(
-				"signing mode \(String(describing: environment.signingMode), privacy: .public), state in \(environment.layout.container.path, privacy: .public)",
+				"signing mode \(String(describing: environment.signingMode), privacy: .public), state in \(environment.layout.container.path, privacy: .private)",
 			)
 			self.environment = environment
 			let session = try CoreSession.open(environment)
@@ -226,7 +226,7 @@ final class AppModel {
 			let mailScheduler = MailFetchScheduler(session: session)
 			mailScheduler.onFetched = { [weak self] in self?.inbox.reload() }
 			mailScheduler.onNewSignals = { [weak self] added, waiting in
-				guard let self, let workspace = self.workspace, !self.screenShare.isOn else { return }
+				guard let self, let workspace = self.workspace, self.screenShare.postsSignalNotifications else { return }
 				QuietSignalNotification.post(workspaceId: workspace.workspaceId, workspaceName: workspace.name, added: added, waiting: waiting)
 			}
 			self.mailScheduler = mailScheduler
@@ -254,6 +254,7 @@ final class AppModel {
 			mainWindow.launched(needsSetup: needsSetup)
 		} catch {
 			setupError = error.localizedDescription
+			mainWindow.launchFailed()
 		}
 	}
 
@@ -702,7 +703,8 @@ final class AppModel {
 	}
 
 	/// Open in Claude Code on a report: writes the bundle to `_agent/reports/`
-	/// beside the subject, then goes through the Open in Claude Code action.
+	/// beside the subject, then emits its `vaultday://claude-code/…` link,
+	/// which nothing handles yet.
 	func openReportInClaudeCode() {
 		guard let model = activeReports, model.writeForClaudeCode() != nil else { return }
 		handleLink(model.claudeCodeLink)

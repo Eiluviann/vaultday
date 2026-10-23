@@ -48,6 +48,7 @@ struct AiProvidersStep: View {
 		}
 		.sheet(item: $adding) { provider in
 			AddKeySheet(provider: provider, workspaces: workspaces, providers: providers)
+				.mainWindowChildSheet()
 		}
 	}
 

@@ -54,7 +54,7 @@ final class DayLogModelTests: XCTestCase {
 
 		model.showDay(offset: -1)
 		XCTAssertEqual(model.date, "2026-10-21")
-		XCTAssertEqual(model.lines.count, 4)
+		XCTAssertEqual(model.lines.count, 6)
 		model.showDay(offset: -20)
 		XCTAssertEqual(model.lines, [])
 		XCTAssertEqual(model.caption, "Log/2026-10-01.md · 0 lines")

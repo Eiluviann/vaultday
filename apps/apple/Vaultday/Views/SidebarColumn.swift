@@ -173,7 +173,7 @@ private struct NowCard: View {
 				.lineLimit(2)
 			HStack(spacing: Tokens.Spacing.space8) {
 				if app.screenShare.hides(.nowCard) {
-					PrivateTimeValue("")
+					PrivateTimeValue("", label: "Tracked")
 						.font(Tokens.Typography.callout.font.weight(.semibold))
 				} else {
 					TimelineView(.periodic(from: .now, by: 1)) { context in

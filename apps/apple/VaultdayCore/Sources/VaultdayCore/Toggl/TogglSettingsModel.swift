@@ -58,6 +58,13 @@ public final class TogglSettingsModel {
 		reload()
 	}
 
+	/// The panels to show once the listed workspaces changed while Settings
+	/// is open (screen-share mode turned on or off): `fresh` in its order,
+	/// keeping the open panel of a workspace still listed, and what is typed in it.
+	public static func refreshed(_ current: [TogglSettingsModel], with fresh: [TogglSettingsModel]) -> [TogglSettingsModel] {
+		fresh.map { panel in current.first { $0.workspaceId == panel.workspaceId } ?? panel }
+	}
+
 	/// "Token stored" or "No token stored": all the panel ever shows of it.
 	public var tokenStatusText: String {
 		hasToken ? Self.tokenStoredText : Self.noTokenText

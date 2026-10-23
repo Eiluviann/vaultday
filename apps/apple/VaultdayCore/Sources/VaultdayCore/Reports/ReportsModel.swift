@@ -202,7 +202,8 @@ public final class ReportsModel {
 	/// Open in Claude Code, step one: writes the bundle to
 	/// `_agent/reports/<from>-<to>.json` beside the subject and keeps the path
 	/// to show. Returns the file, or `nil` when nothing was written. The
-	/// caller then opens the folder through the Open in Claude Code action.
+	/// caller then emits the subject's `vaultday://claude-code/…` link, which
+	/// nothing handles yet: no folder opens in Claude Code.
 	@discardableResult
 	public func writeForClaudeCode() -> WrittenReport? {
 		guard let source, let subject, let range, range.isValid, bundle != nil else { return nil }

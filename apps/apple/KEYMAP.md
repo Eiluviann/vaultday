@@ -69,7 +69,7 @@ Generated from `apps/apple/Keymap.yaml` by `tools/keymap-doc`; do not edit by ha
 | Panes and tabs | `story-panel.tab.3` | Story Claude Code tab | `3` | `⌥3` |
 | Reports | `report.copy-json` | Copy the report as JSON | `y j` · `y j` | `⇧⌘J` · `⇧⌘J` |
 | Reports | `report.copy-markdown` | Copy the report as markdown | `y m` · `y m` | `⇧⌘M` · `⇧⌘M` |
-| Reports | `report.open-claude-code` | Write the report and open it in Claude Code | `y c` · `y c` | `⌥⌘C` · `⌥⌘C` |
+| Reports | `report.open-claude-code` | Write the report for Claude Code | `y c` · `y c` | `⌥⌘C` · `⌥⌘C` |
 | Panes and tabs | `sidebar.toggle` | Show or hide the sidebar | `⌃⌘S` | `⌃⌘S` |
 | Panes and tabs | `screen-share.toggle` | Turn screen-share mode on or off | `⇧⌘S` | `⇧⌘S` |
 | Day and workspace | `plan.auto-schedule` | Arrange the day in list order | `=` | `⇧⌘R` |

@@ -9,6 +9,8 @@ struct TogglSettingsTab: View {
 	/// token being typed survives the window redrawing.
 	let makePanels: () -> [TogglSettingsModel]
 	let queue: TogglQueueModel?
+	/// Screen-share mode: the panels follow it while Settings is open.
+	let isScreenShareOn: Bool
 	@State private var panels: [TogglSettingsModel] = []
 
 	var body: some View {
@@ -42,6 +44,9 @@ struct TogglSettingsTab: View {
 		.onAppear {
 			panels = makePanels()
 			queue?.reload()
+		}
+		.onChange(of: isScreenShareOn) {
+			panels = TogglSettingsModel.refreshed(panels, with: makePanels())
 		}
 	}
 }

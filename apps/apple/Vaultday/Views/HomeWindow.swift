@@ -86,6 +86,7 @@ struct HomeWindow: View {
 		}
 		.sheet(isPresented: Binding(get: { app.closeOut.isPresented }, set: { app.closeOut.isPresented = $0 }), onDismiss: { app.refreshCloseOut() }) {
 			CloseOutScreen(model: app.closeOut)
+				.mainWindowChildSheet()
 		}
 		.onChange(of: app.palette.isOpen) { if !app.palette.isOpen { hasKeyFocus = true } }
 		.onChange(of: app.keyboard.changeRequest) { if app.keyboard.changeRequest == nil { hasKeyFocus = true } }
