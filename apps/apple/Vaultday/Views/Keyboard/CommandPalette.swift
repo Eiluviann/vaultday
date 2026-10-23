@@ -102,7 +102,8 @@ private struct PaletteRowView: View {
 			.foregroundStyle(Tokens.Colors.ink)
 			.padding(.horizontal, 10)
 			.padding(.vertical, 6)
-			.background(isSelected ? Tokens.Colors.sunriseSoft : .clear, in: RoundedRectangle(cornerRadius: 6))
+			// Keyboard focus is the thick border, never a tinted row (feedback item 34).
+			.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusSm)
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)

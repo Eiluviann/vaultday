@@ -20,6 +20,8 @@ struct ProgressTrack: View {
 			}
 		}
 		.frame(height: ProgressTrack.height)
+		// Shapes are no accessibility element: the meter becomes one, so the caller's label and this value reach VoiceOver as the system bar's did.
+		.accessibilityElement()
 		.accessibilityValue(Text("\(Int((min(max(value, 0), 1) * 100).rounded())) percent"))
 	}
 

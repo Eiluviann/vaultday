@@ -257,7 +257,7 @@ private struct PickRow: View {
 				}
 			}
 			.padding(EdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10))
-			.background(isSelected ? Tokens.Colors.sunriseSoft : .clear, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
+			.focusBorder(isSelected, cornerRadius: Tokens.Radius.radiusSm)
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)

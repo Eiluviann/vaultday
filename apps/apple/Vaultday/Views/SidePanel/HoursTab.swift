@@ -38,7 +38,7 @@ struct HoursTab: View {
 }
 
 /// Tracked time is the user's alone: the hand says it never goes into a
-/// report, and screen-share mode swaps the value for "Private".
+/// report, and screen-share mode leaves the value out with nothing in its place.
 struct PrivateTracked: View {
 	let text: String
 	var label: String?

@@ -65,14 +65,18 @@ final class ScreenShareTests: XCTestCase {
 	}
 
 	func testNothingOnScreenSaysSomethingIsHiddenWhileSharing() {
+		// Every notice the mode raises while it is on, and the toggle's tooltip.
 		let shown = [
 			ScreenShareModel.hiddenWorkspaceNotice,
+			ScreenShareModel.closeOutNotice,
+			ScreenShareModel.noWorkWorkspaceNotice,
 			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: "⇧⌘S"),
 			ScreenShareModel.toggleTooltip(isOn: true, keyLabel: nil),
 		]
+		// Naming what is kept back ("tracked time", workspaces "left to show") gives it away as surely as "hidden".
 		for text in shown {
-			for word in ["hidden", "hide", "private", "Private"] {
-				XCTAssertFalse(text.contains(word), "\(text) says \(word)")
+			for word in ["hidden", "hide", "private", "tracked", "left to show"] {
+				XCTAssertFalse(text.lowercased().contains(word), "\(text) says \(word)")
 			}
 		}
 	}

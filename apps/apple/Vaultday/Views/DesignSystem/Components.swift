@@ -199,7 +199,7 @@ struct SegmentedChoice<Value: Hashable>: View {
 							if isSelected {
 								RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm)
 									.fill(Tokens.Colors.surfaceRaised)
-									.shadow(color: .black.opacity(0.12), radius: 1, y: 1)
+									.raisedShadow()
 							}
 						}
 						.contentShape(Rectangle())

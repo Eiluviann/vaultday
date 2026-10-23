@@ -95,7 +95,7 @@ public enum ScreenShareChange: Equatable, Sendable {
 ///
 /// The mode starts only from a work workspace: the header's toggle is drawn
 /// disabled on All workspaces and on a life workspace. While on: tracked time
-/// in the main window shows the hand with "Private" instead of a value, the
+/// in the main window is not drawn and nothing takes its place, the
 /// life workspaces leave the switcher, Settings and the palette and refuse
 /// selection, All workspaces is off, Inbox cards, previews and peeks keep
 /// headlines and source icons only, reports offer their FTE-safe variant, and
@@ -106,8 +106,9 @@ public final class ScreenShareModel {
 	public static let allWorkspacesReason = "Screen-share mode needs a single workspace: pick one first"
 	public static let hiddenWorkspaceNotice = "That workspace is not available right now"
 	public static let startReason = "Screen-share mode starts from a work workspace"
-	public static let closeOutNotice = "The close-out shows tracked time: turn off screen-share mode to open it"
-	public static let noWorkWorkspaceNotice = "No work workspace is left to show: screen-share mode stays on until you turn it off"
+	// The two notices below show while the mode is on, so like the one above they never name what is kept back.
+	public static let closeOutNotice = "The close-out is not available right now"
+	public static let noWorkWorkspaceNotice = "No workspace is available right now"
 
 	public private(set) var isOn = false
 	/// Why the last switch or selection was refused; shown until dismissed.
