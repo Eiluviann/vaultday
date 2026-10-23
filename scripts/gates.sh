@@ -226,7 +226,9 @@ function run_changed() {
 		skip_gate rust 'no core changes'
 	fi
 
-	if echo "$changed_files" | grep -Eq '^(apps/apple/|core/crates/(ffi|uniffi-bindgen)/|scripts/build-xcframework\.sh$|scripts/env\.sh$)'; then
+	# Markdown under apps/apple is documentation, not app input.
+	if echo "$changed_files" | grep -v '\.md$' |
+		grep -Eq '^(apps/apple/|core/crates/(ffi|uniffi-bindgen)/|scripts/build-xcframework\.sh$|scripts/env\.sh$)'; then
 		run_apple_gates
 	else
 		skip_gate apple 'no apps/apple or FFI changes'
