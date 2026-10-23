@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="62 62 900 900">
+	<!-- Template image: black plus alpha only. Add to the asset catalog with Render As: Template Image and Preserve Vector Data. -->
+	<defs>
+		<clipPath id="opening"><circle cx="512" cy="512" r="340"/></clipPath>
+		<clipPath id="above-horizon"><rect x="0" y="0" width="1024" height="540"/></clipPath>
+	</defs>
+	<circle cx="512" cy="512" r="395" fill="none" stroke="#000" stroke-width="110"/>
+	<g clip-path="url(#opening)">
+		<circle cx="512" cy="620" r="190" fill="#000" clip-path="url(#above-horizon)"/>
+		<rect x="0" y="620" width="1024" height="404" fill="#000"/>
+	</g>
+</svg>
