@@ -81,6 +81,9 @@ targets:
       # with the tokens instead of hosting the whole app.
       - path: Vaultday/Tokens.swift
       - path: Vaultday/Views/Setup
+      # The setup's fields are Vim fields, ringed by the keyboard highlight.
+      - path: Vaultday/Views/Keyboard/VimTextField.swift
+      - path: Vaultday/Views/Keyboard/KeyboardHighlight.swift
     dependencies:
       - package: VaultdayCore
     settings:

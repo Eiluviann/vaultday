@@ -41,6 +41,13 @@ public final class KeyDispatcher {
 
 	@ObservationIgnored private var bound: [BoundSequence] = []
 	@ObservationIgnored private var rows: [KeyTableRow] = []
+	/// The bindings each pane reaches on each screen, worked out once per scheme.
+	@ObservationIgnored private var reachableCache: [ReachKey: [BoundSequence]] = [:]
+
+	private struct ReachKey: Hashable {
+		let pane: Pane?
+		let screen: [Pane]
+	}
 
 	private static let escape = KeyStroke(key: "escape")
 
@@ -133,6 +140,8 @@ public final class KeyDispatcher {
 	/// The bindings `pane` reaches, strongest first; a fallback only for keys
 	/// that neither `pane` nor the unscoped bindings use.
 	private func reachableBindings(in pane: Pane?, screen: [Pane]) -> [BoundSequence] {
+		let key = ReachKey(pane: pane, screen: screen)
+		if let cached = reachableCache[key] { return cached }
 		let scoped = bound.filter { $0.pane != nil && $0.pane == pane }
 		let unscoped = bound.filter { $0.pane == nil }
 		let claimed = Set((scoped + unscoped).map(\.sequence))
@@ -140,11 +149,14 @@ public final class KeyDispatcher {
 			guard binding.isFallback, let target = binding.pane, target != pane, screen.contains(target) else { return false }
 			return !claimed.contains(binding.sequence)
 		}
-		return scoped + unscoped + fallbacks
+		let reachable = scoped + unscoped + fallbacks
+		reachableCache[key] = reachable
+		return reachable
 	}
 
 	private func setPending(_ sequence: [KeyStroke], completing reachable: [[KeyStroke]]) {
 		pending = sequence
+		let reachable = Set(reachable)
 		completions = rows.flatMap { row in
 			row.sequences.compactMap { candidate -> KeyCompletion? in
 				guard candidate.count == sequence.count + 1, reachable.contains(candidate), let next = candidate.last else { return nil }
@@ -162,5 +174,6 @@ public final class KeyDispatcher {
 	private func rebuild() {
 		rows = keymap.table(for: scheme)
 		bound = keymap.sequences(for: scheme)
+		reachableCache = [:]
 	}
 }
