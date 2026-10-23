@@ -97,9 +97,10 @@ impl AppStateStore {
     /// folder and no app key, mints the key.
     ///
     /// # Errors
-    /// [`AppStateError::KeyNotArrived`] when the folder holds snapshots but
-    /// the app key has not synchronised to this device yet (minting one would
-    /// orphan them); otherwise folder or secret store failures.
+    /// [`AppStateError::KeyNotArrived`] when the folder holds snapshots, or
+    /// another device has published its key, but the app key has not
+    /// synchronised to this device yet (minting one would orphan theirs);
+    /// otherwise folder or secret store failures.
     pub fn open(
         files: Arc<dyn SyncFiles>,
         dir: &Path,
@@ -108,12 +109,20 @@ impl AppStateStore {
     ) -> Result<(AppStateStore, AppStateLoad), AppStateError> {
         let key = match app_key(secrets)? {
             Some(key) => key,
-            // An evicted snapshot counts: another device already holds the key.
-            None if list_snapshots(files.as_ref(), dir)?.is_empty() => create_app_key(secrets)?,
+            // An evicted snapshot counts: another device already holds the
+            // key. So does another device's published public key: a device
+            // publishes it only below, once it holds the app key, so that key
+            // is on the way even where its snapshots are not in this folder.
+            None if list_snapshots(files.as_ref(), dir)?.is_empty()
+                && !is_another_device_published(secrets, &identity)? =>
+            {
+                create_app_key(secrets)?
+            }
             None => {
                 return Err(AppStateError::KeyNotArrived(app_key_id()));
             }
         };
+        identity.publish(secrets)?;
         let state = AppState::new(identity.device_id().clone())?;
         let mut store = AppStateStore {
             files,
@@ -248,6 +257,15 @@ impl AppStateStore {
         self.is_own_snapshot_refused = false;
         Ok(())
     }
+}
+
+fn is_another_device_published(
+    secrets: &dyn SecretStore,
+    identity: &DeviceIdentity,
+) -> Result<bool, AppStateError> {
+    Ok(TrustedDevices::load(secrets)?
+        .devices()
+        .any(|device| device != identity.device_id()))
 }
 
 impl std::fmt::Debug for AppStateStore {

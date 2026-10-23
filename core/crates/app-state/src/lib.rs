@@ -37,8 +37,8 @@ pub mod volatile;
 pub mod workspace_state;
 
 pub use app_doc::{
-    AppState, Connection, ConnectionId, ConnectionKind, EnablementScope, KeyboardScheme,
-    SecurityMode, Source, WorkspaceSecurity,
+    AppState, Connection, ConnectionId, ConnectionKind, EnablementScope, FolderGrant,
+    KeyboardScheme, SecurityMode, Source, WorkspaceSecurity,
 };
 pub use device::DeviceId;
 pub use error::AppStateError;
@@ -54,7 +54,8 @@ pub use secret_store::{
 pub use signed::{AppStateLoad, AppStateStore, RefusedSnapshot, SnapshotRefusal};
 pub use sync_files::{PlainSyncFiles, SyncEntry, SyncFiles};
 pub use sync_folder::{
-    Compaction, CompactionOutcome, NotArrived, PendingFile, PullOutcome, SyncConfig, WorkspaceSync,
+    Compaction, CompactionOutcome, NotArrived, PendingFile, PullOutcome, SyncConfig,
+    WORKSPACE_ID_FILE, WorkspaceSync, claim_workspace_id, holds_app_state, read_workspace_id,
     sync_folder,
 };
 pub use volatile::{GITIGNORE_SNIPPET, VolatileStateDir};

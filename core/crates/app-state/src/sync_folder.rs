@@ -29,6 +29,7 @@ use std::time::{Duration, Instant};
 
 use automerge::transaction::CommitOptions;
 use automerge::{Change, ChangeHash};
+use domain::workspace::WorkspaceId;
 use zeroize::Zeroizing;
 
 use crate::device::DeviceId;
@@ -159,6 +160,106 @@ pub fn sync_folder(workspace_root: &Path) -> PathBuf {
     workspace_root.join(".vaultday").join("sync")
 }
 
+/// The file at the sync folder's root naming the workspace's id: written once
+/// by the device that starts the workspace's app state, read by every other.
+pub const WORKSPACE_ID_FILE: &str = "workspace.id";
+
+/// The workspace's id as its sync folder names it, `None` before any device
+/// claimed one. The id is what the workspace's data key is stored under, so
+/// it must not follow the manifest's name: two workspaces with one name, or a
+/// renamed one, would share or lose their key.
+///
+/// # Errors
+/// [`AppStateError::InvalidWorkspaceId`] for a file that holds no valid id;
+/// file errors other than "not found".
+pub fn read_workspace_id(
+    files: &dyn SyncFiles,
+    workspace_root: &Path,
+) -> Result<Option<WorkspaceId>, AppStateError> {
+    let path = sync_folder(workspace_root).join(WORKSPACE_ID_FILE);
+    let bytes = match files.read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(io_error("read", &path, error)),
+    };
+    let text = String::from_utf8_lossy(&bytes).trim().to_owned();
+    let is_valid = !text.is_empty()
+        && text.len() <= 64
+        && text
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    if !is_valid {
+        return Err(AppStateError::InvalidWorkspaceId(text));
+    }
+    Ok(Some(WorkspaceId::new(text)))
+}
+
+/// The workspace's id: the one its sync folder names, or a new random one
+/// (`ws-` and 24 hex digits) written there when no device has started the
+/// workspace's app state.
+///
+/// # Errors
+/// [`AppStateError::WorkspaceIdNotArrived`] when the folder holds another
+/// device's app state or an evicted `workspace.id` (its download is
+/// requested); as [`read_workspace_id`]; or the id file cannot be written.
+pub fn claim_workspace_id(
+    files: &dyn SyncFiles,
+    workspace_root: &Path,
+) -> Result<WorkspaceId, AppStateError> {
+    if let Some(id) = read_workspace_id(files, workspace_root)? {
+        return Ok(id);
+    }
+    let sync_root = sync_folder(workspace_root);
+    let placeholder_name = format!(".{WORKSPACE_ID_FILE}{ICLOUD_PLACEHOLDER_SUFFIX}");
+    let placeholder = sync_root.join(&placeholder_name);
+    let is_id_evicted = list(files, &sync_root)?
+        .iter()
+        .any(|entry| entry.path.file_name() == Some(placeholder_name.as_ref()));
+    if is_id_evicted {
+        files
+            .request_download(&placeholder)
+            .map_err(|source| io_error("download", &placeholder, source))?;
+    }
+    if is_id_evicted || holds_app_state(files, workspace_root)? {
+        return Err(AppStateError::WorkspaceIdNotArrived(sync_root));
+    }
+    let bytes: [u8; 12] = crate::random::bytes()?;
+    let id = format!(
+        "ws-{}",
+        bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    );
+    let path = sync_root.join(WORKSPACE_ID_FILE);
+    files
+        .write_atomic(&path, format!("{id}\n").as_bytes())
+        .map_err(|source| io_error("write", &path, source))?;
+    Ok(WorkspaceId::new(id))
+}
+
+/// Whether any device has written app state into the workspace's sync
+/// folder, evicted placeholders included. A caller checks this before
+/// minting a workspace key: a folder that holds files belongs to a key
+/// another device minted, which may not have synchronised here yet.
+///
+/// # Errors
+/// The sync folder or a device folder cannot be listed.
+pub fn holds_app_state(
+    files: &dyn SyncFiles,
+    workspace_root: &Path,
+) -> Result<bool, AppStateError> {
+    for folder in list(files, &sync_folder(workspace_root))?
+        .into_iter()
+        .filter(|entry| entry.is_dir)
+    {
+        if !list(files, &folder.path)?.is_empty() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 impl WorkspaceSync {
     /// Starts the app state of a new workspace: claims id block 0 for this
     /// device and writes the first change file.
@@ -174,13 +275,8 @@ impl WorkspaceSync {
         config: SyncConfig,
     ) -> Result<WorkspaceSync, AppStateError> {
         let sync_root = sync_folder(workspace_root);
-        for folder in list(files.as_ref(), &sync_root)?
-            .into_iter()
-            .filter(|entry| entry.is_dir)
-        {
-            if !list(files.as_ref(), &folder.path)?.is_empty() {
-                return Err(AppStateError::WorkspaceExists(sync_root));
-            }
+        if holds_app_state(files.as_ref(), workspace_root)? {
+            return Err(AppStateError::WorkspaceExists(sync_root));
         }
         let mut sync = WorkspaceSync::new(files, sync_root, device, key, config)?;
         sync.state.claim_creator_blocks()?;
@@ -682,8 +778,87 @@ mod tests {
     use super::*;
     use automerge::AutoCommit;
 
+    use crate::sync_files::PlainSyncFiles;
+
     fn role_of(name: &str) -> FileRole {
         role(Path::new("sync/dev").join(name).as_path())
+    }
+
+    #[test]
+    fn a_workspace_id_is_claimed_once_and_read_back() {
+        let temp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            read_workspace_id(&PlainSyncFiles, temp.path()).unwrap(),
+            None
+        );
+        let id = claim_workspace_id(&PlainSyncFiles, temp.path()).unwrap();
+        assert!(
+            id.as_str().starts_with("ws-") && id.as_str().len() == 27,
+            "{id}"
+        );
+        assert_eq!(
+            claim_workspace_id(&PlainSyncFiles, temp.path()).unwrap(),
+            id
+        );
+        assert_eq!(
+            read_workspace_id(&PlainSyncFiles, temp.path()).unwrap(),
+            Some(id)
+        );
+        assert!(
+            !holds_app_state(&PlainSyncFiles, temp.path()).unwrap(),
+            "the id file is not app state"
+        );
+
+        let other = tempfile::tempdir().unwrap();
+        PlainSyncFiles
+            .write_atomic(
+                &sync_folder(other.path()).join(WORKSPACE_ID_FILE),
+                b"../Escape",
+            )
+            .unwrap();
+        assert!(matches!(
+            read_workspace_id(&PlainSyncFiles, other.path()),
+            Err(AppStateError::InvalidWorkspaceId(_))
+        ));
+    }
+
+    #[test]
+    fn no_id_is_claimed_over_another_devices_app_state() {
+        // The sync provider brought another device's change files before its
+        // `workspace.id`: a claim here would replace that device's id, and
+        // both would wait for a key minted under the other.
+        let temp = tempfile::tempdir().unwrap();
+        PlainSyncFiles
+            .write_atomic(
+                &sync_folder(temp.path()).join("dev-b").join("0001.bin"),
+                b"sealed",
+            )
+            .unwrap();
+        assert!(matches!(
+            claim_workspace_id(&PlainSyncFiles, temp.path()),
+            Err(AppStateError::WorkspaceIdNotArrived(_))
+        ));
+        assert_eq!(
+            read_workspace_id(&PlainSyncFiles, temp.path()).unwrap(),
+            None
+        );
+
+        // An evicted id file is on its way too.
+        let evicted = tempfile::tempdir().unwrap();
+        PlainSyncFiles
+            .write_atomic(
+                &sync_folder(evicted.path()).join(".workspace.id.icloud"),
+                b"",
+            )
+            .unwrap();
+        assert!(matches!(
+            claim_workspace_id(&PlainSyncFiles, evicted.path()),
+            Err(AppStateError::WorkspaceIdNotArrived(_))
+        ));
+        assert_eq!(
+            read_workspace_id(&PlainSyncFiles, evicted.path()).unwrap(),
+            None
+        );
     }
 
     #[test]

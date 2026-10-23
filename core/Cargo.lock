@@ -1991,8 +1991,11 @@ name = "vaultday-ffi"
 version = "0.1.0"
 dependencies = [
  "jiff",
+ "tempfile",
  "thiserror",
  "uniffi",
+ "vaultday-app-state",
+ "vaultday-domain",
  "vaultday-vault-base",
 ]
 

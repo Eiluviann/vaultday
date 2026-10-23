@@ -8,15 +8,15 @@ use std::fmt;
 use std::time::Duration;
 
 use automerge::transaction::Transactable;
-use automerge::{AutoCommit, ChangeHash, ObjId, ObjType, ReadDoc, Value};
+use automerge::{AutoCommit, ChangeHash, ObjId, ObjType, ReadDoc, ScalarValue, Value};
 use domain::registry::{Enablement, FeatureId};
 use domain::workspace::WorkspaceId;
 use jiff::civil::Time;
 
 use crate::device::DeviceId;
 use crate::doc::{
-    KEY_SEPARATOR, composite_key, delete_if_present, get_bool, get_map, get_str, get_u64, keys,
-    root_object, schema_document,
+    KEY_SEPARATOR, composite_key, delete_if_present, get_bool, get_bytes, get_map, get_str,
+    get_u64, keys, root_object, schema_document,
 };
 use crate::error::AppStateError;
 
@@ -43,6 +43,8 @@ const MAPS: [&str; 7] = [
     SECURITY,
 ];
 const APP_SCOPE: &str = "app";
+const FOLDER_GRANT_BOOKMARK: &str = "folder_grant_bookmark";
+const FOLDER_GRANT_PATH: &str = "folder_grant_path";
 const WORKSPACE_SCOPE: &str = "workspace";
 
 /// Identifies a connection, chosen by the app when it adds one.
@@ -84,6 +86,21 @@ pub struct Source {
     pub vault: ConnectionId,
     /// The path inside the vault, `/`-separated, empty for the vault root.
     pub subpath: String,
+}
+
+/// Access this device holds to a vault or folder connection: the platform's
+/// grant (a security-scoped bookmark on the Mac) and the path it last
+/// resolved to. A grant only works on the device that made it, so grants are
+/// kept per device; it is not a secret, but it is what lets the sandboxed app
+/// open the folder, which is why it lives in the signed document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderGrant {
+    /// The vault or folder connection the grant opens.
+    pub connection: ConnectionId,
+    /// The platform's opaque grant bytes.
+    pub bookmark: Vec<u8>,
+    /// The folder's path when the grant was made or last resolved.
+    pub path: String,
 }
 
 /// Where a feature switch applies.
@@ -511,6 +528,75 @@ impl AppState {
         Ok(())
     }
 
+    // Folder grants.
+
+    /// This device's folder grants, by connection id.
+    #[must_use]
+    pub fn folder_grants(&self) -> Vec<FolderGrant> {
+        let prefix = composite_key(&[self.device.as_str(), FOLDER_GRANT_BOOKMARK, ""]);
+        keys(&self.doc, &self.objects.device_settings)
+            .iter()
+            .filter_map(|key| key.strip_prefix(&prefix))
+            .filter_map(|connection| self.folder_grant(&ConnectionId::new(connection)))
+            .collect()
+    }
+
+    /// This device's grant for one connection.
+    #[must_use]
+    pub fn folder_grant(&self, connection: &ConnectionId) -> Option<FolderGrant> {
+        let settings = &self.objects.device_settings;
+        let bookmark = get_bytes(
+            &self.doc,
+            settings,
+            &self.grant_key(FOLDER_GRANT_BOOKMARK, connection),
+        )?;
+        Some(FolderGrant {
+            connection: connection.clone(),
+            bookmark,
+            path: get_str(
+                &self.doc,
+                settings,
+                &self.grant_key(FOLDER_GRANT_PATH, connection),
+            )
+            .unwrap_or_default(),
+        })
+    }
+
+    /// Stores this device's grant for a connection, replacing an older one
+    /// (a stale bookmark refreshed at launch).
+    ///
+    /// # Errors
+    /// The document refused the edit.
+    pub fn put_folder_grant(&mut self, grant: &FolderGrant) -> Result<(), AppStateError> {
+        let settings = self.objects.device_settings.clone();
+        let bookmark_key = self.grant_key(FOLDER_GRANT_BOOKMARK, &grant.connection);
+        let path_key = self.grant_key(FOLDER_GRANT_PATH, &grant.connection);
+        self.doc.put(
+            &settings,
+            bookmark_key,
+            ScalarValue::Bytes(grant.bookmark.clone()),
+        )?;
+        self.doc.put(&settings, path_key, grant.path.as_str())?;
+        Ok(())
+    }
+
+    /// Forgets this device's grant for a connection.
+    ///
+    /// # Errors
+    /// The document refused the edit.
+    pub fn remove_folder_grant(&mut self, connection: &ConnectionId) -> Result<(), AppStateError> {
+        let settings = self.objects.device_settings.clone();
+        for field in [FOLDER_GRANT_BOOKMARK, FOLDER_GRANT_PATH] {
+            let key = self.grant_key(field, connection);
+            delete_if_present(&mut self.doc, &settings, &key)?;
+        }
+        Ok(())
+    }
+
+    fn grant_key(&self, field: &str, connection: &ConnectionId) -> String {
+        composite_key(&[self.device.as_str(), field, connection.as_str()])
+    }
+
     fn device_key(&self, setting: &str) -> String {
         composite_key(&[self.device.as_str(), setting])
     }
@@ -568,6 +654,35 @@ mod tests {
             other.ritual_times().into_iter().collect::<Vec<_>>(),
             [("planning".to_owned(), Time::constant(8, 30, 0, 0))]
         );
+    }
+
+    #[test]
+    fn folder_grants_round_trip_per_device() {
+        let mut mac = state("mac-a");
+        let mut other = state("mac-b");
+        let grant = FolderGrant {
+            connection: ConnectionId::new("con-1"),
+            bookmark: vec![0, 1, 2, 0xff],
+            path: "/Users/someone/Vault".to_owned(),
+        };
+        mac.put_folder_grant(&grant).unwrap();
+        other.doc.merge(&mut mac.doc).unwrap();
+        assert_eq!(mac.folder_grants(), std::slice::from_ref(&grant));
+        assert!(
+            other.folder_grants().is_empty(),
+            "a grant only opens the folder on the device that made it"
+        );
+
+        let refreshed = FolderGrant {
+            bookmark: vec![9; 3],
+            path: "/Users/someone/Moved".to_owned(),
+            ..grant.clone()
+        };
+        mac.put_folder_grant(&refreshed).unwrap();
+        assert_eq!(mac.folder_grant(&grant.connection), Some(refreshed));
+        mac.remove_folder_grant(&grant.connection).unwrap();
+        mac.remove_folder_grant(&grant.connection).unwrap();
+        assert!(mac.folder_grants().is_empty());
     }
 
     #[test]

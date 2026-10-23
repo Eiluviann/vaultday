@@ -1,0 +1,51 @@
+# Vaultday key bindings: the single source for the key dispatcher, and later
+# for the command palette and the footer tips (PR 10 fills the table from the
+# design note's key table).
+#
+# Each binding names an action and the keys that run it under each scheme.
+# Keys are strokes separated by spaces; a stroke is a key with optional
+# modifiers joined by `+` (`ctrl+cmd+s`). Key names: a single character,
+# `return`, `escape`, `tab`, `space`, `up`, `down`, `left`, `right`.
+# An empty value leaves the action unbound under that scheme.
+#
+# Rules from the design note: bare `h` `j` `k` `l` are only ever movement;
+# a pane jump is `g` plus the pane number (`g0` sidebar, `g1` Today,
+# `g2` Inbox, `g3` side panel); `gg` and `G` stay first and last item.
+version: 1
+bindings:
+  - action: pane.sidebar
+    vim: "g 0"
+    standard: ""
+  - action: pane.today
+    vim: "g 1"
+    standard: ""
+  - action: pane.inbox
+    vim: "g 2"
+    standard: ""
+  - action: pane.side-panel
+    vim: "g 3"
+    standard: ""
+  - action: move.down
+    vim: "j"
+    standard: "down"
+  - action: move.up
+    vim: "k"
+    standard: "up"
+  - action: move.left
+    vim: "h"
+    standard: "left"
+  - action: move.right
+    vim: "l"
+    standard: "right"
+  - action: move.first
+    vim: "g g"
+    standard: ""
+  - action: move.last
+    vim: "shift+g"
+    standard: ""
+  - action: open
+    vim: "return"
+    standard: "return"
+  - action: sidebar.toggle
+    vim: "ctrl+cmd+s"
+    standard: "ctrl+cmd+s"

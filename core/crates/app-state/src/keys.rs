@@ -123,7 +123,9 @@ impl DeviceIdentity {
     /// This device's identity: the one stored device-only, or a new one with
     /// a random id when there is none (first launch, or a restore onto a new
     /// device, which never carries device-only items). The public key is
-    /// (re)published either way.
+    /// published by [`crate::AppStateStore::open`] once this device holds the
+    /// app key, never here: another device reads a published key as "the app
+    /// key is on its way", so a device that never held it must not publish.
     ///
     /// # Errors
     /// Store or randomness failures, a malformed stored key, or
@@ -135,7 +137,6 @@ impl DeviceIdentity {
             [id] => DeviceIdentity::load(secrets, id)?,
             several => return Err(AppStateError::SeveralDeviceKeys(several.len())),
         };
-        identity.publish(secrets)?;
         Ok(identity)
     }
 
@@ -200,7 +201,7 @@ impl DeviceIdentity {
         })
     }
 
-    fn publish(&self, secrets: &dyn SecretStore) -> Result<(), AppStateError> {
+    pub(crate) fn publish(&self, secrets: &dyn SecretStore) -> Result<(), AppStateError> {
         secrets.put(SecretItem::new(
             SecretKind::DevicePublicKey,
             self.device_id.as_str(),
@@ -323,8 +324,18 @@ mod tests {
         let again = DeviceIdentity::load_or_create(&mac).unwrap();
         assert_eq!(again.device_id(), mac_identity.device_id());
         assert_eq!(again.public_key(), mac_identity.public_key());
+        assert!(
+            TrustedDevices::load(&phone)
+                .unwrap()
+                .devices()
+                .next()
+                .is_none(),
+            "published only once the device holds the app key"
+        );
+        mac_identity.publish(&mac).unwrap();
 
         let phone_identity = DeviceIdentity::load_or_create(&phone).unwrap();
+        phone_identity.publish(&phone).unwrap();
         assert_ne!(phone_identity.device_id(), mac_identity.device_id());
         assert!(phone.list(SecretKind::DeviceSigningKey).unwrap().len() == 1);
 
@@ -340,6 +351,8 @@ mod tests {
     fn regenerating_after_a_restore_gives_a_new_id_and_keeps_the_old_key_trusted() {
         let mac = InMemorySecretStore::new();
         let before = DeviceIdentity::load_or_create(&mac).unwrap();
+        // It held the app key before the restore, so it had published.
+        before.publish(&mac).unwrap();
         let after = DeviceIdentity::regenerate(&mac).unwrap();
         assert_ne!(after.device_id(), before.device_id());
         assert_eq!(mac.list(SecretKind::DeviceSigningKey).unwrap().len(), 1);

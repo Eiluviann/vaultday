@@ -73,6 +73,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # Tokens.swift is generated from design/tokens.json and committed; regenerating must change nothing.
+      - name: Tokens.swift matches design/tokens.json
+        run: pnpm --filter @vaultday/tokens check
       # The tarballs install together and answer from outside the repo.
       - name: Pack the Node packages and smoke-test the install
         run: |
@@ -134,14 +137,18 @@ jobs:
       - run: scripts/build-xcframework.sh
       - run: xcodegen generate
         working-directory: apps/apple
+      # Signing disabled: the App Group and Keychain entitlements need a
+      # development certificate, which CI does not have. The tests do not run
+      # inside the app, so they need neither.
       - run: >
           xcodebuild build test
           -project Vaultday.xcodeproj -scheme Vaultday
           -destination 'platform=macOS' -derivedDataPath build
-          CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES
+          CODE_SIGNING_ALLOWED=NO
           | tail -n 60
         shell: bash -o pipefail {0}
         working-directory: apps/apple
-      # The package's own tests (the FFI-to-model mapping) are not in the app scheme.
+      # The package's own tests (models, Keychain store over the in-memory
+      # backend, file access, calendar source, keyboard) are not in the app scheme.
       - run: swift test
         working-directory: apps/apple/VaultdayCore

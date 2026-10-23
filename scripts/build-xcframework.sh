@@ -28,6 +28,10 @@ if [[ "${1:-}" == "--debug" ]]; then
 	cargo_profile_flag=()
 fi
 
+# C dependencies (the bundled SQLite) build for the app's deployment target,
+# not the host SDK's, so the app links without version warnings.
+export MACOSX_DEPLOYMENT_TARGET=15.0
+
 build_dir="$core_dir/target/xcframework"
 rm -rf "$build_dir" "$xcframework" "$generated_dir"
 mkdir -p "$build_dir/headers" "$generated_dir"
@@ -35,7 +39,8 @@ mkdir -p "$build_dir/headers" "$generated_dir"
 for target in "${targets[@]}"; do
 	rustup target add "$target" >/dev/null 2>&1 || true
 	echo "==> cargo build -p vaultday-ffi --target $target ($profile)"
-	(cd "$core_dir" && cargo build -p vaultday-ffi --lib --target "$target" "${cargo_profile_flag[@]}")
+	# `${a[@]+...}`: an empty array is "unbound" under `set -u` in macOS bash 3.2.
+	(cd "$core_dir" && cargo build -p vaultday-ffi --lib --target "$target" ${cargo_profile_flag[@]+"${cargo_profile_flag[@]}"})
 done
 
 universal="$build_dir/$library"

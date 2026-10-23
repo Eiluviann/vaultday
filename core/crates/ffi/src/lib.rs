@@ -1,11 +1,21 @@
 //! The UniFFI surface of the Vaultday core.
 //!
-//! Every exported type is a plain record or a flat error; the only object is
-//! [`WorkspaceHandle`], which holds an opened workspace. The Swift package maps
-//! these records into `@Observable` models, so views never see them.
+//! Every exported type is a plain record or an error. The objects are
+//! [`WorkspaceHandle`] (an opened vault workspace),
+//! [`app_state::AppStateHandle`] and [`app_state::WorkspaceStateHandle`]
+//! (the encrypted app state). The platform supplies the ports as foreign
+//! traits: [`secrets::SecretStorePort`] (the Keychain),
+//! [`files::SyncFilesPort`] (coordinated file access inside granted folders)
+//! and [`calendar::CalendarPort`] (EventKit). The Swift package maps the
+//! records into `@Observable` models, so views never see them.
 
 // The workspace lints forbid `unwrap`/`expect` in shipped code; tests may use them.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+
+pub mod app_state;
+pub mod calendar;
+pub mod files;
+pub mod secrets;
 
 use std::sync::Arc;
 
@@ -40,6 +50,15 @@ pub enum CoreError {
     /// The vault changed under the call or the request clashes with it.
     #[error("{0}")]
     Conflict(String),
+    /// The platform's secret store failed.
+    #[error("{0}")]
+    SecretStore(String),
+    /// A synchronisable key has not reached this device yet.
+    #[error("{0}")]
+    KeyNotArrived(String),
+    /// The app state refused the operation.
+    #[error("{0}")]
+    AppState(String),
 }
 
 /// An opened workspace: its root and its manifest, ready for queries.

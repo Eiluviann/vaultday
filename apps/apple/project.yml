@@ -1,23 +1,28 @@
 # XcodeGen spec for the Mac app. `xcodegen generate` in this folder writes
 # Vaultday.xcodeproj (gitignored). Run `scripts/build-xcframework.sh` first:
 # the VaultdayCore package needs the XCFramework and the generated Swift.
+#
+# Signing: automatic, with the team of the local Xcode account. No team id is
+# committed; put `DEVELOPMENT_TEAM = <your team id>` in the gitignored
+# Signing.local.xcconfig beside this file (Signing.xcconfig includes it).
+# CI builds with signing disabled.
 name: Vaultday
 options:
-  bundleIdPrefix: local.vaultday
+  bundleIdPrefix: com.eiluviann
   createIntermediateGroups: true
   deploymentTarget:
     macOS: "15.0"
   xcodeVersion: "26.0"
   generateEmptyDirectories: false
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
 settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    # Placeholder id and ad-hoc signing until PR 7a asks for the real domain.
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGN_STYLE: Manual
-    DEVELOPMENT_TEAM: ""
-    ENABLE_HARDENED_RUNTIME: NO
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
 packages:
   VaultdayCore:
     path: VaultdayCore
@@ -27,20 +32,59 @@ targets:
     platform: macOS
     sources:
       - path: Vaultday
+        excludes:
+          - "*.entitlements"
+      # The single source of key bindings, read at launch by the key dispatcher.
+      - path: Keymap.yaml
+        buildPhase: resources
     dependencies:
       - package: VaultdayCore
+    # Written by XcodeGen into Vaultday/Vaultday.entitlements (gitignored).
+    entitlements:
+      path: Vaultday/Vaultday.entitlements
+      properties:
+        # The app runs sandboxed.
+        com.apple.security.app-sandbox: true
+        # Folders picked in the open panel, kept as security-scoped bookmarks.
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.files.bookmarks.app-scope: true
+        # The localhost API the CLI talks to (PR 11).
+        com.apple.security.network.server: true
+        # Mail accounts (PR 12).
+        com.apple.security.network.client: true
+        # EventKit with full access: read events, keep the private calendar.
+        com.apple.security.personal-information.calendars: true
+        # The App Group container (app state, volatile state, the API token).
+        # An application group is also a Keychain access group on the data
+        # protection keychain; Vaultday's items live in this one.
+        com.apple.security.application-groups:
+          - group.com.eiluviann.vaultday
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.eiluviann.vaultday
     info:
       path: Vaultday/Info.plist
       properties:
         CFBundleDisplayName: Vaultday
         CFBundleName: Vaultday
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: ""
-        # The spike window reads the synthetic fixture vault; see LaunchConfiguration.swift.
-        VaultdayFixtureWorkspace: $(SRCROOT)/../../core/fixtures/mock-vault
+        NSCalendarsFullAccessUsageDescription: >-
+          Vaultday reads the calendars you pick to plan your day around your
+          events, and keeps your time boxes in a private Vaultday calendar in
+          iCloud.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.eiluviann.vaultday
+            CFBundleURLSchemes: [vaultday]
+        # The App Group container holds app state, the volatile index and
+        # caches, window state and (PR 11) the CLI's API token.
+        VaultdayAppGroup: group.com.eiluviann.vaultday
+        # The Keychain access group is the App Group itself, which the
+        # application-groups entitlement grants on the data protection keychain.
+        VaultdayKeychainAccessGroup: group.com.eiluviann.vaultday
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: local.vaultday.spike
+        PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.vaultday
         GENERATE_INFOPLIST_FILE: NO
   VaultdayTests:
     type: bundle.unit-test
@@ -51,7 +95,7 @@ targets:
       - package: VaultdayCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: local.vaultday.spike.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.vaultday.tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
   Vaultday:

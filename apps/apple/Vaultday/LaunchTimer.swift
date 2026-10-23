@@ -9,6 +9,12 @@ import Foundation
 enum LaunchTimer {
 	private static var hasMarked = false
 
+	/// `VAULTDAY_QUIT_AFTER_PAINT=1` ends the process once the first body ran,
+	/// so a shell can measure cold start without closing the window by hand.
+	private static var shouldQuitAfterPaint: Bool {
+		ProcessInfo.processInfo.environment["VAULTDAY_QUIT_AFTER_PAINT"] == "1"
+	}
+
 	static func markFirstBody(todayMilliseconds: Double?) {
 		guard !hasMarked else { return }
 		hasMarked = true
@@ -21,7 +27,7 @@ enum LaunchTimer {
 				bodyMs, frameMs, todayText,
 			)
 			FileHandle.standardError.write(Data(line.utf8))
-			if LaunchConfiguration.shouldQuitAfterPaint {
+			if shouldQuitAfterPaint {
 				NSApplication.shared.terminate(nil)
 			}
 		}

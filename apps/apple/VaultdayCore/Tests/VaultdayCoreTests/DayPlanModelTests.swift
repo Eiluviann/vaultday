@@ -1,20 +1,13 @@
 import XCTest
 @testable import VaultdayCore
 
-final class TodayModelTests: XCTestCase {
-	/// `apps/apple/VaultdayCore/Tests/VaultdayCoreTests/<file>` → repo root.
-	private static let repoRoot = URL(fileURLWithPath: #filePath)
-		.deletingLastPathComponent()
-		.deletingLastPathComponent()
-		.deletingLastPathComponent()
-		.deletingLastPathComponent()
-		.deletingLastPathComponent()
-		.deletingLastPathComponent()
-	private static let mockVault = repoRoot.appendingPathComponent("core/fixtures/mock-vault").path
+final class DayPlanModelTests: XCTestCase {
+	private static let repoRoot = TestFixtures.repoRoot
+	private static let mockVault = TestFixtures.mockVault.path
 
 	@MainActor
 	func testTheMockVaultLoadsIntoPlainValues() {
-		let model = TodayModel()
+		let model = DayPlanModel()
 		model.load(workspacePath: Self.mockVault, date: "2026-10-22")
 
 		XCTAssertNil(model.errorMessage)
@@ -30,7 +23,7 @@ final class TodayModelTests: XCTestCase {
 
 	@MainActor
 	func testAFolderWithoutAManifestReportsAnError() {
-		let model = TodayModel()
+		let model = DayPlanModel()
 		model.load(workspacePath: Self.repoRoot.path)
 
 		XCTAssertEqual(model.stories, [])

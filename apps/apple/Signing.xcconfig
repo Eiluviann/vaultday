@@ -1,0 +1,4 @@
+// Signing for the Mac app. The team comes from the local Xcode account:
+// write `DEVELOPMENT_TEAM = <team id>` into Signing.local.xcconfig (gitignored).
+// Without it the app builds unsigned for development only.
+#include? "Signing.local.xcconfig"

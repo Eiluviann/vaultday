@@ -29,7 +29,9 @@ ritual answers, notification state, id counters) and the app-level document
 - **Key hierarchy.** One data key per workspace, minted on workspace
   creation and stored synchronisable; one data key for the app document,
   synchronisable; one Ed25519 signing key per device, stored device-only,
-  with its public half published synchronisable under the device id. Keys
+  with its public half published synchronisable under the device id once
+  the device holds the app key (other devices read a published key as "the
+  app key is on its way", so a device that never held it publishes none). Keys
   are minted through `SecretStore::add`, which never replaces an existing
   item, and the app key is minted only by a device that finds no snapshot in
   the app folder, an evicted iCloud placeholder of one included: a device
@@ -77,12 +79,55 @@ ritual answers, notification state, id counters) and the app-level document
   device id breaks that, which is what `DeviceIdentity::regenerate` is for.
 - **Concurrent creation is not prevented.** Two devices that create the
   same workspace, or mint the app key, before their keychains synchronise
-  each keep a key; iCloud Keychain then keeps one of the two. Onboarding
+  each keep a key; iCloud Keychain then keeps one of the two. A device does
+  wait when it already sees another device's change files (workspace) or
+  published public key (app key); it mints only when it sees neither. Nor
+  does a device claim a new workspace id over a sync folder that holds
+  another device's change files, or an evicted `workspace.id`, before that
+  device's `workspace.id` arrived; it waits for the id. On the
+  Mac the app document's snapshots live in each Mac's App Group container
+  and do not sync between Macs yet (where they sync is decided in onboarding),
+  so the published-key check is the only guard for the app key there. Onboarding
   creates a workspace on one device and the others join it.
 - **One writer per device.** Two processes writing app state under one
   device id would number the same files; only the app writes app state, the
   CLI goes through the app's localhost API. Connection ids are chosen
   randomly by the app, so two devices never add one id for two connections.
+
+## The Mac's Keychain store (PR 7a)
+
+`apps/apple/VaultdayCore/Sources/VaultdayCore/Keychain/` implements the
+port over the data protection keychain, every query naming its service,
+account, access group and `kSecAttrSynchronizable`:
+
+- A data key (workspace or app) is a synchronizable item
+  (`kSecAttrAccessibleAfterFirstUnlock`): this is how the user's other Apple
+  devices get it, protected by iCloud Keychain's end-to-end encryption. This
+  Mac also keeps a device-only copy sealed by its Secure Enclave P-256 key
+  (ECIES: ephemeral key agreement, HKDF-SHA256, AES-GCM with the item's
+  address as associated data) and reads the key from that copy. The
+  synchronised item is still in this Mac's keychain, as iCloud Keychain
+  needs it to be, so the sealed copy adds a hardware-bound read path but does
+  not remove the synchronised copy from the disk. The copy carries the
+  synchronised item's modification date and is rebuilt when that changes, so
+  a copy never outlives iCloud Keychain resolving a conflict for another
+  device's key. A copy whose synchronised item is gone (the workspace was
+  removed on any device, or the user signed out of iCloud Keychain without
+  keeping its items) is deleted on read; that key is then gone on this Mac.
+- The device signing key seed is a device-only item
+  (`…AfterFirstUnlockThisDeviceOnly`), sealed by the Secure Enclave key, so
+  it opens only on this Mac. One that no longer opens (a reset enclave) reads
+  as missing and the core mints a new device identity. The public key is
+  synchronizable and not sealed.
+- **The workspace id** under which the data key is stored is a random
+  `ws-…` id that the first device writes to `<workspace>/.vaultday/sync/workspace.id`,
+  never the manifest's name, so two workspaces of one name keep their keys
+  apart and a rename keeps its key. Removing a workspace destroys the key and
+  moves its unreadable change files aside to `.vaultday/sync-removed-<time>`.
+- A Mac without a Secure Enclave stores device-only items unsealed.
+- Key bytes cross the UniFFI bridge in plain buffers, which are freed but
+  not wiped; on the Rust side they go straight into `zeroize` types. The
+  store never logs, and its errors carry `OSStatus` values only.
 
 ## File format
 
@@ -120,11 +165,11 @@ and the sealed bytes). Everything before the ciphertext is associated data.
 
 ## Open items
 
-- **Keychain implementation (PR 7a).** The `SecretStore` here is a port with
-  an in-memory implementation. The Keychain one, with synchronisable items
-  through iCloud Keychain, Secure Enclave P-256 wrapping of the data keys at
-  rest and the device-only signing key, lands in Swift in PR 7a, together
-  with the real two-Mac convergence test.
+- **The real Keychain is tested by hand.** An unsigned test bundle has no
+  Keychain entitlement (`SecItemAdd` answers -34018), so the Swift store's
+  tests run over an in-memory backend that models iCloud Keychain; the
+  `SecItem` queries are checked attribute by attribute. The two-Mac run over
+  iCloud Keychain is the manual test in the PR 7a description.
 - **Linux key transport.** How a Linux device receives a workspace key
   without iCloud Keychain is designed in the Electron phase, after v1.
 - **One file port.** Change files go through the byte-level `SyncFiles` port

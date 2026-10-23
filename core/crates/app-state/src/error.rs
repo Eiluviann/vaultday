@@ -58,6 +58,13 @@ pub enum AppStateError {
     /// key, which only a broken store or a broken restore leaves behind.
     #[error("this device holds {0} signing keys; expected one")]
     SeveralDeviceKeys(usize),
+    /// The sync folder holds another device's app state, but not yet its
+    /// `workspace.id`; claiming a new id would replace that device's.
+    #[error("{0} holds another device's app state, and its workspace.id has not arrived yet")]
+    WorkspaceIdNotArrived(PathBuf),
+    /// The sync folder's `workspace.id` holds no valid workspace id.
+    #[error("{0:?} is not a workspace id")]
+    InvalidWorkspaceId(String),
     /// A workspace was to be created over a sync folder that already has files.
     #[error("{0} already holds app state; open it instead of creating it")]
     WorkspaceExists(PathBuf),

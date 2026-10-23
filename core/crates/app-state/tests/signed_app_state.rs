@@ -8,8 +8,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use app_state::{
-    AppStateStore, Connection, ConnectionId, ConnectionKind, DeviceIdentity, InMemorySecretStore,
-    KeyboardScheme, PlainSyncFiles, SnapshotRefusal, SyncFiles,
+    AppStateError, AppStateStore, Connection, ConnectionId, ConnectionKind, DeviceIdentity,
+    InMemorySecretStore, KeyboardScheme, PlainSyncFiles, SecretBytes, SecretItem, SecretKind,
+    SecretStore, SnapshotRefusal, SyncFiles,
 };
 
 fn open(dir: &Path, secrets: &InMemorySecretStore) -> (AppStateStore, app_state::AppStateLoad) {
@@ -177,4 +178,55 @@ fn a_refused_own_snapshot_is_kept_aside_not_overwritten() {
         (1, 0),
         "the set-aside file is never read"
     );
+}
+
+#[test]
+fn a_device_that_sees_another_devices_key_but_not_the_app_key_waits() {
+    // Another device's app folder is elsewhere (each Mac's App Group
+    // container), so its snapshots are not here; its published public key
+    // arrived through the keychain before the app key did.
+    let temp = tempfile::tempdir().unwrap();
+    let other = InMemorySecretStore::new();
+    let other_identity = DeviceIdentity::load_or_create(&other).unwrap();
+    let here = InMemorySecretStore::new();
+    here.put(SecretItem::new(
+        SecretKind::DevicePublicKey,
+        other_identity.device_id().as_str(),
+        SecretBytes::new(other_identity.public_key().to_bytes().to_vec()),
+    ))
+    .unwrap();
+
+    let identity = DeviceIdentity::load_or_create(&here).unwrap();
+    let refused = AppStateStore::open(Arc::new(PlainSyncFiles), temp.path(), &here, identity);
+    assert!(matches!(refused, Err(AppStateError::KeyNotArrived(_))));
+    assert!(
+        here.list(SecretKind::AppDataKey).unwrap().is_empty(),
+        "no second app key"
+    );
+
+    // Alone, the first device mints the key.
+    let (store, _) = open(temp.path(), &InMemorySecretStore::new());
+    drop(store);
+}
+
+#[test]
+fn a_device_that_never_held_the_app_key_makes_no_other_device_wait() {
+    // The Mac loaded its identity and stopped before its app state opened
+    // (a Keychain or container failure). Had its public key been published,
+    // the phone would wait for an app key the Mac never minted, and the Mac,
+    // relaunched, would wait for the phone's: neither would ever mint.
+    let mac = InMemorySecretStore::new();
+    let phone = mac.for_another_device();
+    let mac_identity = DeviceIdentity::load_or_create(&mac).unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let (store, _) = open(temp.path(), &phone);
+    drop(store);
+    assert_eq!(phone.list(SecretKind::AppDataKey).unwrap().len(), 1);
+
+    // The phone published its key once it held the app key; the Mac opens
+    // with the key that synchronised and publishes its own.
+    let mac_folder = tempfile::tempdir().unwrap();
+    let files: Arc<dyn SyncFiles> = Arc::new(PlainSyncFiles);
+    AppStateStore::open(files, mac_folder.path(), &mac, mac_identity).unwrap();
+    assert_eq!(phone.list(SecretKind::DevicePublicKey).unwrap().len(), 2);
 }

@@ -19,7 +19,12 @@ uniffi = "=0.32.2"
 # The bindings do IO, so the host time zone is theirs to read; the core crates stay pure.
 jiff = { version = "0.2", default-features = false, features = ["std", "tz-system"] }
 thiserror = "2"
+app-state = { package = "vaultday-app-state", path = "../app-state" }
+domain = { package = "vaultday-domain", path = "../domain" }
 vaultday-vault-base = { path = "../vault-base" }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

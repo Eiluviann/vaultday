@@ -114,6 +114,17 @@ pub(crate) fn get_bool(doc: &AutoCommit, obj: &ObjId, key: &str) -> Option<bool>
     }
 }
 
+/// The winning byte string at `key`.
+pub(crate) fn get_bytes(doc: &AutoCommit, obj: &ObjId, key: &str) -> Option<Vec<u8>> {
+    match doc.get(obj, key).ok()?? {
+        (Value::Scalar(scalar), _) => match scalar.as_ref() {
+            ScalarValue::Bytes(bytes) => Some(bytes.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 /// The map object at `key`, `None` when absent or not a map.
 pub(crate) fn get_map(doc: &AutoCommit, obj: &ObjId, key: &str) -> Option<ObjId> {
     match doc.get(obj, key).ok()?? {
