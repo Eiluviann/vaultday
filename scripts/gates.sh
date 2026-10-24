@@ -21,9 +21,9 @@
 #          (Cargo.toml, Cargo.lock, fixtures, lint config) or the toolchain
 #          pin changed, or when the crates cannot be worked out
 #   Apple  the XCFramework, xcodegen and `xcodebuild test` (app, app tests and
-#          the VaultdayCore package tests; the window tests only with `CI`
-#          set, and a signing or test-host setting refuses the run outside
-#          CI) when apps/apple, crates/uniffi-bindgen
+#          the VaultdayCore package tests; the window tests only on a GitHub
+#          runner, and a signing or test-host setting refuses the run
+#          anywhere else) when apps/apple, crates/uniffi-bindgen
 #          or a crate the FFI links changed (crates/ffi and every crate it
 #          depends on), or the whole workspace is selected
 #   Node   the napi binding, typecheck and vitest for the changed pnpm
@@ -158,12 +158,14 @@ function run_apple_gates() {
 		return
 	fi
 	run_gate xcodegen bash -c "cd '$apple_dir' && xcodegen generate --quiet"
-	# Quiet tests (docs/building.md): outside CI the run is unsigned, hosts no
-	# app and skips the tests that put windows on screen, so it never asks
-	# for the login keychain and never shows a window.
+	# Quiet tests (docs/building.md): off a GitHub runner the run is unsigned,
+	# hosts no app and skips the tests that put windows on screen, so it never
+	# asks for the login keychain and never shows a window. Keyed on
+	# GITHUB_ACTIONS, not CI: tools and agent shells set CI=1 on a developer's
+	# Mac to mean "non-interactive", which must not bring the windows back.
 	local skip_flags=()
 	local expected_bundles=(VaultdayTests VaultdayCoreTests)
-	if [[ -n "${CI:-}" ]]; then
+	if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
 		expected_bundles+=(VaultdayWindowTests)
 	else
 		skip_flags+=(-skip-testing:VaultdayWindowTests)

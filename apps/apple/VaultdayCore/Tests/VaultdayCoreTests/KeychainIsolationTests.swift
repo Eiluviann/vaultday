@@ -22,8 +22,11 @@ final class KeychainIsolationTests: XCTestCase {
 	/// Calls that reach a real keychain: the `SecItem` backend and its probes,
 	/// the environments and stores built for this Mac, `SecItem*` and
 	/// `SecKeychain*` themselves, and security-scoped bookmarks
-	/// (ScopedBookmarkAgent keeps their keys in the login keychain).
+	/// (ScopedBookmarkAgent keeps their keys in the login keychain), made
+	/// directly or through `CoreEnvironment`'s own initialiser, whose grants
+	/// default to scoped ones (tests use `CoreEnvironment.inMemory`).
 	private static let keychainCalls = [
+		#"\bCoreEnvironment\s*\("#,
 		#"\bSecItemKeychainBackend\s*\("#,
 		#"\bSecItemKeychainBackend\.(isEntitled|fileBasedKeychainStatus)\s*\("#,
 		#"\bSecItem(Add|CopyMatching|Update|Delete)\s*\("#,
@@ -48,6 +51,8 @@ final class KeychainIsolationTests: XCTestCase {
 		XCTAssertEqual(try Self.keychainCalls(in: "let environment = try CoreEnvironment.forThisMac()").count, 1)
 		XCTAssertEqual(try Self.keychainCalls(in: "SecItemAdd(query as CFDictionary, nil)").count, 1)
 		XCTAssertEqual(try Self.keychainCalls(in: "let grants = FolderGrants()").count, 1)
+		XCTAssertEqual(try Self.keychainCalls(in: "let environment = CoreEnvironment(layout: layout, secrets: store, isHardwareWrapped: false)").count, 1)
+		XCTAssertEqual(try Self.keychainCalls(in: "let environment = try CoreEnvironment.inMemory(container: container)"), [])
 		XCTAssertEqual(try Self.keychainCalls(in: "let backend = InMemoryKeychainBackend()"), [])
 		XCTAssertEqual(try Self.keychainCalls(in: "let query = SecItemKeychainBackend.query(for: address)"), [], "building a query touches no keychain")
 		XCTAssertEqual(try Self.keychainCalls(in: "FolderGrants(usesSecurityScope: Self.usesSecurityScope)"), [])
