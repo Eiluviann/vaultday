@@ -39,12 +39,17 @@ struct SidebarColumn: View {
 		.overlay(alignment: .trailing) { Rectangle().fill(Tokens.Colors.line).frame(width: 1) }
 		.contentShape(Rectangle())
 		.onTapGesture { app.focus.focus(.sidebar) }
+		// The rows `j` and `k` walk, and the current row `g1` lands on.
+		.onAppear { app.syncSidebarRows(app.sidebarRows) }
+		.onChange(of: app.sidebarRows) { _, rows in app.syncSidebarRows(rows) }
+		// ⌘2, a click or `gt` opens another workspace without changing the rows.
+		.onChange(of: app.openSidebarRow) { app.syncSidebarRows(app.sidebarRows) }
 	}
 }
 
 // MARK: Switcher
 
-/// All workspaces (⌘0) and each workspace (⌘1 to ⌘9), with its color dot.
+/// All workspaces (⌘ and the key left of 1) and each workspace (⌘1 to ⌘9), with its color dot.
 /// The open workspace's row carries the count of new signals as its badge.
 private struct WorkspaceSwitcher: View {
 	let app: AppModel
@@ -58,6 +63,7 @@ private struct WorkspaceSwitcher: View {
 				selectedFill: Tokens.Colors.primary,
 				selectedText: Tokens.Colors.onPrimary,
 				isSelected: app.isShowingAll,
+				isHighlighted: app.isHighlighted(.allWorkspaces),
 				disabledReason: app.screenShare.allWorkspacesDisabledReason,
 			) {
 				app.perform(.showAllWorkspaces)
@@ -71,6 +77,7 @@ private struct WorkspaceSwitcher: View {
 					selectedFill: entry.color,
 					selectedText: Tokens.Colors.onWs,
 					isSelected: !app.isShowingAll && entry.id == app.workspace?.workspaceId,
+					isHighlighted: app.isHighlighted(.workspace(entry.id)),
 					badge: entry.id == app.workspace?.workspaceId ? app.newSignalCount : 0,
 				) {
 					app.showWorkspace(entry)
@@ -92,6 +99,8 @@ private struct SwitcherRow: View {
 	let selectedFill: Color
 	let selectedText: Color
 	let isSelected: Bool
+	/// The keyboard highlight of the sidebar's `j` `k`.
+	let isHighlighted: Bool
 	/// New signals; the badge hides at zero.
 	var badge = 0
 	/// Why the row is off, shown as its caption and tooltip; `nil` while it is on offer.
@@ -131,6 +140,7 @@ private struct SwitcherRow: View {
 			.contentShape(Rectangle())
 		}
 		.buttonStyle(.plain)
+		.keyboardHighlight(isHighlighted, cornerRadius: Tokens.Radius.radiusSm)
 		.opacity(disabledReason == nil ? 1 : 0.5)
 		.help(disabledReason ?? "")
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -159,6 +169,7 @@ private struct NowCard: View {
 			app.startTimer(taskId: taskId)
 			return true
 		} isTargeted: { isTargeted = $0 }
+		.keyboardHighlight(app.isHighlighted(.now), cornerRadius: 10)
 		.help("Drop a task here to start its timer")
 	}
 
@@ -288,6 +299,7 @@ private struct RitualList: View {
 					}
 					.padding(.horizontal, Tokens.Spacing.space8)
 					.padding(.vertical, Tokens.Spacing.space6)
+					.keyboardHighlight(app.isHighlighted(.ritual(row.id)))
 					.help("Rituals run in a later version; the time comes from Settings")
 				}
 			}
@@ -318,6 +330,7 @@ private struct BrowseRow: View {
 		.padding(.horizontal, Tokens.Spacing.space8)
 		.padding(.vertical, Tokens.Spacing.space6)
 		.background(app.screen == .browse ? Tokens.Colors.fillHover : .clear, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
+		.keyboardHighlight(app.isHighlighted(.browse))
 		.contentShape(Rectangle())
 		.onTapGesture { app.perform(.showBrowse) }
 		.accessibilityAddTraits(.isButton)
@@ -399,13 +412,12 @@ private struct TrackedRing: View {
 
 /// The vault's health dot and the gear that opens Settings.
 private struct HealthFooter: View {
-	let app: AppModel
-	@State private var isShowingHealth = false
+	@Bindable var app: AppModel
 
 	var body: some View {
 		HStack(spacing: Tokens.Spacing.space6) {
 			Button {
-				isShowingHealth.toggle()
+				app.isShowingHealth.toggle()
 			} label: {
 				HStack(spacing: Tokens.Spacing.space6) {
 					Circle()
@@ -415,8 +427,9 @@ private struct HealthFooter: View {
 				}
 			}
 			.buttonStyle(.plain)
+			.keyboardHighlight(app.isHighlighted(.health), cornerRadius: Tokens.Radius.radiusSm)
 			.help(health?.summary ?? "No workspace is open")
-			.popover(isPresented: $isShowingHealth, arrowEdge: .top) {
+			.popover(isPresented: $app.isShowingHealth, arrowEdge: .top) {
 				HealthList(health: health, status: app.workspace?.appStateStatus ?? "")
 			}
 			Spacer()
@@ -428,6 +441,7 @@ private struct HealthFooter: View {
 					.frame(width: 22, height: 22)
 			}
 			.buttonStyle(.plain)
+			.keyboardHighlight(app.isHighlighted(.settings), cornerRadius: Tokens.Radius.radiusSm)
 			.help("Settings" + (app.keyLabel(.toggleSettings).map { " (\($0))" } ?? ""))
 			.accessibilityLabel("Settings")
 		}

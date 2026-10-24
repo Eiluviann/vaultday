@@ -20,6 +20,7 @@ struct SetupMenu<Value: Hashable>: View {
 		.labelsHidden()
 		.pickerStyle(.menu)
 		.frame(width: width)
+		.setupKeyOption()
 		.accessibilityLabel(label)
 	}
 }
@@ -34,6 +35,7 @@ struct SetupSwitch: View {
 			.labelsHidden()
 			.toggleStyle(.switch)
 			.controlSize(.small)
+			.setupKeyOption(cornerRadius: 10) { isOn.toggle() }
 	}
 }
 
@@ -58,7 +60,7 @@ struct DayTimeField: View {
 			if let day {
 				SetupMenu(label: "\(label) day", options: WeekdayChoice.allCases.map { ($0, $0.title) }, selection: Binding(get: { day }, set: setDay), width: 74)
 			}
-			TextField(label, text: $text)
+			VimTextField(label, text: $text)
 				.textFieldStyle(.plain)
 				.focused($isFocused)
 				.multilineTextAlignment(.trailing)

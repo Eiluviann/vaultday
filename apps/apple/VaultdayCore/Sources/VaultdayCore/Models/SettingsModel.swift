@@ -24,7 +24,7 @@ public struct ConnectionSummary: Identifiable, Hashable, Sendable {
 @MainActor
 @Observable
 public final class SettingsModel {
-	public private(set) var keyboardScheme: KeyboardSchemeSetting = .standard
+	public private(set) var keyboardScheme: KeyboardSchemeSetting = .vimMotions
 	public private(set) var hoverSelects = true
 	public private(set) var shortcutCaps: ShortcutCapsSetting = .animated
 	/// Screen-share mode on this Mac, and the selection to come back to when it ends; neither syncs.

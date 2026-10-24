@@ -164,7 +164,7 @@ struct ConfigureSheet: View {
 	private var general: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space16) {
 			field("Name", key: "name") {
-				TextField("Name", text: $model.name).textFieldStyle(.roundedBorder)
+				VimTextField("Name", text: $model.name).textFieldStyle(.roundedBorder)
 			}
 			field("Color", key: "accent", note: "The color of the workspace's badge and dot") {
 				HStack(spacing: Tokens.Spacing.space8) {
@@ -187,7 +187,7 @@ struct ConfigureSheet: View {
 				}
 			}
 			field("Browser", key: "browser", note: "Opens this workspace's links; empty uses the system browser") {
-				TextField("System default", text: $model.browser).textFieldStyle(.roundedBorder)
+				VimTextField("System default", text: $model.browser).textFieldStyle(.roundedBorder)
 			}
 		}
 	}
@@ -213,13 +213,13 @@ struct ConfigureSheet: View {
 	private var tasks: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space16) {
 			field("Ticket ids", key: "ticket_pattern", note: "A regular expression; it finds ids such as WEB-142 in notes and mail", isMono: true) {
-				TextField("[A-Z]+-\\d+", text: $model.ticketPattern).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
+				VimTextField("[A-Z]+-\\d+", text: $model.ticketPattern).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 			field("Ticket link", key: "ticket_url", note: "Where {ticket} is the id", isMono: true) {
-				TextField("https://tracker.example.com/browse/{ticket}", text: $model.ticketLink).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
+				VimTextField("https://tracker.example.com/browse/{ticket}", text: $model.ticketLink).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 			field("Hosts", key: "hosts", note: "One per line; links to these hosts belong to this workspace", isMono: true) {
-				TextEditor(text: $model.hosts)
+				VimTextEditor(text: $model.hosts)
 					.textStyle(Tokens.Typography.mono)
 					.frame(height: 72)
 					.scrollContentBackground(.hidden)
@@ -228,7 +228,7 @@ struct ConfigureSheet: View {
 					.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm).strokeBorder(Tokens.Colors.lineControl, lineWidth: 1))
 			}
 			field("Story template", key: "story_template", note: "A note inside the workspace that new stories start from", isMono: true) {
-				TextField("_templates/story.md", text: $model.storyTemplate).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
+				VimTextField("_templates/story.md", text: $model.storyTemplate).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 		}
 	}
@@ -236,10 +236,10 @@ struct ConfigureSheet: View {
 	private var hours: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space16) {
 			field("Hours a day", key: "hours_per_day", note: "The day plan's daily target") {
-				TextField("8", text: $model.hoursPerDay).textFieldStyle(.roundedBorder).frame(width: 80)
+				VimTextField("8", text: $model.hoursPerDay).textFieldStyle(.roundedBorder).frame(width: 80)
 			}
 			field("Log folder", key: "log_folder", note: "Holds the day logs, inside the workspace folder", isMono: true) {
-				TextField("Log", text: $model.logFolder).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
+				VimTextField("Log", text: $model.logFolder).textFieldStyle(.roundedBorder).textStyle(Tokens.Typography.mono)
 			}
 			if let closeOut {
 				CloseOutFields(closeOut: closeOut, leaveSources: leaveSources)
@@ -318,7 +318,7 @@ private struct CloseOutFields: View {
 						}
 						.labelsHidden()
 						.frame(width: 90)
-						TextField("08:00", text: $closeOut.deadlineTime)
+						VimTextField("08:00", text: $closeOut.deadlineTime)
 							.textFieldStyle(.roundedBorder)
 							.textStyle(Tokens.Typography.mono)
 							.frame(width: 70)
@@ -390,7 +390,7 @@ private struct BillingFields: View {
 			case .fte:
 				HStack(spacing: Tokens.Spacing.space8) {
 					Text("Toggl hours a day").foregroundStyle(Tokens.Colors.inkSecondary)
-					TextField("8", text: $billing.flatHours).textFieldStyle(.roundedBorder).frame(width: 80)
+					VimTextField("8", text: $billing.flatHours).textFieldStyle(.roundedBorder).frame(width: 80)
 				}
 				.textStyle(Tokens.Typography.callout)
 			case .none:
@@ -408,8 +408,8 @@ private struct BillingFields: View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			HStack(spacing: Tokens.Spacing.space8) {
 				Text("Rate per hour").foregroundStyle(Tokens.Colors.inkSecondary)
-				TextField("None", text: $billing.rate).textFieldStyle(.roundedBorder).frame(width: 100)
-				TextField("EUR", text: $billing.currency).textFieldStyle(.roundedBorder).frame(width: 60).textStyle(Tokens.Typography.mono)
+				VimTextField("None", text: $billing.rate).textFieldStyle(.roundedBorder).frame(width: 100)
+				VimTextField("EUR", text: $billing.currency).textFieldStyle(.roundedBorder).frame(width: 60).textStyle(Tokens.Typography.mono)
 			}
 			.textStyle(Tokens.Typography.callout)
 			Text("Kept in Vaultday's signed store, never in settings.json or Toggl").textStyle(Tokens.Typography.caption).foregroundStyle(Tokens.Colors.inkMuted)

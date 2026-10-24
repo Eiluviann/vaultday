@@ -139,10 +139,25 @@ final class AppModel {
 	/// The Home text fields that hold keyboard focus now, by name; while any
 	/// does, bare keys go to the field.
 	private var focusedTextFields: Set<String> = []
+	/// The sidebar row the open workspace last put the sidebar's current row on.
+	@ObservationIgnored var lastSidebarWorkspaceRow: SidebarRow?
+	/// The Today header's controls as it shows them now, for `h` `l` and ⏎.
+	var dayHeaderControls: [DayHeaderControl] = []
+	/// The health list under the sidebar's footer dot, opened by a click or ⏎.
+	var isShowingHealth = false
+	/// Vim motions in the setup flow: the step list and the shown step's controls.
+	let setupKeyboard = SetupKeyboardModel()
 
-	/// A Home text field gained or lost keyboard focus.
+	/// A Home text field gained or lost keyboard focus. A field of a pane is
+	/// the input level of the focus tree: Esc in it comes back to the pane.
 	func setTextField(_ name: String, isFocused: Bool) {
 		if isFocused { focusedTextFields.insert(name) } else { focusedTextFields.remove(name) }
+		guard let pane = Self.pane(ofTextField: name) else { return }
+		if isFocused {
+			keyboard.enterInput(FocusedInput(name: name, pane: pane))
+		} else {
+			focus.leaveInput(named: name)
+		}
 	}
 	/// The calendar line in the side panel: access, the private calendar, or why not.
 	private(set) var calendarStatus = ""
@@ -157,7 +172,7 @@ final class AppModel {
 	private var calendarSource: EventKitCalendarSource?
 	private var storeChangeObserver: (any NSObjectProtocol)?
 	private var environment: CoreEnvironment?
-	private var windowStateStore: WindowStateStore?
+	private var windowStateWriter: WindowStateWriter?
 
 	init() {
 		let keymap: Keymap
@@ -169,8 +184,9 @@ final class AppModel {
 			keymap = Keymap(bindings: [])
 			keymapError = error.description
 		}
-		dispatcher = KeyDispatcher(keymap: keymap, scheme: .standard)
-		focus = PaneFocusModel()
+		// Vim motions until the settings say otherwise, as the design note's default.
+		dispatcher = KeyDispatcher(keymap: keymap, scheme: .vim)
+		focus = PaneFocusModel(scheme: .vim)
 		timerBackend = AppTimerAPIBackend(sessions: sessions, dayPlan: dayPlan)
 		let register = PlanRegister(plan: dayPlan) { text in
 			NSPasteboard.general.clearContents()
@@ -183,6 +199,7 @@ final class AppModel {
 		keyboard.onAction = { [weak self] in self?.performAppAction($0) }
 		keyboard.isEnabled = { [weak self] in self?.isEnabled($0) ?? false }
 		keyboard.onOwnAction = { [weak self] in self?.registerChanged($0) }
+		keyboard.dismissTransient = { [weak self] in self?.dismissTransientLayer() ?? false }
 		configureTimerBackend()
 		configureInbox()
 	}
@@ -192,7 +209,7 @@ final class AppModel {
 		guard workspace == nil, setupError == nil else { return }
 		do {
 			#if DEBUG
-				let environment = try CoreEnvironment.forThisMac(allowsUnsignedFallback: true)
+				let environment = try Self.debugEnvironment() ?? CoreEnvironment.forThisMac(allowsUnsignedFallback: true)
 			#else
 				let environment = try CoreEnvironment.forThisMac()
 			#endif
@@ -236,8 +253,8 @@ final class AppModel {
 			keyboard.setScheme(KeyScheme(settings.keyboardScheme))
 			focus.hoverSelects = settings.hoverSelects
 			let store = WindowStateStore(layout: environment.layout)
-			windowStateStore = store
 			let windowState = store.load()
+			windowStateWriter = WindowStateWriter(store: store, loaded: windowState)
 			// The story screen does not come back at launch; neither does focus on its panel.
 			focus.focus(Pane.homeOrder.contains(windowState.focusedPane) ? windowState.focusedPane : .today)
 			if windowState.isSidebarCollapsed != focus.isSidebarCollapsed {
@@ -260,6 +277,16 @@ final class AppModel {
 	}
 
 	#if DEBUG
+		/// `VAULTDAY_DEBUG_IN_MEMORY=1`: a run on an in-memory Keychain and a
+		/// fresh temporary folder, sharing no state or Keychain item with any
+		/// other build on this Mac, so two worktrees can run the app at once.
+		private static func debugEnvironment() throws -> CoreEnvironment? {
+			guard ProcessInfo.processInfo.environment["VAULTDAY_DEBUG_IN_MEMORY"] == "1" else { return nil }
+			let container = FileManager.default.temporaryDirectory
+				.appending(path: "Vaultday debug run \(UUID().uuidString.prefix(8))", directoryHint: .isDirectory)
+			return try CoreEnvironment.inMemory(container: container, grants: FolderGrants(), signingMode: .inMemory)
+		}
+
 		/// Manual runs of an unsigned build start on an empty container each
 		/// time: `VAULTDAY_DEBUG_WORKSPACE=<folder>` adds that folder as a work
 		/// workspace without the open panel. Use a copy of the mock vault only.
@@ -374,7 +401,7 @@ final class AppModel {
 			return false
 		}
 		switch keyboard.handle(stroke) {
-		case .action, .pending:
+		case .action, .pending, .cancelled:
 			syncStorySelection()
 			saveWindowState()
 			return true
@@ -397,7 +424,7 @@ final class AppModel {
 				break
 			}
 			return true
-		case .pending:
+		case .pending, .cancelled:
 			return true
 		case .unbound:
 			return false
@@ -468,9 +495,12 @@ final class AppModel {
 			openPalette()
 		case .addTask:
 			insertAnchor = nil
+			// `i` `o` `O` mean "insert" in Vim, so the field they open types at once.
+			VimFieldRouter.shared.startNextFieldInInsert()
 			quickAddFocusRequest += 1
 		case .addTaskAfter, .addTaskBefore:
 			insertAnchor = selectedItem.map { ($0.taskId, action == .addTaskAfter) }
+			VimFieldRouter.shared.startNextFieldInInsert()
 			quickAddFocusRequest += 1
 		case .nextWorkspace:
 			stepWorkspace(by: 1)
@@ -499,24 +529,8 @@ final class AppModel {
 			leaveStory()
 			leaveBrowse()
 			showToday()
-		case .dismiss:
-			if palette.isOpen {
-				palette.close()
-			} else if inbox.draft != nil {
-				inbox.cancelDraft()
-			} else if inbox.previewId != nil {
-				inbox.closePreview()
-			} else if peek.subject != nil {
-				peek.dismiss()
-			} else if preview.isOpen {
-				preview.close()
-			} else if screen == .story {
-				leaveStory()
-			} else if quickAdd.entry != nil {
-				quickAdd.cancel()
-			} else {
-				dayPlan.dismissToast()
-			}
+		case let .showSpan(span):
+			showSpan(span)
 		case let .focusPane(pane):
 			if pane == .today {
 				leaveBrowse()
@@ -539,7 +553,11 @@ final class AppModel {
 		case let .showStoryPanelTab(place):
 			story.showTab(place: place)
 		case .focusBrowseQuery:
-			if screen == .browse { browseQueryFocusRequest += 1 }
+			if screen == .browse {
+				// `/` opens Vim's search line typing, as `i` opens quick add.
+				VimFieldRouter.shared.startNextFieldInInsert()
+				browseQueryFocusRequest += 1
+			}
 		case .toggleFold:
 			toggleFoldOfSelection()
 		case .nextGroup:
@@ -679,12 +697,45 @@ final class AppModel {
 		}
 	}
 
+	/// Esc's first job: the top transient layer closes, in this order; `true`
+	/// when one did. With none open, Esc moves one level up the focus tree.
+	private func dismissTransientLayer() -> Bool {
+		if palette.isOpen {
+			palette.close()
+		} else if inbox.draft != nil {
+			inbox.cancelDraft()
+		} else if inbox.previewId != nil {
+			inbox.closePreview()
+		} else if peek.subject != nil {
+			peek.dismiss()
+		} else if preview.isOpen {
+			preview.close()
+		} else if screen == .story {
+			leaveStory()
+		} else if quickAdd.entry != nil {
+			quickAdd.cancel()
+		} else if dayPlan.toast != nil {
+			dayPlan.dismissToast()
+		} else {
+			return false
+		}
+		return true
+	}
+
 	/// ⏎ on the selection: a task opens its preview, a Browse group header
 	/// folds, a signal opens its preview slide-over.
 	private func openSelection() {
 		// ⏎ while an outcome popover is open saves it, whatever holds focus.
 		if inbox.draft != nil {
 			inbox.saveDraft()
+			return
+		}
+		if focus.section == .dayHeader, screen == .home {
+			activateDayHeaderControl()
+			return
+		}
+		if focus.focusedPane == .sidebar, let index = focus.selection(in: .sidebar) {
+			activateSidebarRow(at: index)
 			return
 		}
 		if focus.focusedPane == .inbox, let signal = selectedSignal {
@@ -1051,7 +1102,7 @@ final class AppModel {
 		afterPlanChange()
 	}
 
-	/// ⌘0: every workspace together. The last single workspace stays the one the app opens on.
+	/// ⌘ and the key left of 1: every workspace together. The last single workspace stays the one the app opens on.
 	func showAllWorkspaces() {
 		guard let workspace, !screenShare.refusesShowingAll() else { return }
 		workspace.showAll()
@@ -1432,7 +1483,7 @@ final class AppModel {
 	}
 
 	private func saveWindowState() {
-		windowStateStore?.save(WindowState(isSidebarCollapsed: focus.isSidebarCollapsed, focusedPane: focus.focusedPane))
+		windowStateWriter?.save(WindowState(isSidebarCollapsed: focus.isSidebarCollapsed, focusedPane: focus.focusedPane))
 	}
 
 	private static func loadKeymap() -> Result<Keymap, KeymapError> {

@@ -108,11 +108,11 @@ private struct TogglWorkspacePanel: View {
 				idField("Default project id", text: $panel.defaultProjectId, choices: panel.togglProjects)
 				ForEach($panel.storyProjects) { $entry in
 					HStack(spacing: Tokens.Spacing.space6) {
-						TextField("Story", text: $entry.story)
+						VimTextField("Story", text: $entry.story)
 							.textFieldStyle(.roundedBorder)
 							.textStyle(Tokens.Typography.mono)
 							.frame(width: 140)
-						TextField("Project id", text: $entry.projectId)
+						VimTextField("Project id", text: $entry.projectId)
 							.textFieldStyle(.roundedBorder)
 							.textStyle(Tokens.Typography.mono)
 					}
@@ -134,7 +134,7 @@ private struct TogglWorkspacePanel: View {
 				.textStyle(Tokens.Typography.callout)
 				.foregroundStyle(Tokens.Colors.inkSecondary)
 				.frame(width: 140, alignment: .leading)
-			TextField("Id", text: text)
+			VimTextField("Id", text: text)
 				.textFieldStyle(.roundedBorder)
 				.textStyle(Tokens.Typography.mono)
 				.accessibilityLabel(label)

@@ -121,7 +121,7 @@ struct SignalDraftPopover: View {
 	}
 
 	private func field(text: Binding<String>, field: Field, placeholder: String) -> some View {
-		TextField(placeholder, text: text)
+		VimTextField(placeholder, text: text)
 			.textFieldStyle(.plain)
 			.focused($focusedField, equals: field)
 			.textStyle(Tokens.Typography.callout)
@@ -130,6 +130,7 @@ struct SignalDraftPopover: View {
 			.background(Tokens.Colors.surface, in: RoundedRectangle(cornerRadius: 6))
 			.overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(focusedField == field ? Tokens.Colors.focus : Tokens.Colors.lineControl))
 			.onSubmit { inbox.saveDraft() }
+			.vimModeLineBelow()
 	}
 
 	private func row(_ label: String, @ViewBuilder content: () -> some View) -> some View {

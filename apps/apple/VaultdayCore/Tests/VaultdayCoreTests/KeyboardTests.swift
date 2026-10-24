@@ -16,13 +16,13 @@ final class KeyboardTests: XCTestCase {
 	func testTheRepositoryKeymapParsesAndKeepsHJKLForMovement() throws {
 		let keymap = try repoKeymap()
 		let movement: Set<KeyAction> = [.moveLeft, .moveDown, .moveUp, .moveRight]
-		for (sequence, action, _) in keymap.sequences(for: .vim) where sequence.count == 1 && sequence[0].modifiers.isEmpty {
-			if ["h", "j", "k", "l"].contains(sequence[0].key) {
-				XCTAssertTrue(movement.contains(action), "bare \(sequence[0].key) is bound to \(action)")
+		for bound in keymap.sequences(for: .vim) where bound.sequence.count == 1 && bound.sequence[0].modifiers.isEmpty {
+			if ["h", "j", "k", "l"].contains(bound.sequence[0].key) {
+				XCTAssertTrue(movement.contains(bound.action), "bare \(bound.sequence[0].key) is bound to \(bound.action)")
 			}
 		}
-		let paneJumps = keymap.sequences(for: .vim).filter { if case .focusPane = $0.1 { true } else { false } }
-		XCTAssertEqual(paneJumps.map { $0.0.map(\.key).joined() }.sorted(), ["g0", "g1", "g2", "g3"])
+		let paneJumps = keymap.sequences(for: .vim).filter { if case .focusPane = $0.action { true } else { false } }
+		XCTAssertEqual(paneJumps.map { $0.sequence.map(\.key).joined() }.sorted(), ["g1", "g2", "g3", "g4"], "the sidebar is the first panel")
 	}
 
 	func testTheMenuBarKeysAndTheTrackerHotKeyComeFromTheKeymap() throws {
@@ -50,7 +50,7 @@ final class KeyboardTests: XCTestCase {
 		let dispatcher = KeyDispatcher(keymap: try repoKeymap(), scheme: .vim)
 		XCTAssertEqual(dispatcher.handle(stroke("g")), .pending([stroke("g")]))
 		XCTAssertEqual(dispatcher.pendingText, "g")
-		XCTAssertEqual(dispatcher.handle(stroke("2")), .action(.focusPane(.inbox)))
+		XCTAssertEqual(dispatcher.handle(stroke("3")), .action(.focusPane(.inbox)))
 		XCTAssertEqual(dispatcher.pendingText, "")
 
 		XCTAssertEqual(dispatcher.handle(stroke("g")), .pending([stroke("g")]))
@@ -78,7 +78,8 @@ final class KeyboardTests: XCTestCase {
 		XCTAssertEqual(vim.handle(stroke("alt+k")), .action(.moveTaskUp))
 		XCTAssertEqual(vim.handle(stroke("space")), .action(.toggleTimer))
 		let standard = KeyDispatcher(keymap: keymap, scheme: .standard)
-		XCTAssertEqual(standard.handle(stroke("cmd+0")), .action(.showAllWorkspaces))
+		XCTAssertEqual(standard.handle(stroke("cmd+left-of-1")), .action(.showAllWorkspaces))
+		XCTAssertEqual(standard.handle(stroke("cmd+0")), .unbound, "⌘0 gave way to the key left of 1")
 		XCTAssertEqual(standard.handle(stroke("cmd+3")), .action(.showWorkspace(3)))
 		XCTAssertEqual(standard.handle(stroke("cmd+k")), .action(.openPalette))
 		XCTAssertEqual(standard.handle(stroke("cmd+n")), .action(.addTask))
@@ -86,11 +87,11 @@ final class KeyboardTests: XCTestCase {
 		XCTAssertEqual(standard.handle(stroke("escape")), .action(.dismiss))
 		XCTAssertEqual(vim.label(for: .completeTask), "x")
 		XCTAssertEqual(vim.label(for: .moveTaskUp), "⌥K")
-		XCTAssertEqual(vim.label(for: .focusPane(.today)), "g 1")
+		XCTAssertEqual(vim.label(for: .focusPane(.today)), "g 2")
 		XCTAssertEqual(standard.label(for: .openPalette), "⌘K")
 		XCTAssertEqual(standard.label(for: .toggleTimer), "Space")
 		XCTAssertEqual(standard.label(for: .autoSchedule), "⇧⌘R")
-		XCTAssertEqual(standard.label(for: .focusPane(.today)), "⌃1")
+		XCTAssertEqual(standard.label(for: .focusPane(.today)), "⌃2")
 		XCTAssertNil(standard.label(for: .repeatLast), "unbound under Standard")
 		XCTAssertNil(KeyAction(name: "workspace.10"))
 		XCTAssertNil(KeyAction(name: "workspace.0"))

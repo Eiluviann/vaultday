@@ -282,7 +282,7 @@ function run_changed() {
 		skip_gate biome 'no files biome reads'
 	fi
 
-	if echo "$changed_files" | grep -E '^(apps/apple/Keymap\.yaml|tools/keymap-doc/|apps/apple/KEYMAP\.md)' >/dev/null; then
+	if echo "$changed_files" | grep -E '^(apps/apple/Keymap\.yaml|tools/keymap-doc/|apps/apple/KEYMAP\.md|apps/apple/KEYMAP\.notes\.md)' >/dev/null; then
 		run_keymap_gate
 	fi
 	if echo "$changed_files" | grep -E '^(design/tokens\.json|tools/tokens/|apps/apple/Vaultday/Tokens\.swift)' >/dev/null; then

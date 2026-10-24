@@ -39,6 +39,7 @@ struct MainWindow: View {
 		} message: { workspaces in
 			Text(conversionMessage(workspaces.pendingConversion))
 		}
+		.environment(\.keyScheme, app.dispatcher.scheme)
 	}
 
 	/// The one-time question about an earlier build's further folders.

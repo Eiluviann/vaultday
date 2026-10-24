@@ -133,13 +133,14 @@ pub enum EnablementScope {
     Workspace(WorkspaceId),
 }
 
-/// The keyboard scheme the app runs.
+/// The keyboard scheme the app runs; Vim motions until the user picks one,
+/// as the design note's default scheme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum KeyboardScheme {
     /// The platform's standard keys.
-    #[default]
     Standard,
     /// Vim motions.
+    #[default]
     Vim,
 }
 
@@ -509,8 +510,8 @@ impl AppState {
     #[must_use]
     pub fn keyboard_scheme(&self) -> KeyboardScheme {
         match get_str(&self.doc, &self.objects.settings, "keyboard_scheme").as_deref() {
-            Some("vim") => KeyboardScheme::Vim,
-            _ => KeyboardScheme::Standard,
+            Some("standard") => KeyboardScheme::Standard,
+            _ => KeyboardScheme::Vim,
         }
     }
 
@@ -666,7 +667,7 @@ mod tests {
         assert!(state.hover_selects());
         assert_eq!(state.workload_threshold(), DEFAULT_WORKLOAD_THRESHOLD);
         assert_eq!(state.long_timer_limit(), DEFAULT_LONG_TIMER_LIMIT);
-        assert_eq!(state.keyboard_scheme(), KeyboardScheme::Standard);
+        assert_eq!(state.keyboard_scheme(), KeyboardScheme::Vim);
         assert_eq!(
             state.security(&WorkspaceId::new("acme")),
             WorkspaceSecurity::default()
@@ -684,7 +685,7 @@ mod tests {
             .unwrap();
         mac.set_long_timer_limit(Duration::from_secs(90 * 60))
             .unwrap();
-        mac.set_keyboard_scheme(KeyboardScheme::Vim).unwrap();
+        mac.set_keyboard_scheme(KeyboardScheme::Standard).unwrap();
         mac.set_ritual_time("planning", Some(Time::constant(8, 30, 0, 0)))
             .unwrap();
         mac.set_ritual_time("shutdown", Some(Time::constant(17, 0, 0, 0)))
@@ -695,7 +696,7 @@ mod tests {
         assert!(other.hover_selects(), "hover selects is set per device");
         assert_eq!(other.workload_threshold(), Duration::from_secs(6 * 3600));
         assert_eq!(other.long_timer_limit(), Duration::from_secs(90 * 60));
-        assert_eq!(other.keyboard_scheme(), KeyboardScheme::Vim);
+        assert_eq!(other.keyboard_scheme(), KeyboardScheme::Standard);
         assert_eq!(
             other.ritual_times().into_iter().collect::<Vec<_>>(),
             [("planning".to_owned(), Time::constant(8, 30, 0, 0))]

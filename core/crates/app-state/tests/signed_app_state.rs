@@ -34,7 +34,7 @@ fn mac_saves(dir: &Path, mac: &InMemorySecretStore) -> std::path::PathBuf {
     store
         .edit(|state| {
             state.put_connection(&mail_account())?;
-            state.set_keyboard_scheme(KeyboardScheme::Vim)?;
+            state.set_keyboard_scheme(KeyboardScheme::Standard)?;
             state.set_workload_threshold(Duration::from_secs(7 * 3600))
         })
         .unwrap();
@@ -59,7 +59,10 @@ fn a_signed_snapshot_reaches_the_other_device() {
     assert_eq!(load.merged, 1);
     assert!(load.refused.is_empty());
     assert_eq!(phone_store.state().connections(), [mail_account()]);
-    assert_eq!(phone_store.state().keyboard_scheme(), KeyboardScheme::Vim);
+    assert_eq!(
+        phone_store.state().keyboard_scheme(),
+        KeyboardScheme::Standard
+    );
 
     phone_store.save().unwrap();
     let (mut mac_store, load) = open(temp.path(), &mac);
