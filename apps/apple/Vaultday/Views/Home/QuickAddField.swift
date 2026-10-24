@@ -50,7 +50,7 @@ struct QuickAddField: View {
 			}
 		}
 		.onChange(of: isFocused) { app.setTextField("quick-add", isFocused: isFocused) }
-		// ⌘0 or a workspace switch can take the field away while it has focus; no change of isFocused follows.
+		// All workspaces or a workspace switch can take the field away while it has focus; no change of isFocused follows.
 		.onDisappear { app.setTextField("quick-add", isFocused: false) }
 		.onChange(of: quickAdd.text) {
 			// What was confirmed is no longer what the field says.

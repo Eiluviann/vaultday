@@ -49,7 +49,7 @@ struct SidebarColumn: View {
 
 // MARK: Switcher
 
-/// All workspaces (⌘0) and each workspace (⌘1 to ⌘9), with its color dot.
+/// All workspaces (⌘ and the key left of 1) and each workspace (⌘1 to ⌘9), with its color dot.
 /// The open workspace's row carries the count of new signals as its badge.
 private struct WorkspaceSwitcher: View {
 	let app: AppModel

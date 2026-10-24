@@ -171,7 +171,7 @@ final class AppModel {
 	private var calendarSource: EventKitCalendarSource?
 	private var storeChangeObserver: (any NSObjectProtocol)?
 	private var environment: CoreEnvironment?
-	private var windowStateStore: WindowStateStore?
+	private var windowStateWriter: WindowStateWriter?
 
 	init() {
 		let keymap: Keymap
@@ -252,8 +252,8 @@ final class AppModel {
 			keyboard.setScheme(KeyScheme(settings.keyboardScheme))
 			focus.hoverSelects = settings.hoverSelects
 			let store = WindowStateStore(layout: environment.layout)
-			windowStateStore = store
 			let windowState = store.load()
+			windowStateWriter = WindowStateWriter(store: store, loaded: windowState)
 			// The story screen does not come back at launch; neither does focus on its panel.
 			focus.focus(Pane.homeOrder.contains(windowState.focusedPane) ? windowState.focusedPane : .today)
 			if windowState.isSidebarCollapsed != focus.isSidebarCollapsed {
@@ -1080,7 +1080,7 @@ final class AppModel {
 		afterPlanChange()
 	}
 
-	/// ⌘0: every workspace together. The last single workspace stays the one the app opens on.
+	/// ⌘ and the key left of 1: every workspace together. The last single workspace stays the one the app opens on.
 	func showAllWorkspaces() {
 		guard let workspace, !screenShare.refusesShowingAll() else { return }
 		workspace.showAll()
@@ -1461,7 +1461,7 @@ final class AppModel {
 	}
 
 	private func saveWindowState() {
-		windowStateStore?.save(WindowState(isSidebarCollapsed: focus.isSidebarCollapsed, focusedPane: focus.focusedPane))
+		windowStateWriter?.save(WindowState(isSidebarCollapsed: focus.isSidebarCollapsed, focusedPane: focus.focusedPane))
 	}
 
 	private static func loadKeymap() -> Result<Keymap, KeymapError> {

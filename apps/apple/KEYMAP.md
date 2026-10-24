@@ -131,9 +131,9 @@ Under Vim motions every text input has its own Vim modes, shown under its bottom
 
 | Mode | Keys |
 | --- | --- |
-| Normal | `h` `l` `w` `b` `e` `0` `^` `$` move (`j` `k` `gg` `G` on several lines); counts (`3w`, `2dw`); `i` `a` `I` `A` insert (`o` `O` open a line on several lines); `x` `X` `dd` `dw` `de` `db` `d$` `D` delete; `cw` `cc` `C` `s` `S` change; `yy` `yw` yank; `p` `P` put; `u` undo; ⌃R redo; `.` repeats the last change; `v` Visual; ⏎ submits a one-line field; Esc leaves the field |
+| Normal | `h` `l` `w` `b` `e` `0` `^` `$` move (`j` `k` `gg` `G` on several lines); `f` `t` `F` `T` find a character on the line, `;` `,` repeat the find; counts (`3w`, `2dw`); `i` `a` `I` `A` insert (`o` `O` open a line on several lines); `x` `X` `dd` `dw` `de` `db` `d$` `dt,` `D` delete; `cw` `cc` `C` `s` `S` change; `r` replaces the character under the cursor; `yy` `yw` yank; `p` `P` put; `u` undo; ⌃R redo; `.` repeats the last change; `v` Visual; ⏎ submits a one-line field; Esc or ⌃[ leaves the field. Marks, macros and named registers are not kept, but `m` `q` `@` `'` `"` still take their character |
 | Insert | typing as usual, a bar cursor; Esc returns to Normal mode; ⏎ submits a one-line field |
-| Visual | the motions extend the selection; `d` `x` delete, `c` change, `y` yank, `o` swaps the ends; Esc or `v` back to Normal mode |
+| Visual | the motions extend the selection; `d` `x` delete, `c` change, `y` yank, `r` replaces every selected character, `o` swaps the ends; Esc or `v` back to Normal mode |
 
 ⌘ keys always reach the app from inside a field. Password fields stay plain fields under both schemes.
 

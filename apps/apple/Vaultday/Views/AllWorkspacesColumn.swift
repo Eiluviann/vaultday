@@ -1,7 +1,7 @@
 import SwiftUI
 import VaultdayCore
 
-/// The All view (⌘0): every workspace's day side by side under its own
+/// The All view (⌘ and the key left of 1): every workspace's day side by side under its own
 /// header, read-only. Tasks are ticked, moved and added in their workspace.
 struct AllWorkspacesColumn: View {
 	let app: AppModel

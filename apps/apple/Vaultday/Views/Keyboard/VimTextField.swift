@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 import VaultdayCore
 
@@ -416,7 +417,13 @@ final class VimFieldRouter {
 			if controller.editor.mode == .normal { controller.collapseBlock(in: textView) }
 			return false
 		}
-		guard let key = Self.key(of: event, flags: flags) else { return false }
+		// A key with no character of its own (a dead key, `^` on a German or
+		// Swedish layout) is a command in Normal and Visual mode: read as the
+		// character its cap shows, and never handed to AppKit, whose composing
+		// would type over the block cursor.
+		guard let key = Self.key(of: event, flags: flags) ?? Self.deadKey(of: event, flags: flags) else {
+			return controller.editor.mode != .insert
+		}
 
 		controller.read(from: textView)
 		controller.editor.register = register
@@ -442,6 +449,8 @@ final class VimFieldRouter {
 
 	private static func key(of event: NSEvent, flags: NSEvent.ModifierFlags) -> VimKey? {
 		if event.keyCode == escape { return .escape }
+		// ⌃[ is Esc, as in a terminal.
+		if flags.contains(.control), event.characters == "\u{1B}" || event.charactersIgnoringModifiers == "[" { return .escape }
 		if returnKeys.contains(event.keyCode) { return .enter }
 		if event.keyCode == backspace { return .backspace }
 		if let arrow = arrows[event.keyCode] { return arrow }
@@ -449,6 +458,16 @@ final class VimFieldRouter {
 			return event.charactersIgnoringModifiers?.lowercased().first.map { .control($0) }
 		}
 		return event.characters?.first.map { .character($0) }
+	}
+
+	/// A dead key as the character its cap shows, from the current layout.
+	private static func deadKey(of event: NSEvent, flags: NSEvent.ModifierFlags) -> VimKey? {
+		guard flags.isDisjoint(with: [.command, .control]),
+		      let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+		      let property = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+		else { return nil }
+		let layout = Unmanaged<CFData>.fromOpaque(property).takeUnretainedValue()
+		return VimText.spacingCharacter(keyCode: event.keyCode, modifierFlags: flags, layoutData: layout).map { .character($0) }
 	}
 }
 
@@ -464,6 +483,42 @@ enum VimText {
 		}
 		guard let characterIndex = index.samePosition(in: text) else { return 0 }
 		return text.distance(from: text.startIndex, to: characterIndex)
+	}
+
+	/// The character `keyCode` types on `layoutData` (a `kTISPropertyUnicodeKeyLayoutData`)
+	/// when it is pressed alone; a dead key types what it and Space type, `^`
+	/// for the key that otherwise waits for a vowel.
+	static func spacingCharacter(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, layoutData: CFData) -> Character? {
+		translate(keyCode: keyCode, modifierFlags: modifierFlags, layoutData: layoutData, completesDeadKey: true)
+	}
+
+	/// The character one press of `keyCode` types on `layoutData`; `nil` for
+	/// a dead key, which types nothing until the next key.
+	static func typedCharacter(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, layoutData: CFData) -> Character? {
+		translate(keyCode: keyCode, modifierFlags: modifierFlags, layoutData: layoutData, completesDeadKey: false)
+	}
+
+	private static func translate(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, layoutData: CFData, completesDeadKey: Bool) -> Character? {
+		guard let bytes = CFDataGetBytePtr(layoutData) else { return nil }
+		// UCKeyTranslate takes the Carbon modifier bits shifted down by 8.
+		var modifiers: UInt32 = 0
+		if modifierFlags.contains(.shift) { modifiers |= UInt32(shiftKey >> 8) }
+		if modifierFlags.contains(.option) { modifiers |= UInt32(optionKey >> 8) }
+		if modifierFlags.contains(.capsLock) { modifiers |= UInt32(alphaLock >> 8) }
+		return bytes.withMemoryRebound(to: UCKeyboardLayout.self, capacity: 1) { layout in
+			var deadKeyState: UInt32 = 0
+			if let typed = press(keyCode, modifiers: modifiers, on: layout, deadKeyState: &deadKeyState) { return typed }
+			guard completesDeadKey, deadKeyState != 0 else { return nil }
+			return press(UInt16(kVK_Space), modifiers: 0, on: layout, deadKeyState: &deadKeyState)
+		}
+	}
+
+	private static func press(_ keyCode: UInt16, modifiers: UInt32, on layout: UnsafePointer<UCKeyboardLayout>, deadKeyState: inout UInt32) -> Character? {
+		var length = 0
+		var characters = [UniChar](repeating: 0, count: 4)
+		let status = UCKeyTranslate(layout, keyCode, UInt16(kUCKeyActionDown), modifiers, UInt32(LMGetKbdType()), OptionBits(0), &deadKeyState, characters.count, &length, &characters)
+		guard status == noErr, length > 0 else { return nil }
+		return String(utf16CodeUnits: characters, count: length).first
 	}
 
 	static func utf16Range(_ range: Range<Int>, in text: String) -> NSRange {

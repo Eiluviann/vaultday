@@ -171,7 +171,7 @@ extension AppModel {
 
 	// MARK: ⌘ and the key left of 1
 
-	/// The key left of 1 on this Mac's keyboard: § on an ISO keyboard, ` on ANSI and JIS.
+	/// The key left of 1 on the keyboard typed on last: § on an ISO keyboard, ` on ANSI (an Apple JIS keyboard has no key there).
 	static var leftOfOneKeyCode: UInt16 {
 		KBGetLayoutType(Int16(LMGetKbdType())) == kKeyboardISO ? UInt16(kVK_ISO_Section) : UInt16(kVK_ANSI_Grave)
 	}

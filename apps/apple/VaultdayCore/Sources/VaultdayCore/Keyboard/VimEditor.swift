@@ -72,10 +72,11 @@ public struct VimRegister: Equatable, Sendable {
 
 /// The editing model of a Vim text field, as a pure state machine: Normal,
 /// Insert and Visual modes, counts, the motions `h` `l` `w` `b` `e` `0` `$`
-/// `^` (`j` `k` `gg` `G` on several lines), the operators `d` `c` `y` over a
-/// motion or doubled for the line, `x` `X` `D` `C` `s` `S`, `p` `P`, `u`
-/// and `⌃R`, `.` for the last change, and `i` `a` `I` `A` (`o` `O` on
-/// several lines). Positions count characters. Insert mode's typing is the
+/// `^` `f` `t` `F` `T` `;` `,` (`j` `k` `gg` `G` on several lines), the
+/// operators `d` `c` `y` over a motion or doubled for the line, `x` `X` `D`
+/// `C` `s` `S` `r`, `p` `P`, `u` and `⌃R`, `.` for the last change, and `i`
+/// `a` `I` `A` (`o` `O` on several lines). Marks, macros and named registers
+/// are not kept, but their keys still take their character. Positions count characters. Insert mode's typing is the
 /// text view's own: it reports each edit back through ``syncInsert(text:cursor:)``.
 public struct VimEditor: Equatable, Sendable {
 	public private(set) var characters: [Character]
@@ -99,6 +100,10 @@ public struct VimEditor: Equatable, Sendable {
 	private var operatorCount: Int?
 	/// `g` waiting for its second key.
 	private var isGPending = false
+	/// A key waiting for the character it acts on (`f`, `r`, `m`).
+	private var pendingArgument: ArgumentKey?
+	/// The last `f` `F` `t` `T`, for `;` and `,`.
+	private var lastFind: Find?
 	private var undoStack: [Snapshot] = []
 	private var redoStack: [Snapshot] = []
 	private var lastChange: RecordedChange?
@@ -135,6 +140,68 @@ public struct VimEditor: Equatable, Sendable {
 		case space
 		case word
 		case punctuation
+	}
+
+	/// `f` `t` `F` `T`: forward or back along the line, onto the character
+	/// or stopping one short of it.
+	private enum FindKind: Equatable, Sendable {
+		case forwardOnto
+		case forwardShort
+		case backwardOnto
+		case backwardShort
+
+		init?(_ key: Character) {
+			switch key {
+			case "f": self = .forwardOnto
+			case "t": self = .forwardShort
+			case "F": self = .backwardOnto
+			case "T": self = .backwardShort
+			default: return nil
+			}
+		}
+
+		var isForward: Bool { self == .forwardOnto || self == .forwardShort }
+		var stopsShort: Bool { self == .forwardShort || self == .backwardShort }
+
+		/// The other way, as `,` repeats a find.
+		var reversed: FindKind {
+			switch self {
+			case .forwardOnto: .backwardOnto
+			case .forwardShort: .backwardShort
+			case .backwardOnto: .forwardOnto
+			case .backwardShort: .forwardShort
+			}
+		}
+	}
+
+	private struct Find: Equatable, Sendable {
+		let kind: FindKind
+		let character: Character
+	}
+
+	/// A key that takes the next character as its argument, so that
+	/// character is never read as a command of its own (`rx` never runs `x`).
+	private enum ArgumentKey: Equatable, Sendable {
+		case find(FindKind)
+		/// `r`: replaces the character under the cursor.
+		case replace
+		/// `"`: names a register; the field keeps only the unnamed one, so the command goes on.
+		case register
+		/// `m` `'` `` ` `` `q` `@`: marks and macros, which the field does not keep.
+		case ignored
+
+		init?(_ key: Character) {
+			if let kind = FindKind(key) {
+				self = .find(kind)
+				return
+			}
+			switch key {
+			case "r": self = .replace
+			case "\"": self = .register
+			case "m", "'", "`", "q", "@": self = .ignored
+			default: return nil
+			}
+		}
 	}
 
 	/// A field's editor; it starts in Normal mode unless the key that opened
@@ -264,6 +331,11 @@ public struct VimEditor: Equatable, Sendable {
 			return .handled
 		}
 		typed.append(key)
+		if pendingArgument != nil, !key.isCharacter {
+			// `f` or `r` and then a named key: the command is dropped, the key with it.
+			resetCommand()
+			return .handled
+		}
 		switch key {
 		case .enter:
 			resetCommand()
@@ -289,6 +361,10 @@ public struct VimEditor: Equatable, Sendable {
 	}
 
 	private mutating func normalCharacter(_ character: Character) -> VimEffect {
+		if let argument = pendingArgument {
+			pendingArgument = nil
+			return applyArgument(argument, character)
+		}
 		if let digit = character.wholeNumberValue, character.isASCII, digit > 0 || hasCount {
 			if operatorKey != nil {
 				operatorCount = Self.appending(digit, to: operatorCount)
@@ -309,7 +385,15 @@ public struct VimEditor: Equatable, Sendable {
 				isGPending = true
 				return .handled
 			}
+			if let kind = FindKind(character) {
+				pendingArgument = .find(kind)
+				return .handled
+			}
 			return motionOrOperator(.character(character), firstLine: false)
+		}
+		if let argument = ArgumentKey(character) {
+			pendingArgument = argument
+			return .handled
 		}
 		switch character {
 		case "d", "c", "y":
@@ -400,6 +484,11 @@ public struct VimEditor: Equatable, Sendable {
 			resetCommand()
 			return .handled
 		}
+		return operate(operatorKey, over: motion)
+	}
+
+	/// Runs `operatorKey` over the text from the cursor to where `motion` goes.
+	private mutating func operate(_ operatorKey: Character, over motion: Motion) -> VimEffect {
 		let range: Range<Int>
 		if motion.isLinewise {
 			range = linesRange(from: min(cursor, motion.target), to: max(cursor, motion.target))
@@ -429,7 +518,48 @@ public struct VimEditor: Equatable, Sendable {
 			enterInsert(at: start, keys: keys)
 			return .handled
 		}
-		return apply(operatorKey, to: linesRange(from: start, to: end > start ? end - 1 : end), isLinewise: true, landingAt: start)
+		// `yy` leaves the cursor where it was; `dd` lands on the next line's start.
+		return apply(operatorKey, to: linesRange(from: start, to: end > start ? end - 1 : end), isLinewise: true, landingAt: operatorKey == "y" ? cursor : start)
+	}
+
+	/// The character after `f` `t` `F` `T`, `r`, `"` or a mark key.
+	private mutating func applyArgument(_ argument: ArgumentKey, _ character: Character) -> VimEffect {
+		switch argument {
+		case let .find(kind):
+			let find = Find(kind: kind, character: character)
+			lastFind = find
+			guard let motion = findMotion(find, count: totalCount, isRepeat: false) else {
+				resetCommand()
+				return .handled
+			}
+			if let operatorKey { return operate(operatorKey, over: motion) }
+			wantedColumn = nil
+			cursor = motion.target
+			resetCommand()
+			return .handled
+		case .replace:
+			return replace(with: character)
+		case .register:
+			// The command goes on: `"ax` is `x`.
+			return .handled
+		case .ignored:
+			resetCommand()
+			return .handled
+		}
+	}
+
+	/// `r`: the count's characters from the cursor become `character`;
+	/// nothing changes when the line has fewer left.
+	private mutating func replace(with character: Character) -> VimEffect {
+		let keys = typed
+		let end = cursor + totalCount
+		defer { resetCommand() }
+		guard !lineIsEmpty, end <= lineEnd(of: cursor) else { return .handled }
+		beginChange()
+		characters.replaceSubrange(cursor ..< end, with: Array(repeating: character, count: end - cursor))
+		cursor = end - 1
+		record(keys)
+		return .handled
 	}
 
 	/// Runs `d`, `c` or `y` over `range`; a yank leaves the cursor on `landing`,
@@ -546,7 +676,9 @@ public struct VimEditor: Equatable, Sendable {
 			return .handled
 		}
 		beginChange()
-		let pasted = Array(String(repeating: register.text, count: count))
+		// A one-line field (a task title, a query) never takes a newline: lines join with spaces.
+		let text = isMultiline ? register.text : register.text.replacingOccurrences(of: "\n", with: " ")
+		let pasted = Array(String(repeating: text, count: count))
 		if register.isLinewise, isMultiline {
 			let lines = Array(Array(repeating: register.text, count: count).joined(separator: "\n"))
 			if after {
@@ -597,16 +729,28 @@ public struct VimEditor: Equatable, Sendable {
 	}
 
 	/// The keys of a change without its counts (`d2w` → `dw`); a `0` that
-	/// follows no count digit is the motion, and stays.
+	/// follows no count digit is the motion, and a digit after `f` or `r`
+	/// is its character: both stay.
 	private static func withoutCounts(_ keys: [VimKey]) -> [VimKey] {
 		var isInCount = false
+		var isArgumentNext = false
 		return keys.filter { key in
-			guard case let .character(character) = key, let digit = character.wholeNumberValue, character.isASCII, digit > 0 || isInCount else {
+			guard case let .character(character) = key else {
 				isInCount = false
+				isArgumentNext = false
 				return true
 			}
-			isInCount = true
-			return false
+			if isArgumentNext {
+				isArgumentNext = false
+				return true
+			}
+			if let digit = character.wholeNumberValue, character.isASCII, digit > 0 || isInCount {
+				isInCount = true
+				return false
+			}
+			isInCount = false
+			isArgumentNext = ArgumentKey(character) != nil
+			return true
 		}
 	}
 
@@ -633,15 +777,49 @@ public struct VimEditor: Equatable, Sendable {
 		case .down:
 			return visualMove("j")
 		case let .character(character):
+			if let argument = pendingArgument {
+				pendingArgument = nil
+				return visualArgument(argument, character)
+			}
 			if let digit = character.wholeNumberValue, character.isASCII, digit > 0 || count != nil {
 				count = Self.appending(digit, to: count)
 				typed.append(key)
 				return .handled
 			}
+			if let argument = ArgumentKey(character) {
+				pendingArgument = argument
+				typed.append(key)
+				return .handled
+			}
 			return visualCharacter(character)
 		default:
+			resetCommand()
 			return .handled
 		}
+	}
+
+	/// The character after `f` `t` `F` `T` or `r` in Visual mode.
+	private mutating func visualArgument(_ argument: ArgumentKey, _ character: Character) -> VimEffect {
+		defer { resetCommand() }
+		switch argument {
+		case let .find(kind):
+			let find = Find(kind: kind, character: character)
+			lastFind = find
+			if let motion = findMotion(find, count: count ?? 1, isRepeat: false) { cursor = motion.target }
+		case .replace:
+			// Every selected character but the line breaks becomes `character`.
+			let range = selection
+			mode = .normal
+			beginChange()
+			for index in range where characters[index] != "\n" {
+				characters[index] = character
+			}
+			cursor = range.lowerBound
+			clampToLine()
+		case .register, .ignored:
+			break
+		}
+		return .handled
 	}
 
 	private mutating func visualCharacter(_ character: Character) -> VimEffect {
@@ -725,6 +903,7 @@ public struct VimEditor: Equatable, Sendable {
 		operatorKey = nil
 		operatorCount = nil
 		isGPending = false
+		pendingArgument = nil
 	}
 
 	// MARK: Motions
@@ -791,9 +970,34 @@ public struct VimEditor: Equatable, Sendable {
 		case "g":
 			// `gg`: the first line.
 			return Motion(target: firstNonBlank(of: 0), isInclusive: true, isLinewise: true)
+		case ";", ",":
+			guard let lastFind else { return nil }
+			let find = character == ";" ? lastFind : Find(kind: lastFind.kind.reversed, character: lastFind.character)
+			return findMotion(find, count: count, isRepeat: true)
 		default:
 			return nil
 		}
+	}
+
+	/// Where `find` goes along the cursor's line, the count's occurrence
+	/// on; `nil` when the line has fewer. `f` and `t` take the character
+	/// they reach when an operator acts, `F` and `T` stop before the cursor's.
+	private func findMotion(_ find: Find, count: Int, isRepeat: Bool) -> Motion? {
+		let start = lineStart(of: cursor)
+		let end = lineEnd(of: cursor)
+		let step = find.kind.isForward ? 1 : -1
+		var position = cursor
+		for occurrence in 0 ..< count {
+			// `;` after `t` steps over the character `t` stopped short of, as Vim does.
+			var index = position + step * (find.kind.stopsShort && isRepeat && occurrence == 0 ? 2 : 1)
+			while index >= start, index < end, characters[index] != find.character {
+				index += step
+			}
+			guard index >= start, index < end else { return nil }
+			position = index
+		}
+		let target = find.kind.stopsShort ? position - step : position
+		return Motion(target: target, isInclusive: find.kind.isForward, isLinewise: false)
 	}
 
 	private func classOf(_ index: Int) -> CharacterClass {
@@ -892,5 +1096,13 @@ public struct VimEditor: Equatable, Sendable {
 		let start = lineStart(of: cursor)
 		let end = lineEnd(of: cursor)
 		cursor = end > start ? min(cursor, end - 1) : start
+	}
+}
+
+extension VimKey {
+	/// Whether the key types a character, as an argument of `f` or `r` must.
+	fileprivate var isCharacter: Bool {
+		if case .character = self { return true }
+		return false
 	}
 }
