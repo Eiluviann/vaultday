@@ -226,10 +226,9 @@ impl FileIndex {
         let links = self.followed_links(file_access)?;
         for relative in relative_paths {
             let absolute = self.root.join(relative);
-            let is_unfollowed_link =
-                file_access.link_target(&absolute)?.is_some() && !links.contains(&absolute);
-            let seen =
-                if is_unfollowed_link || self.is_inside_foreign_workspace(relative, file_access)? {
+            let seen = if self.is_through_unfollowed_link(relative, &links, file_access)?
+                || self.is_inside_foreign_workspace(relative, file_access)?
+            {
                     BTreeMap::new()
                 } else {
                     self.collect_changed(relative, &absolute, &links, file_access, now)?
@@ -358,6 +357,27 @@ impl FileIndex {
             _ => {}
         }
         Ok(seen)
+    }
+
+    /// True when `relative` or a folder above it, below the root, is a
+    /// symlink other than a linked folder's link. A walk never enters one, and
+    /// a watcher that follows links (inotify does) reports the files below it.
+    fn is_through_unfollowed_link(
+        &self,
+        relative: &Path,
+        links: &[PathBuf],
+        file_access: &dyn FileAccess,
+    ) -> Result<bool, FileAccessError> {
+        for folder in relative.ancestors() {
+            if folder.as_os_str().is_empty() {
+                break;
+            }
+            let absolute = self.root.join(folder);
+            if file_access.link_target(&absolute)?.is_some() && !links.contains(&absolute) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// True when `relative` or a folder above it, below the root, holds

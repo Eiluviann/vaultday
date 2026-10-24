@@ -302,6 +302,25 @@ final class WorkspacesModelTests: XCTestCase {
 		XCTAssertEqual(harness.session.appState.folderGrants().count, 2)
 	}
 
+	func testARehomedLinkWhoseOldLinkCannotGoLeavesTheTargetWorkspaceAsItWas() throws {
+		let (harness, workspaces, personal, personalRoot) = try personalWorkspace()
+		let studio = try XCTUnwrap(workspaces.addWorkspace(folder: try TestFixtures.emptyFolder(self, named: "Studio"), sphere: .work, name: "Studio"))
+		let recipes = try TestFixtures.emptyFolder(self, named: "Recipes")
+		XCTAssertTrue(workspaces.linkFolder(try ready(workspaces.offerFolder(recipes, to: personal.id))))
+		let linked = try XCTUnwrap(workspaces.entry(id: personal.id)?.folders.last)
+		let offer = try ready(workspaces.offerMove(.linked(folderId: linked.id), from: personal.id, to: studio.id))
+		// Before the drop lands, Personal's link became a real folder.
+		let oldLink = personalRoot.appending(path: "Recipes")
+		try FileManager.default.removeItem(at: oldLink)
+		try FileManager.default.createDirectory(at: oldLink, withIntermediateDirectories: false)
+
+		XCTAssertFalse(workspaces.linkFolder(offer))
+		XCTAssertEqual(workspaces.entry(id: studio.id)?.folders.map(\.role), [.root], "the folder joins one workspace only")
+		XCTAssertEqual(harness.session.appState.folderGrants().count, 3, "two roots and Personal's target, no second grant")
+		XCTAssertTrue(FileManager.default.fileExists(atPath: oldLink.path), "the real folder stays")
+		XCTAssertEqual(workspaces.message, "Recipes in the workspace's folder is no longer a link, so Vaultday left it alone")
+	}
+
 	func testAFolderInsideARootMovesToAnotherRootButCannotBeLinked() throws {
 		let (_, workspaces, personal, personalRoot) = try personalWorkspace()
 		let studioRoot = try TestFixtures.emptyFolder(self, named: "Studio")
@@ -415,6 +434,24 @@ final class WorkspacesModelTests: XCTestCase {
 		XCTAssertTrue(FileManager.default.fileExists(atPath: root.appending(path: "docs/a.md").path))
 		XCTAssertEqual(workspaces.entry(id: workspaceId)?.folders.map(\.role), [.root])
 		XCTAssertEqual(harness.session.appState.folderGrants().count, 1, "a moved folder needs no grant")
+	}
+
+	func testAGrantThatDoesNotResolveNeverReopensTheQuestionForLaterLinks() throws {
+		let harness = try OnboardingHarness(self)
+		let (workspaceId, root, docs) = try workspaceWithAFurtherFolder(harness)
+		// Its disk is unplugged: the grant does not resolve at the update.
+		try FileManager.default.removeItem(at: docs)
+		let workspaces = WorkspacesModel(session: harness.session)
+		XCTAssertFalse(workspaces.problems.isEmpty)
+		XCTAssertEqual(workspaces.pendingConversion, [])
+
+		// A folder this build links, whose link goes later, is not an earlier build's folder to move.
+		let recipes = try TestFixtures.emptyFolder(self, named: "Recipes")
+		XCTAssertTrue(workspaces.linkFolder(try ready(workspaces.offerFolder(recipes, to: workspaceId))))
+		try FileManager.default.removeItem(at: root.appending(path: "Recipes"))
+		let relaunched = WorkspacesModel(session: try harness.relaunched().session)
+		XCTAssertEqual(relaunched.pendingConversion, [])
+		XCTAssertEqual(relaunched.entry(id: workspaceId)?.folders.last?.kindLabel, "Link missing")
 	}
 
 	func testANewDeviceWithNothingToConvertIsNeverAsked() throws {

@@ -420,19 +420,22 @@ public final class WorkspacesModel {
 		}
 		let root = URL(filePath: workspace.rootPath, directoryHint: .isDirectory)
 		var link: URL?
+		var recorded: String?
 		do {
 			let bookmark = try session.environment.grants.makeBookmark(for: pending.picked)
 			let made = try makeLink(in: root, to: pending.folder)
 			link = made
-			try record(folder: pending.folder, bookmark: bookmark, workspaceId: workspace.id)
+			recorded = try record(folder: pending.folder, bookmark: bookmark, workspaceId: workspace.id)
 			// The old link goes only once the new one stands.
 			if let leaving = pending.leaving {
 				try release(leaving.origin, of: leaving.workspaceId)
 			}
 		} catch {
+			// The folder stays where it was: in no workspace, or in the one it was leaving.
 			if let link { try? FileManager.default.removeItem(at: link) }
+			if let recorded { try? session.edit { try $0.removeConnection(id: recorded) } }
 			if pending.leaving == nil { releaseAccess(picked: pending.picked, folder: pending.folder) }
-			message = coreErrorMessage(error)
+			message = Self.unlinkMessage(error, folderName: pending.name)
 			changed()
 			return false
 		}
@@ -760,13 +763,16 @@ public final class WorkspacesModel {
 	}
 
 	/// Records the grant of a linked folder's target.
-	private func record(folder: URL, bookmark: Data, workspaceId: String) throws {
+	/// Stores a linked folder's connection, grant and source; returns the connection's id.
+	@discardableResult
+	private func record(folder: URL, bookmark: Data, workspaceId: String) throws -> String {
 		let connection = Self.newConnectionId()
 		try session.edit { appState in
 			try appState.putConnection(connection: ConnectionView(id: connection, kind: .folder, label: folder.lastPathComponent))
 			try appState.putFolderGrant(grant: FolderGrantView(connection: connection, bookmark: bookmark, path: folder.path))
 			try appState.addSource(source: SourceView(workspace: workspaceId, connection: connection, subpath: ""))
 		}
+		return connection
 	}
 
 	private func convert(_ folder: FolderEntry, of workspace: WorkspaceEntry, by join: FolderJoin) throws {
@@ -884,8 +890,11 @@ public final class WorkspacesModel {
 				UnconvertedFolder(connection: $0.id, workspaceId: entry.id, workspaceName: entry.name, path: $0.path)
 			}
 		}
-		if pendingConversion.isEmpty, problems.isEmpty {
-			// Nothing of an earlier build here: the question never comes.
+		if pendingConversion.isEmpty {
+			// Nothing of an earlier build here: the question never comes. A
+			// grant that does not resolve now is not waited for: when it
+			// resolves again it shows as a missing link, and a link this build
+			// made and lost later must never be taken for one to move.
 			try? session.edit { try $0.setFoldersConverted() }
 		}
 	}

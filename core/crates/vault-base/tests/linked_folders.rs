@@ -198,6 +198,40 @@ fn a_change_event_on_a_link_that_is_not_followed_is_ignored() {
 }
 
 #[test]
+fn a_change_event_below_a_link_that_is_not_followed_is_ignored() {
+    // inotify follows symlinks, so a watcher on Linux reports files below any
+    // link in the tree: below a deep link, or a top-level one into a workspace.
+    let layout = layout();
+    let acme = layout.base.join("Acme");
+    make_workspace(&acme, "Acme", WorkspaceKind::Work);
+    write(&acme, "Projects/Portal.md", "# Portal\n");
+    let deep = layout.base.join("Deep");
+    write(&deep, "Hidden.md", "# Hidden\n");
+    symlink(&deep, layout.home.join("Notes/Deep")).unwrap();
+    symlink(acme.join("Projects"), layout.home.join("Acme projects")).unwrap();
+    let mut index = FileIndex::new(&layout.home, IndexScope::default()).unwrap();
+    let _ = index.refresh(&PlainFileAccess, SystemTime::now()).unwrap();
+
+    let delta = index
+        .apply_changes(
+            &PlainFileAccess,
+            &[
+                PathBuf::from("Notes/Deep/Hidden.md"),
+                PathBuf::from("Acme projects/Portal.md"),
+                PathBuf::from("Acme projects"),
+            ],
+            SystemTime::now(),
+        )
+        .unwrap();
+    assert!(delta.added.is_empty(), "{delta:?}");
+    assert!(
+        !index
+            .files()
+            .any(|(path, _)| path.ends_with("Hidden.md") || path.ends_with("Portal.md"))
+    );
+}
+
+#[test]
 fn the_watcher_reports_a_change_in_a_linked_folder_under_the_link() {
     let layout = layout();
     let watcher =
