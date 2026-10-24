@@ -7,7 +7,6 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { logicalWorkingDirectory } from '../src/core.ts';
 import { copyMockVault, emptyDirectory, runVaultday } from './support.ts';
 
 /** The environment of a shell whose logical directory is `directory`. */
@@ -24,34 +23,13 @@ function linkedFolder(vault: string): { link: string; target: string } {
 	return { link, target };
 }
 
-describe('the working directory', () => {
-	it('is the shell’s logical one when it names the same folder', () => {
-		const { link, target } = linkedFolder(copyMockVault());
-		expect(logicalWorkingDirectory(target, shellIn(link))).toBe(link);
-	});
-
-	it('is the real one when the shell names another folder or none', () => {
-		const vault = copyMockVault();
-		const { target } = linkedFolder(vault);
-		expect(logicalWorkingDirectory(target, shellIn(vault))).toBe(target);
-		expect(logicalWorkingDirectory(target, {})).toBe(target);
-		expect(
-			logicalWorkingDirectory(target, shellIn(path.join(vault, 'gone'))),
-		).toBe(target);
-	});
-});
-
 describe('workspace resolution', () => {
-	it('takes a linked folder as part of the root’s workspace', async () => {
+	it('does not take a linked folder into the root’s workspace, even through the shell’s PWD', async () => {
 		const vault = copyMockVault();
 		const { link, target } = linkedFolder(vault);
-		const run = await runVaultday(
-			['today', '--json', '--date', '2026-10-22'],
-			target,
-			shellIn(link),
-		);
-		expect(run.code).toBe(0);
-		expect(JSON.parse(run.out).workspaceName).toBe('Mock Studio');
+		const run = await runVaultday(['today'], target, shellIn(link));
+		expect(run.code).not.toBe(0);
+		expect(run.error).toContain('is not a workspace');
 	});
 
 	it('keeps a folder’s own workspace when a link elsewhere leads to it', async () => {

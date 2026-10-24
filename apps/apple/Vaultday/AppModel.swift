@@ -309,6 +309,9 @@ final class AppModel {
 		}
 		if workspace.phase != .open {
 			workspace.restoreAtLaunch()
+		} else {
+			// A folder linked or unlinked in setup or Settings joins or leaves the open vault.
+			workspace.followLinkedFolders()
 		}
 		reloadWorkspaceContent()
 		refreshSetupSteps()

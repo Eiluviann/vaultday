@@ -1095,7 +1095,7 @@ mod tests {
         )
         .unwrap();
         (
-            open_workspace(root.to_string_lossy().into_owned()).unwrap(),
+            open_workspace(root.to_string_lossy().into_owned(), Vec::new()).unwrap(),
             state,
         )
     }

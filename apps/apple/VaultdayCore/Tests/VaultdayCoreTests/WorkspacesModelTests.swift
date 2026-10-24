@@ -374,6 +374,26 @@ final class WorkspacesModelTests: XCTestCase {
 		XCTAssertNotNil(workspaces.message)
 	}
 
+	func testTheOpenWorkspaceFollowsItsGrantedLinksAndNeverAPlantedOne() throws {
+		let (harness, workspaces, entry, root) = try personalWorkspace()
+		let recipes = try TestFixtures.emptyFolder(self, named: "Recipes")
+		try Data("# Bread\n".utf8).write(to: recipes.appending(path: "Bread.md"))
+		XCTAssertTrue(workspaces.linkFolder(try ready(workspaces.offerFolder(recipes, to: entry.id))))
+		// A synced copy of the workspace arrived with a link nobody on this Mac made.
+		let elsewhere = try TestFixtures.emptyFolder(self, named: "Private")
+		try Data("# Salary\n".utf8).write(to: elsewhere.appending(path: "Salary.md"))
+		try FileManager.default.createSymbolicLink(at: root.appending(path: "Planted"), withDestinationURL: elsewhere)
+
+		let opened = WorkspaceModel(session: harness.session)
+		opened.restoreAtLaunch()
+		XCTAssertEqual(opened.phase, .open)
+		let followed = try vaultHealth(workspace: XCTUnwrap(opened.vault)).files
+		let rootOnly = try vaultHealth(workspace: openWorkspace(path: opened.rootPath)).files
+		let everyLink = try vaultHealth(workspace: openWorkspace(path: opened.rootPath, linkedTargets: [recipes.path, elsewhere.path])).files
+		XCTAssertEqual(followed, rootOnly + 1, "the granted link's note, and nothing through the planted one")
+		XCTAssertEqual(everyLink, rootOnly + 2, "trusted, the planted link would be read: the grant is what keeps it out")
+	}
+
 	func testAHandMadeLinkCountsForThePlacementRule() throws {
 		let (_, workspaces, _, root) = try personalWorkspace()
 		let studio = try XCTUnwrap(workspaces.addWorkspace(folder: try TestFixtures.emptyFolder(self, named: "Studio"), sphere: .work, name: "Studio"))

@@ -98,12 +98,31 @@ pub enum WorkspaceError {
 }
 
 impl Workspace {
-    /// Opens the workspace rooted at `root`.
+    /// Opens the workspace rooted at `root`, following none of its links:
+    /// a symlink in the root says nothing about who made it (a synced vault
+    /// carries the links of whoever synced it), so only a host that keeps
+    /// its own record of the folders the user linked, the app with its
+    /// grants, opens a workspace with [`Workspace::open_trusting`].
     ///
     /// # Errors
     /// [`WorkspaceError::NotAWorkspace`] without a manifest, [`WorkspaceError::Settings`]
     /// when the manifest is refused, file errors otherwise.
     pub fn open(root: &Path, file_access: &dyn FileAccess) -> Result<Workspace, WorkspaceError> {
+        Workspace::open_trusting(root, file_access, &[])
+    }
+
+    /// Opens the workspace rooted at `root`, following the links whose
+    /// target is one of `trusted_targets`: the folders the host knows the
+    /// user linked into this workspace on this device. Any other link in
+    /// the root is left out, however it got there.
+    ///
+    /// # Errors
+    /// As [`Workspace::open`].
+    pub fn open_trusting(
+        root: &Path,
+        file_access: &dyn FileAccess,
+        trusted_targets: &[PathBuf],
+    ) -> Result<Workspace, WorkspaceError> {
         let root = normalize_path(root);
         let root = root.as_path();
         let settings_path = settings_path(root);
@@ -123,8 +142,17 @@ impl Workspace {
             root: root.to_path_buf(),
             vault_root: find_vault_root(root, file_access)?,
             settings,
-            linked_folders: linked_folders(root, file_access)?,
+            linked_folders: trusted_linked_folders(root, file_access, trusted_targets)?,
         })
+    }
+
+    /// The real targets of the linked folders this workspace follows.
+    #[must_use]
+    pub fn linked_targets(&self) -> Vec<PathBuf> {
+        self.linked_folders
+            .iter()
+            .map(|linked| linked.target.clone())
+            .collect()
     }
 
     /// The path of this workspace's manifest.
@@ -383,6 +411,10 @@ pub fn is_workspace_root(
 /// the root or holds it (a cycle), or is a folder an earlier link already
 /// reaches. Links below the top level are never followed.
 ///
+/// These are the links that may be followed, trusted or not: what the
+/// placement rule and the Folders step look at. A workspace, its index and
+/// its watcher follow only the ones the host trusts ([`Workspace::open_trusting`]).
+///
 /// # Errors
 /// File errors other than "not found".
 pub fn linked_folders(
@@ -392,8 +424,30 @@ pub fn linked_folders(
     Ok(find_linked_folders(root, file_access)?)
 }
 
-/// [`linked_folders`] with the file port's error, for the index.
-pub(crate) fn find_linked_folders(
+/// The root's linked folders whose target is one of `trusted_targets`
+/// (compared with every symlink resolved), with the file port's error, for
+/// the index and the watcher.
+pub(crate) fn trusted_linked_folders(
+    root: &Path,
+    file_access: &dyn FileAccess,
+    trusted_targets: &[PathBuf],
+) -> Result<Vec<LinkedFolder>, FileAccessError> {
+    if trusted_targets.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut trusted = Vec::with_capacity(trusted_targets.len());
+    for target in trusted_targets {
+        let target = normalize_path(target);
+        trusted.push(file_access.real_path(&target)?.unwrap_or(target));
+    }
+    Ok(find_linked_folders(root, file_access)?
+        .into_iter()
+        .filter(|linked| trusted.contains(&linked.target))
+        .collect())
+}
+
+/// [`linked_folders`] with the file port's error.
+fn find_linked_folders(
     root: &Path,
     file_access: &dyn FileAccess,
 ) -> Result<Vec<LinkedFolder>, FileAccessError> {

@@ -1140,7 +1140,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn open(root: &Path) -> Arc<WorkspaceHandle> {
-        open_workspace(root.to_string_lossy().into_owned()).unwrap()
+        open_workspace(root.to_string_lossy().into_owned(), Vec::new()).unwrap()
     }
 
     pub(crate) fn state(root: &Path) -> Arc<WorkspaceStateHandle> {

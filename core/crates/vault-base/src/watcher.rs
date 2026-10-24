@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::file_access::{FileAccess, FileAccessError, WatchHandle};
 use crate::index::{FileIndex, IndexDelta};
-use crate::workspace::{OBSIDIAN_DIR_NAME, WORKSPACE_DIR_NAME, find_linked_folders};
+use crate::workspace::{OBSIDIAN_DIR_NAME, WORKSPACE_DIR_NAME, trusted_linked_folders};
 
 /// How long the folder must be quiet before a batch is delivered.
 pub const DEFAULT_WATCH_DEBOUNCE: Duration = Duration::from_millis(300);
@@ -39,16 +39,18 @@ pub struct VaultWatcher {
 }
 
 impl VaultWatcher {
-    /// Starts watching `root` and each of its linked folders. A linked
-    /// folder is watched through its link, so its events arrive under the
-    /// link's path and the target's real path never reaches a batch. A link
-    /// made after the start is watched from the next start.
+    /// Starts watching `root` and each of its linked folders whose target is
+    /// one of `linked_targets` ([`crate::Workspace::linked_targets`]). A
+    /// linked folder is watched through its link, so its events arrive under
+    /// the link's path and the target's real path never reaches a batch. A
+    /// link made after the start is watched from the next start.
     ///
     /// # Errors
     /// File errors from registering the watch.
     pub fn start(
         file_access: &dyn FileAccess,
         root: &Path,
+        linked_targets: &[PathBuf],
         debounce: Duration,
     ) -> Result<VaultWatcher, FileAccessError> {
         let (raw_sender, raw_receiver) = mpsc::channel::<PathBuf>();
@@ -57,7 +59,7 @@ impl VaultWatcher {
         let watched_root = root.to_path_buf();
         let mut watched = vec![root.to_path_buf()];
         watched.extend(
-            find_linked_folders(root, file_access)?
+            trusted_linked_folders(root, file_access, linked_targets)?
                 .into_iter()
                 .map(|linked| linked.link),
         );

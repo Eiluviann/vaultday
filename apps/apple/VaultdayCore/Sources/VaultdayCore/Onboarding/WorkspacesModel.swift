@@ -63,8 +63,16 @@ public struct WorkspaceEntry: Identifiable, Hashable, Sendable {
 	public let folders: [FolderEntry]
 	/// The folders directly in the root that are not links, by name.
 	public let subfolders: [String]
-	/// The real folders of every link the core follows in the root, made here or by hand.
+	/// The real folders of every link the core could follow in the root,
+	/// made here or by hand, for the placement rule.
 	public let linkedTargets: [String]
+
+	/// The folders this Mac granted as linked folders: the only links the
+	/// core follows when it opens the workspace. A link in the root with no
+	/// grant (planted in a synced vault, say) is never followed.
+	public var grantedLinkTargets: [String] {
+		folders.filter { !$0.isWorkspaceRoot }.map(\.path)
+	}
 
 	public init(
 		id: String,

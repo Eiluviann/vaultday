@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 use vault_base::{
     FileIndex, FolderRefusal, IndexScope, OpError, PlacedWorkspace, PlainFileAccess, VaultWatcher,
     Workspace, WorkspaceKind, WorkspaceSet, WorkspaceSettings, check_folder_for_workspace,
-    check_new_workspace_root, linked_folders, resolve_workspace,
+    check_new_workspace_root, linked_folders, ops::open_vault, resolve_workspace,
 };
 
 /// A temp dir with a life workspace `Home` and a folder `Elsewhere/Shared`
@@ -53,8 +53,26 @@ fn write(root: &Path, relative: &str, text: &str) {
     fs::write(path, text).unwrap();
 }
 
-fn indexed_files(root: &Path) -> Vec<PathBuf> {
-    let mut index = FileIndex::new(root, IndexScope::default()).unwrap();
+/// Home opened by a host that trusts its one linked folder, `Shared`.
+fn open_home(layout: &Layout) -> Workspace {
+    Workspace::open_trusting(
+        &layout.home,
+        &PlainFileAccess,
+        std::slice::from_ref(&layout.shared),
+    )
+    .unwrap()
+}
+
+/// An index scope following the links to `trusted` targets.
+fn trusting(trusted: &[PathBuf]) -> IndexScope {
+    IndexScope {
+        linked_targets: trusted.to_vec(),
+        ..IndexScope::default()
+    }
+}
+
+fn indexed_files(root: &Path, trusted: &[PathBuf]) -> Vec<PathBuf> {
+    let mut index = FileIndex::new(root, trusting(trusted)).unwrap();
     let _ = index.refresh(&PlainFileAccess, SystemTime::now()).unwrap();
     index.files().map(|(path, _)| path.to_path_buf()).collect()
 }
@@ -76,14 +94,14 @@ fn placed(workspace: &Workspace, id: &str) -> PlacedWorkspace {
 #[test]
 fn a_linked_folder_is_indexed_under_the_link_and_resolves_to_the_root() {
     let layout = layout();
-    let home = Workspace::open(&layout.home, &PlainFileAccess).unwrap();
+    let home = open_home(&layout);
     assert_eq!(home.linked_folders.len(), 1);
     assert_eq!(home.linked_folders[0].name, "Shared");
     assert_eq!(home.linked_folders[0].link, layout.home.join("Shared"));
     assert_eq!(home.linked_folders[0].target, layout.shared);
 
     assert_eq!(
-        indexed_files(&layout.home),
+        indexed_files(&layout.home, &home.linked_targets()),
         vec![
             PathBuf::from("Notes/Groceries.md"),
             PathBuf::from("Shared/Recipe.md")
@@ -136,8 +154,15 @@ fn links_into_the_root_cycles_duplicates_and_deeper_links_are_not_followed() {
         .map(|linked| linked.name)
         .collect();
     assert_eq!(names, ["Shared"]);
+    // Even trusted, a link into the root, a cycle, a duplicate or a deep link is not walked.
+    let trusted = [
+        layout.shared.clone(),
+        layout.home.join("Notes"),
+        layout.base.clone(),
+        deep.clone(),
+    ];
     assert_eq!(
-        indexed_files(&layout.home),
+        indexed_files(&layout.home, &trusted),
         vec![
             PathBuf::from("Notes/Groceries.md"),
             PathBuf::from("Shared/Recipe.md")
@@ -161,7 +186,7 @@ fn a_link_to_another_workspaces_folder_is_not_followed() {
         .collect();
     assert_eq!(names, ["Shared"]);
     assert!(
-        !indexed_files(&layout.home)
+        !indexed_files(&layout.home, &[acme.join("Projects"), acme.clone()])
             .iter()
             .any(|path| path.ends_with("Portal.md")),
         "a client's notes never reach another workspace's index"
@@ -171,9 +196,9 @@ fn a_link_to_another_workspaces_folder_is_not_followed() {
 #[test]
 fn a_change_event_on_a_link_that_is_not_followed_is_ignored() {
     let layout = layout();
-    let mut index = FileIndex::new(&layout.home, IndexScope::default()).unwrap();
-    let _ = index.refresh(&PlainFileAccess, SystemTime::now()).unwrap();
     let deep = layout.base.join("Deep");
+    let mut index = FileIndex::new(&layout.home, trusting(std::slice::from_ref(&deep))).unwrap();
+    let _ = index.refresh(&PlainFileAccess, SystemTime::now()).unwrap();
     write(&deep, "Hidden.md", "# Hidden\n");
     symlink(&deep, layout.home.join("Notes/Deep")).unwrap();
 
@@ -209,7 +234,12 @@ fn a_change_event_below_a_link_that_is_not_followed_is_ignored() {
     write(&deep, "Hidden.md", "# Hidden\n");
     symlink(&deep, layout.home.join("Notes/Deep")).unwrap();
     symlink(acme.join("Projects"), layout.home.join("Acme projects")).unwrap();
-    let mut index = FileIndex::new(&layout.home, IndexScope::default()).unwrap();
+    // Trusted or not, neither link is one a walk follows.
+    let mut index = FileIndex::new(
+        &layout.home,
+        trusting(&[deep.clone(), acme.join("Projects")]),
+    )
+    .unwrap();
     let _ = index.refresh(&PlainFileAccess, SystemTime::now()).unwrap();
 
     let delta = index
@@ -234,8 +264,13 @@ fn a_change_event_below_a_link_that_is_not_followed_is_ignored() {
 #[test]
 fn the_watcher_reports_a_change_in_a_linked_folder_under_the_link() {
     let layout = layout();
-    let watcher =
-        VaultWatcher::start(&PlainFileAccess, &layout.home, Duration::from_millis(150)).unwrap();
+    let watcher = VaultWatcher::start(
+        &PlainFileAccess,
+        &layout.home,
+        std::slice::from_ref(&layout.shared),
+        Duration::from_millis(150),
+    )
+    .unwrap();
     write(&layout.shared, "Fresh.md", "# Fresh\n");
 
     let expected = PathBuf::from("Shared/Fresh.md");
@@ -258,7 +293,7 @@ fn a_folder_offered_to_a_workspace_may_not_belong_to_or_hold_another() {
     let layout = layout();
     let acme_root = layout.base.join("Acme");
     make_workspace(&acme_root, "Acme", WorkspaceKind::Work);
-    let home = Workspace::open(&layout.home, &PlainFileAccess).unwrap();
+    let home = open_home(&layout);
     let acme = Workspace::open(&acme_root, &PlainFileAccess).unwrap();
     let existing = [placed(&home, "ws-home"), placed(&acme, "ws-acme")];
     let free = layout.base.join("Free");
@@ -320,7 +355,7 @@ fn a_folder_offered_to_a_workspace_may_not_belong_to_or_hold_another() {
 #[test]
 fn a_new_root_keeps_the_client_rule_and_may_not_take_a_linked_folder() {
     let layout = layout();
-    let home = Workspace::open(&layout.home, &PlainFileAccess).unwrap();
+    let home = open_home(&layout);
     let existing = [placed(&home, "ws-home")];
 
     assert_eq!(
@@ -395,7 +430,7 @@ fn an_inactive_workspace_is_refused_by_the_cli_resolution_and_keeps_its_files() 
         "Coaching is inactive; reactivate it in Vaultday"
     );
     assert!(
-        !indexed_files(&layout.home)
+        !indexed_files(&layout.home, std::slice::from_ref(&layout.shared))
             .iter()
             .any(|path| path.starts_with("Coaching")),
         "the outer workspace does not take the inactive one's notes"
@@ -417,9 +452,10 @@ fn a_linked_folder_that_cannot_be_read_is_skipped_not_fatal() {
     symlink(&locked, layout.home.join("Locked")).unwrap();
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
 
-    let opened = Workspace::open(&layout.home, &PlainFileAccess);
+    let trusted = [layout.shared.clone(), locked.clone()];
+    let opened = Workspace::open_trusting(&layout.home, &PlainFileAccess, &trusted);
     let files = {
-        let mut index = FileIndex::new(&layout.home, IndexScope::default()).unwrap();
+        let mut index = FileIndex::new(&layout.home, trusting(&trusted)).unwrap();
         index.refresh(&PlainFileAccess, SystemTime::now()).map(|_| {
             index
                 .files()
@@ -437,4 +473,44 @@ fn a_linked_folder_that_cannot_be_read_is_skipped_not_fatal() {
             PathBuf::from("Shared/Recipe.md")
         ]
     );
+}
+
+#[test]
+fn a_link_the_host_does_not_trust_is_never_followed() {
+    // A synced vault carries whatever links its other copies hold: a link in
+    // the root says nothing about who made it.
+    let layout = layout();
+    let home = Workspace::open(&layout.home, &PlainFileAccess).unwrap();
+    assert!(home.linked_folders.is_empty());
+    assert_eq!(
+        indexed_files(&layout.home, &[]),
+        vec![PathBuf::from("Notes/Groceries.md")]
+    );
+    let set = WorkspaceSet::from_workspaces(vec![home]).unwrap();
+    assert!(set.resolve(&layout.shared.join("Recipe.md")).is_none());
+
+    // The CLI's path: resolution and the vault it loads follow no link.
+    let resolved = resolve_workspace(&layout.home, &PlainFileAccess).unwrap();
+    assert!(resolved.linked_folders.is_empty());
+    let vault = open_vault(&resolved, &PlainFileAccess).unwrap();
+    assert!(
+        vault
+            .notes()
+            .any(|note| note.relative_path.starts_with("Notes")),
+        "the root's own notes load"
+    );
+    assert!(
+        vault
+            .notes()
+            .all(|note| !note.relative_path.starts_with("Shared")),
+        "the vault never loads a note through an untrusted link"
+    );
+
+    // The placement rule still sees it, so no folder is placed twice.
+    let names: Vec<String> = linked_folders(&layout.home, &PlainFileAccess)
+        .unwrap()
+        .into_iter()
+        .map(|linked| linked.name)
+        .collect();
+    assert_eq!(names, ["Shared"]);
 }

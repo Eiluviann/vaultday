@@ -270,7 +270,7 @@ public final class WorkspaceModel {
 		}
 		session.environment.files.allow(url)
 		do {
-			let vault = try openWorkspace(path: url.path)
+			let vault = try openWorkspace(path: url.path, linkedTargets: linkGrantPaths(rootConnection: connection))
 			let id = try claimWorkspaceStateId(files: session.environment.files, workspaceRoot: vault.root())
 			self.vault = vault
 			root = url
@@ -305,6 +305,25 @@ public final class WorkspaceModel {
 	}
 
 	/// The grants of this Mac, the ones that read the last single workspace first.
+	/// Opens the vault again, so it follows the folders linked into the
+	/// workspace since it opened and stops following unlinked ones. The core
+	/// follows only links to folders this Mac granted to the workspace.
+	public func followLinkedFolders() {
+		guard phase == .open, let root, let connectionId,
+		      let reopened = try? openWorkspace(path: root.path, linkedTargets: linkGrantPaths(rootConnection: connectionId))
+		else { return }
+		vault = reopened
+	}
+
+	/// The folders this Mac granted to the workspace whose root grant is
+	/// `connection`, other than the root: its linked folders' targets.
+	private func linkGrantPaths(rootConnection connection: String) -> [String] {
+		let appState = session.appState
+		guard let workspace = appState.allSources().first(where: { $0.connection == connection })?.workspace else { return [] }
+		let connections = Set(appState.sources(workspace: workspace).map(\.connection)).subtracting([connection])
+		return appState.folderGrants().filter { connections.contains($0.connection) }.map(\.path)
+	}
+
 	private func grantsLastWorkspaceFirst() -> [FolderGrantView] {
 		let grants = session.appState.folderGrants()
 		guard let last = session.appState.lastSingleWorkspace() else { return grants }

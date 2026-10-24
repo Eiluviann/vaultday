@@ -16,7 +16,16 @@ A linked folder is a symlink to a directory **directly in the root** (`<root>/<n
 - a second link already points at the same target,
 - or cannot be read by this process (no grant in the sandbox, a locked folder): one such link never takes the workspace down.
 
-The file system is the record: nothing in `settings.json` lists folders, so the manifest keeps one meaning (this folder is a workspace) and a hand-made link in the root works like one the app made. The core reads the links when it opens a workspace (`Workspace::linked_folders`).
+Nothing in `settings.json` lists folders, so the manifest keeps one meaning (this folder is a workspace).
+
+### Which links are followed: only the ones this device vouches for
+
+A link in the root says nothing about who made it. A vault synced from elsewhere (git, Syncthing) carries the links of every copy, so a relative link such as `Shared -> ../Private`, committed to a client's repository, would otherwise make Vaultday read and write a folder of the user's that no workspace holds. The manifest is no help: whoever plants the link controls it too. So the core follows a link only when the host vouches for its target, from a record kept on this device:
+
+- `Workspace::open` follows no link. `Workspace::open_trusting(root, file_access, trusted_targets)` follows the links whose real target is one of `trusted_targets`; the index (`IndexScope::linked_targets`) and the watcher take the same list from the workspace (`Workspace::linked_targets`).
+- **The app** passes the folders this Mac granted to the workspace as linked folders (`open_workspace(path, linked_targets)`): each one the user linked on the Folders step, confirmed in the one-time conversion, or linked again from a "Link missing" row. A link with no grant, planted or made by hand, is not followed; the sandbox would refuse most of them anyway, and the grant also keeps out a target inside another workspace's linked folder, which the sandbox would allow.
+- **The CLI and the MCP server follow no symlinks**: they have no per-device record yet, so they see the root's own notes only, and neither `today`, `task add`, `task done` nor any MCP tool reads or writes through a link. The follow-up is a per-device links file the app writes beside its API token, found with the same trust order and server proof the API lookup uses (`cli/src/api-client.ts`).
+- The placement rule and the Folders step still look at every link in the root, trusted or not (`linked_folders`), so a folder is never placed in two workspaces.
 
 ## Workspace resolution in the core
 
@@ -24,11 +33,11 @@ The file system is the record: nothing in `settings.json` lists folders, so the 
 - Roots may still nest (a coaching workspace inside a personal vault): the nearest `.vaultday/` wins and the outer index prunes the inner root, as before. Two client (work) roots still may not nest.
 - **Overlap rule**, now one rule for every kind because each file belongs to at most one workspace: a folder offered to a workspace (to link or move) is refused when it lies inside a workspace root or a linked folder, or holds one. A folder offered as a new workspace root is refused when it is already a root, lies inside or holds a linked folder, or nests with another client root while both are work. The refusal names the workspace, which the app shows in a popup (item 7).
 - `core/fixtures/two-workspaces` stays as it is: a life root with a work root nested below it is still allowed and still the deepest-root case. The link cases are built in temporary folders by the tests (symlinks in a committed fixture do not survive every checkout and copy helper).
-- The CLI resolves by walking up from its real working directory first, so a folder that lies in a workspace always gets that workspace, whatever link led there. Only when the real directory is in no workspace does it try the shell's logical directory (`$PWD`, when it names the same folder), and only through a link that sits directly in a workspace root: `cd <root>/<link>` resolves to the root's workspace. Started in a link's real target without going through the link, it finds no workspace, since the CLI does not read the app document. That case is a known limit.
+- The CLI resolves by walking up from its real working directory: a folder that lies in a workspace always gets that workspace, whatever link led there. It follows no link, so in a linked folder (through the link or not) it finds no workspace, and it never sees a workspace's linked folders (see above).
 
 ## Index and watcher
 
-- The index walks the root as before and also descends into each followed link, keeping the logical path (`<link>/<file>`), so reads and writes go through the link. Writes follow the link to the target because the path does.
+- The index walks the root as before and also descends into each followed (trusted) link, keeping the logical path (`<link>/<file>`), so reads and writes go through the link. Writes follow the link to the target because the path does.
 - Folders holding another `.vaultday/` are pruned inside linked folders too.
 - The watcher watches the root and each followed link's target, and reports the target's events under the link path, so the index never sees the real path twice. When the open workspace's links change, the app restarts its watch, so a newly linked folder is watched at once.
 - A change event on a symlink that is not a followed link is ignored, which also closes the old gap where `apply_changes` followed links a full refresh skipped.

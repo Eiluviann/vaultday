@@ -32,7 +32,7 @@ pub struct VaultChangeWatch {
 
 #[uniffi::export]
 impl VaultChangeWatch {
-    /// Watches `workspace`'s root, delivering a batch to `listener` once the
+    /// Watches `workspace`'s root and the linked folders it follows, delivering a batch to `listener` once the
     /// folder has been quiet for `debounce_ms`. Paths the watcher ignores
     /// (`.obsidian/`, `.vaultday/sync/`, the writer's temporary files) never
     /// arrive.
@@ -48,6 +48,7 @@ impl VaultChangeWatch {
         let watcher = VaultWatcher::start(
             &PlainFileAccess,
             &workspace.workspace.root,
+            &workspace.workspace.linked_targets(),
             Duration::from_millis(u64::from(debounce_ms)),
         )
         .map_err(|error| CoreError::FileAccess(error.to_string()))?;
@@ -122,7 +123,8 @@ mod tests {
         let mock =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/mock-vault");
         copy_dir(&mock, sandbox.path());
-        let workspace = open_workspace(sandbox.path().to_string_lossy().into_owned()).unwrap();
+        let workspace =
+            open_workspace(sandbox.path().to_string_lossy().into_owned(), Vec::new()).unwrap();
         let recorder = Arc::new(Recorder::default());
         let watch = VaultChangeWatch::start(&workspace, 100, recorder.clone()).unwrap();
         thread::sleep(Duration::from_millis(300));

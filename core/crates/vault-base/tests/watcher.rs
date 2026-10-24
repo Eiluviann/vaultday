@@ -41,7 +41,7 @@ fn drain(watcher: &VaultWatcher, seen: &mut BTreeSet<PathBuf>) {
 #[test]
 fn a_burst_becomes_one_batch_and_ignored_folders_stay_silent() {
     let sandbox = sandbox();
-    let watcher = VaultWatcher::start(&PlainFileAccess, &sandbox.root, DEBOUNCE).unwrap();
+    let watcher = VaultWatcher::start(&PlainFileAccess, &sandbox.root, &[], DEBOUNCE).unwrap();
     let story = PathBuf::from(WEB_142);
 
     // Ignored first, so any leak would show up before the real change.
@@ -93,7 +93,7 @@ fn the_watcher_feeds_the_index() {
     let mut index = FileIndex::new(&sandbox.root, IndexScope::default()).unwrap();
     index.refresh(&PlainFileAccess, SystemTime::now()).unwrap();
     let indexed_before = index.len();
-    let watcher = VaultWatcher::start(&PlainFileAccess, &sandbox.root, DEBOUNCE).unwrap();
+    let watcher = VaultWatcher::start(&PlainFileAccess, &sandbox.root, &[], DEBOUNCE).unwrap();
 
     write(&sandbox.root, "Projects/Website/New note.md", "# New\n");
     let created = PathBuf::from("Projects/Website/New note.md");
@@ -164,7 +164,7 @@ fn feed_until(
 #[test]
 fn stopping_the_watcher_ends_its_thread_and_delivery() {
     let sandbox = sandbox();
-    let watcher = VaultWatcher::start(&PlainFileAccess, &sandbox.root, DEBOUNCE).unwrap();
+    let watcher = VaultWatcher::start(&PlainFileAccess, &sandbox.root, &[], DEBOUNCE).unwrap();
     drop(watcher);
     write(&sandbox.root, "After.md", "# after\n");
 }
@@ -173,7 +173,13 @@ fn stopping_the_watcher_ends_its_thread_and_delivery() {
 fn watching_a_missing_folder_fails() {
     let sandbox = sandbox();
     assert!(
-        VaultWatcher::start(&PlainFileAccess, &sandbox.root.join("nowhere"), DEBOUNCE).is_err()
+        VaultWatcher::start(
+            &PlainFileAccess,
+            &sandbox.root.join("nowhere"),
+            &[],
+            DEBOUNCE
+        )
+        .is_err()
     );
 }
 

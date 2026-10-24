@@ -687,7 +687,7 @@ mod tests {
     }
 
     fn screen(root: &Path) -> StoryScreenView {
-        let workspace = open_workspace(root.to_string_lossy().into_owned()).unwrap();
+        let workspace = open_workspace(root.to_string_lossy().into_owned(), Vec::new()).unwrap();
         story_screen(&workspace, "WEB-142".to_owned(), Some(TODAY.to_owned())).unwrap()
     }
 
@@ -781,7 +781,7 @@ mod tests {
             .unwrap();
         assert_eq!(task_id, "task-1");
 
-        let workspace = open_workspace(root.to_string_lossy().into_owned()).unwrap();
+        let workspace = open_workspace(root.to_string_lossy().into_owned(), Vec::new()).unwrap();
         edit_task(&workspace, task_id, TaskEditInput::Reopen).unwrap();
 
         let after = fs::read_to_string(root.join(STORY)).unwrap();

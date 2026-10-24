@@ -10,16 +10,16 @@ use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use thiserror::Error;
 
 use crate::file_access::{DirEntry, EntryKind, FileAccess, FileAccessError};
-use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME, find_linked_folders};
+use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME, trusted_linked_folders};
 
 /// Which files an index covers. Globs match root-relative paths with `/`
 /// separators; `*` does not cross a `/`, `**` does. A folder is pruned when an
 /// exclude pattern matches its path with a trailing `/` (so `**/Archive/**`
 /// prunes every `Archive` folder). Folders that are themselves workspaces
 /// (they hold `.vaultday/settings.json`) are always pruned: an index never
-/// reads another workspace's notes. The root's linked folders (see
-/// [`crate::linked_folders`]) are walked through their links, so their files
-/// keep root-relative paths; no other symlink is followed.
+/// reads another workspace's notes. The root's linked folders whose target
+/// is in [`IndexScope::linked_targets`] are walked through their links, so
+/// their files keep root-relative paths; no other symlink is followed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexScope {
     /// Glob patterns a file must match.
@@ -28,6 +28,9 @@ pub struct IndexScope {
     pub exclude: Vec<String>,
     /// Only files modified within this many days of the refresh time, when set.
     pub edited_within_days: Option<u32>,
+    /// The real targets of the root's linked folders a walk follows, as
+    /// [`crate::Workspace::linked_targets`] gives them; none by default.
+    pub linked_targets: Vec<PathBuf>,
 }
 
 /// What the index remembers about a file.
@@ -89,6 +92,7 @@ impl Default for IndexScope {
                 "**/node_modules/**".to_owned(),
             ],
             edited_within_days: None,
+            linked_targets: Vec::new(),
         }
     }
 }
@@ -229,10 +233,10 @@ impl FileIndex {
             let seen = if self.is_through_unfollowed_link(relative, &links, file_access)?
                 || self.is_inside_foreign_workspace(relative, file_access)?
             {
-                    BTreeMap::new()
-                } else {
-                    self.collect_changed(relative, &absolute, &links, file_access, now)?
-                };
+                BTreeMap::new()
+            } else {
+                self.collect_changed(relative, &absolute, &links, file_access, now)?
+            };
             let stale: Vec<PathBuf> = self
                 .entries
                 .keys()
@@ -277,15 +281,17 @@ impl FileIndex {
         Ok(index)
     }
 
-    /// The links of the root's linked folders, the only symlinks a walk follows.
+    /// The links of the root's trusted linked folders, the only symlinks a walk follows.
     fn followed_links(
         &self,
         file_access: &dyn FileAccess,
     ) -> Result<Vec<PathBuf>, FileAccessError> {
-        Ok(find_linked_folders(&self.root, file_access)?
-            .into_iter()
-            .map(|linked| linked.link)
-            .collect())
+        Ok(
+            trusted_linked_folders(&self.root, file_access, &self.scope.linked_targets)?
+                .into_iter()
+                .map(|linked| linked.link)
+                .collect(),
+        )
     }
 
     /// Walks `start` (a folder below the root) and stamps every file in scope.
@@ -476,6 +482,7 @@ mod tests {
                 include: vec!["Archive/*.md".to_owned()],
                 exclude: Vec::new(),
                 edited_within_days: None,
+                linked_targets: Vec::new(),
             },
         )
         .expect("index");
