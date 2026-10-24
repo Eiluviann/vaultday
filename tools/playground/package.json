@@ -1,0 +1,25 @@
+{
+	"name": "@vaultday/playground",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Generates the synthetic playground vaults (a work and a life workspace) from the core fixtures, and the command that opens Vaultday on them.",
+	"engines": {
+		"node": ">=22.15"
+	},
+	"scripts": {
+		"start": "tsx src/main.ts",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@vaultday/provenance-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^22.20.5",
+		"@vaultday/core-node": "workspace:*",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.4"
+	}
+}
