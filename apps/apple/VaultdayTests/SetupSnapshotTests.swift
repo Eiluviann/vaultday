@@ -37,7 +37,11 @@ final class SetupSnapshotTests: XCTestCase {
 		}
 		let docs = scratch.appending(path: "docs", directoryHint: .isDirectory)
 		try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
-		if let first = workspaces.entries.first { workspaces.addFolder(docs, to: first.id) }
+		if let first = workspaces.entries.first, case let .ready(pending) = workspaces.offerFolder(docs, to: first.id) {
+			workspaces.linkFolder(pending)
+			workspaces.createFolder(named: "Projects", in: first.id)
+		}
+		if let last = workspaces.entries.last { workspaces.setActive(false, workspaceId: last.id) }
 		let onboarding = OnboardingModel(session: session, workspaces: workspaces)
 		let sync = SyncStepModel(session: session, workspaces: workspaces)
 		let accounts = AccountsStepModel(session: session)

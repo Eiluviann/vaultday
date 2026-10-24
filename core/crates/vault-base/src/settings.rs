@@ -199,6 +199,11 @@ pub struct WorkspaceSettings {
     /// holidays; the life workspace when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub leave_source: Option<String>,
+    /// False for a workspace the user deactivated: the app document keeps it
+    /// and its folder grant, but no surface, planning view or CLI call opens
+    /// it. Absent means active.
+    #[serde(default = "default_active", skip_serializing_if = "is_active")]
+    pub active: bool,
     /// Per-feature settings, keyed by feature id. Opaque in the base version;
     /// each feature validates its own entry against its settings schema.
     #[serde(default)]
@@ -281,6 +286,7 @@ impl WorkspaceSettings {
             billing: None,
             log_deadline: None,
             leave_source: None,
+            active: true,
             features: BTreeMap::new(),
             extra: Map::new(),
         }
@@ -512,7 +518,7 @@ impl BillingSettings {
 }
 
 /// The keys the schema defines; `extra` may not shadow them.
-const SCHEMA_KEYS: [&str; 16] = [
+const SCHEMA_KEYS: [&str; 17] = [
     "schema_version",
     "name",
     "kind",
@@ -527,6 +533,7 @@ const SCHEMA_KEYS: [&str; 16] = [
     "billing",
     "log_deadline",
     "leave_source",
+    "active",
     "features",
     "extra",
 ];
@@ -537,6 +544,15 @@ fn default_hours_per_day() -> f64 {
 
 fn default_log_folder() -> String {
     "Log".to_owned()
+}
+
+const fn default_active() -> bool {
+    true
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes a reference
+const fn is_active(active: &bool) -> bool {
+    *active
 }
 
 fn check_schema_version(object: &Map<String, Value>) -> Result<(), SettingsError> {

@@ -70,7 +70,7 @@ public final class AllWorkspacesModel {
 
 	private func group(_ entry: WorkspaceEntry) -> WorkspaceGroup {
 		do {
-			let vault = try openWorkspace(path: entry.rootPath)
+			let vault = try openWorkspace(path: entry.rootPath, linkedTargets: entry.grantedLinkTargets)
 			let order = try state(for: entry)?.dayOrder(date: date) ?? []
 			let list = try dayList(
 				workspace: vault,

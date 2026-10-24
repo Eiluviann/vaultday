@@ -646,7 +646,7 @@ mod tests {
     }
 
     fn rows(query: &str) -> Vec<String> {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         browse_query(&workspace, query.to_owned(), Some(TODAY.to_owned()))
             .unwrap()
             .groups
@@ -659,7 +659,7 @@ mod tests {
 
     #[test]
     fn browse_groups_the_mock_vault_by_story_then_section() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
 
         let result = browse_query(&workspace, String::new(), Some(TODAY.to_owned())).unwrap();
 
@@ -699,7 +699,7 @@ mod tests {
 
     #[test]
     fn rows_carry_the_columns_of_the_table() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
 
         let result =
             browse_query(&workspace, "story:142".to_owned(), Some(TODAY.to_owned())).unwrap();
@@ -731,7 +731,7 @@ mod tests {
 
     #[test]
     fn a_query_that_is_not_understood_is_refused_with_its_term() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
 
         let error = browse_query(&workspace, "due:soonish".to_owned(), None).unwrap_err();
 
@@ -743,7 +743,7 @@ mod tests {
 
     #[test]
     fn every_preset_runs() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let presets = browse_presets();
         assert_eq!(presets[0].name, "All open");
         assert_eq!(presets[1].name, "Backlog");
@@ -759,7 +759,7 @@ mod tests {
 
     #[test]
     fn one_snapshot_answers_the_query_the_counts_and_the_presets() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let snapshot = browse_snapshot(&workspace, Some(TODAY.to_owned())).unwrap();
 
         assert_eq!(
@@ -799,7 +799,7 @@ mod tests {
 
     #[test]
     fn group_by_section_spans_the_stories_in_one_group() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let snapshot = browse_snapshot(&workspace, Some(TODAY.to_owned())).unwrap();
 
         let result = snapshot.query("group:section".to_owned()).unwrap();
@@ -827,7 +827,7 @@ mod tests {
 
     #[test]
     fn a_task_preview_cuts_the_story_note_and_lists_the_subtasks() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
 
         let preview =
             task_preview(&workspace, "task-2".to_owned(), Some(TODAY.to_owned())).unwrap();
@@ -865,7 +865,7 @@ mod tests {
 
     #[test]
     fn an_unknown_task_or_story_is_not_found() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
 
         assert!(matches!(
             task_preview(&workspace, "task-999".to_owned(), None),
@@ -880,7 +880,7 @@ mod tests {
 
     #[test]
     fn the_day_log_lists_the_days_lines_with_their_authors() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
 
         let log = day_log(&workspace, Some(TODAY.to_owned())).unwrap();
 
@@ -896,7 +896,8 @@ mod tests {
     fn an_appended_line_reads_back_in_the_day_log() {
         let temp = tempfile::tempdir().unwrap();
         copy_dir(&PathBuf::from(mock_vault()), temp.path());
-        let workspace = open_workspace(temp.path().to_string_lossy().into_owned()).unwrap();
+        let workspace =
+            open_workspace(temp.path().to_string_lossy().into_owned(), Vec::new()).unwrap();
         let shorthand = parse_log_line_shorthand(
             "decision: keep the QA redirect group dev and test only".to_owned(),
         );

@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::file_access::{FileAccess, FileAccessError, WatchHandle};
 use crate::index::{FileIndex, IndexDelta};
-use crate::workspace::{OBSIDIAN_DIR_NAME, WORKSPACE_DIR_NAME};
+use crate::workspace::{OBSIDIAN_DIR_NAME, WORKSPACE_DIR_NAME, trusted_linked_folders};
 
 /// How long the folder must be quiet before a batch is delivered.
 pub const DEFAULT_WATCH_DEBOUNCE: Duration = Duration::from_millis(300);
@@ -34,37 +34,58 @@ pub struct WatchBatch {
 /// that debounces its events.
 #[derive(Debug)]
 pub struct VaultWatcher {
-    _handle: WatchHandle,
+    _handles: Vec<WatchHandle>,
     batches: Receiver<WatchBatch>,
 }
 
 impl VaultWatcher {
-    /// Starts watching `root`.
+    /// Starts watching `root` and each of its linked folders whose target is
+    /// one of `linked_targets` ([`crate::Workspace::linked_targets`]). A
+    /// linked folder is watched through its link, so its events arrive under
+    /// the link's path and the target's real path never reaches a batch. A
+    /// link made after the start is watched from the next start.
     ///
     /// # Errors
     /// File errors from registering the watch.
     pub fn start(
         file_access: &dyn FileAccess,
         root: &Path,
+        linked_targets: &[PathBuf],
         debounce: Duration,
     ) -> Result<VaultWatcher, FileAccessError> {
         let (raw_sender, raw_receiver) = mpsc::channel::<PathBuf>();
         let (batch_sender, batches) = mpsc::channel::<WatchBatch>();
-        let raw_sender = std::sync::Mutex::new(raw_sender);
+        let raw_sender = std::sync::Arc::new(std::sync::Mutex::new(raw_sender));
         let watched_root = root.to_path_buf();
-        let handle = file_access.watch(
-            root,
-            Box::new(move |path| {
-                if let Ok(sender) = raw_sender.lock() {
-                    let _ = sender.send(path.to_path_buf());
-                }
-            }),
-        )?;
+        let mut watched = vec![root.to_path_buf()];
+        watched.extend(
+            trusted_linked_folders(root, file_access, linked_targets)?
+                .into_iter()
+                .map(|linked| linked.link),
+        );
+        let mut handles = Vec::with_capacity(watched.len());
+        for (position, path) in watched.iter().enumerate() {
+            let sender = std::sync::Arc::clone(&raw_sender);
+            let watch = file_access.watch(
+                path,
+                Box::new(move |path| {
+                    if let Ok(sender) = sender.lock() {
+                        let _ = sender.send(path.to_path_buf());
+                    }
+                }),
+            );
+            match watch {
+                Ok(handle) => handles.push(handle),
+                Err(error) if position == 0 => return Err(error),
+                // A linked folder that cannot be watched only loses live updates.
+                Err(_) => {}
+            }
+        }
         thread::spawn(move || {
             debounce_events(&watched_root, &raw_receiver, &batch_sender, debounce)
         });
         Ok(VaultWatcher {
-            _handle: handle,
+            _handles: handles,
             batches,
         })
     }

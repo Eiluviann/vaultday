@@ -12,8 +12,12 @@ export function callCore<T>(action: () => T): Result<T, Failure> {
 }
 
 /**
- * Finds the workspace holding `directory`: the deepest `.vaultday/` at or above
- * it wins. Outside a workspace the failure says what to do about it.
+ * Finds the workspace holding `directory`: the nearest `.vaultday/` at or
+ * above it wins. No symlink is followed, neither one the shell
+ * went through to get here nor one in the workspace root: a synced vault
+ * carries the links of whoever synced it, and the CLI has no per-device
+ * record of the folders the user linked, so it never sees linked folders.
+ * Outside a workspace the failure says what to do about it.
  */
 export function resolveWorkspaceFrom(
 	directory: string,

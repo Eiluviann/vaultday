@@ -5,6 +5,7 @@
  */
 export type FailureKind =
 	| 'not-a-workspace'
+	| 'inactive-workspace'
 	| 'invalid-settings'
 	| 'invalid-date'
 	| 'invalid-input'
@@ -23,6 +24,7 @@ export type Failure = {
 
 const FAILURE_KINDS: readonly FailureKind[] = [
 	'not-a-workspace',
+	'inactive-workspace',
 	'invalid-settings',
 	'invalid-date',
 	'invalid-input',

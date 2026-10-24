@@ -1,10 +1,13 @@
 //! Workspace resolution: a folder is a workspace when it holds
-//! `.vaultday/settings.json`. `Workspace.md` is never read at runtime.
+//! `.vaultday/settings.json`, and that folder, its root, is the whole
+//! workspace. Other folders join it as symlinks directly in the root (see
+//! [`linked_folders`]); `Workspace.md` is never read at runtime.
 //!
 //! Paths are compared lexically after `.` and `..` are resolved and relative
-//! paths are anchored at the current directory. Symlinks and case-insensitive
-//! file systems are not reconciled here: callers that mix aliases of one
-//! location canonicalise their paths first.
+//! paths are anchored at the current directory. Apart from the root's linked
+//! folders, whose targets are resolved, symlinks and case-insensitive file
+//! systems are not reconciled here: callers that mix aliases of one location
+//! canonicalise their paths first.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -43,9 +46,24 @@ pub struct Workspace {
     pub vault_root: PathBuf,
     /// The parsed manifest.
     pub settings: WorkspaceSettings,
+    /// The folders linked into the root, by name.
+    pub linked_folders: Vec<LinkedFolder>,
 }
 
-/// Every workspace reachable from the granted sources, with the deepest-match rule.
+/// A folder that joins a workspace as a symlink directly in its root. The
+/// workspace reads it through the link, so its notes keep paths below the root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkedFolder {
+    /// The link's name in the root.
+    pub name: String,
+    /// The link itself, `<root>/<name>`.
+    pub link: PathBuf,
+    /// The folder the link points at, with every symlink resolved.
+    pub target: PathBuf,
+}
+
+/// Every opened workspace, one root each. A path belongs to the nearest root
+/// at or above it, else to the workspace whose linked folder holds it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct WorkspaceSet {
     workspaces: Vec<Workspace>,
@@ -80,12 +98,31 @@ pub enum WorkspaceError {
 }
 
 impl Workspace {
-    /// Opens the workspace rooted at `root`.
+    /// Opens the workspace rooted at `root`, following none of its links:
+    /// a symlink in the root says nothing about who made it (a synced vault
+    /// carries the links of whoever synced it), so only a host that keeps
+    /// its own record of the folders the user linked, the app with its
+    /// grants, opens a workspace with [`Workspace::open_trusting`].
     ///
     /// # Errors
     /// [`WorkspaceError::NotAWorkspace`] without a manifest, [`WorkspaceError::Settings`]
     /// when the manifest is refused, file errors otherwise.
     pub fn open(root: &Path, file_access: &dyn FileAccess) -> Result<Workspace, WorkspaceError> {
+        Workspace::open_trusting(root, file_access, &[])
+    }
+
+    /// Opens the workspace rooted at `root`, following the links whose
+    /// target is one of `trusted_targets`: the folders the host knows the
+    /// user linked into this workspace on this device. Any other link in
+    /// the root is left out, however it got there.
+    ///
+    /// # Errors
+    /// As [`Workspace::open`].
+    pub fn open_trusting(
+        root: &Path,
+        file_access: &dyn FileAccess,
+        trusted_targets: &[PathBuf],
+    ) -> Result<Workspace, WorkspaceError> {
         let root = normalize_path(root);
         let root = root.as_path();
         let settings_path = settings_path(root);
@@ -105,7 +142,17 @@ impl Workspace {
             root: root.to_path_buf(),
             vault_root: find_vault_root(root, file_access)?,
             settings,
+            linked_folders: trusted_linked_folders(root, file_access, trusted_targets)?,
         })
+    }
+
+    /// The real targets of the linked folders this workspace follows.
+    #[must_use]
+    pub fn linked_targets(&self) -> Vec<PathBuf> {
+        self.linked_folders
+            .iter()
+            .map(|linked| linked.target.clone())
+            .collect()
     }
 
     /// The path of this workspace's manifest.
@@ -126,10 +173,20 @@ impl Workspace {
         self.settings.kind == WorkspaceKind::Work
     }
 
-    /// True when `path` lies inside this workspace (root included).
+    /// True when `path` lies inside this workspace: below the root (root
+    /// included) or below a linked folder's real target.
     #[must_use]
     pub fn contains(&self, path: &Path) -> bool {
-        normalize_path(path).starts_with(&self.root)
+        let path = normalize_path(path);
+        path.starts_with(&self.root) || self.linked_target_holding(&path).is_some()
+    }
+
+    /// The deepest linked folder whose target holds `path`.
+    fn linked_target_holding(&self, path: &Path) -> Option<&LinkedFolder> {
+        self.linked_folders
+            .iter()
+            .filter(|linked| path.starts_with(&linked.target))
+            .max_by_key(|linked| linked.target.components().count())
     }
 
     /// What a preview says when [`Workspace::obsidian_link`] has to fall
@@ -253,14 +310,27 @@ impl WorkspaceSet {
         WorkspaceSet::from_workspaces(workspaces)
     }
 
-    /// The workspace whose root is the deepest ancestor-or-self of `path`.
+    /// The workspace whose root is the deepest ancestor-or-self of `path`;
+    /// failing that, the one whose linked folder's real target holds it, so
+    /// a note reached by its real path resolves like one reached through the link.
     #[must_use]
     pub fn resolve(&self, path: &Path) -> Option<&Workspace> {
         let path = normalize_path(path);
-        self.workspaces
+        let by_root = self
+            .workspaces
             .iter()
             .filter(|workspace| path.starts_with(&workspace.root))
-            .max_by_key(|workspace| workspace.root.components().count())
+            .max_by_key(|workspace| workspace.root.components().count());
+        by_root.or_else(|| {
+            self.workspaces
+                .iter()
+                .filter_map(|workspace| {
+                    let linked = workspace.linked_target_holding(&path)?;
+                    Some((workspace, linked.target.components().count()))
+                })
+                .max_by_key(|(_, depth)| *depth)
+                .map(|(workspace, _)| workspace)
+        })
     }
 
     /// Every workspace, shallowest root first.
@@ -333,6 +403,116 @@ pub fn is_workspace_root(
     Ok(file_access
         .stat(&settings_path(folder))?
         .is_some_and(|entry| entry.kind == EntryKind::File))
+}
+
+/// The folders linked into `root`: the symlinks directly in it that point at
+/// a folder, by name. A link is left out, and never followed, when its target
+/// lies inside a workspace (this root included: it would be read twice), is
+/// the root or holds it (a cycle), or is a folder an earlier link already
+/// reaches. Links below the top level are never followed.
+///
+/// These are the links that may be followed, trusted or not: what the
+/// placement rule and the Folders step look at. A workspace, its index and
+/// its watcher follow only the ones the host trusts ([`Workspace::open_trusting`]).
+///
+/// # Errors
+/// File errors other than "not found".
+pub fn linked_folders(
+    root: &Path,
+    file_access: &dyn FileAccess,
+) -> Result<Vec<LinkedFolder>, WorkspaceError> {
+    Ok(find_linked_folders(root, file_access)?)
+}
+
+/// The root's linked folders whose target is one of `trusted_targets`
+/// (compared with every symlink resolved), with the file port's error, for
+/// the index and the watcher.
+pub(crate) fn trusted_linked_folders(
+    root: &Path,
+    file_access: &dyn FileAccess,
+    trusted_targets: &[PathBuf],
+) -> Result<Vec<LinkedFolder>, FileAccessError> {
+    if trusted_targets.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut trusted = Vec::with_capacity(trusted_targets.len());
+    for target in trusted_targets {
+        let target = normalize_path(target);
+        trusted.push(file_access.real_path(&target)?.unwrap_or(target));
+    }
+    Ok(find_linked_folders(root, file_access)?
+        .into_iter()
+        .filter(|linked| trusted.contains(&linked.target))
+        .collect())
+}
+
+/// [`linked_folders`] with the file port's error.
+fn find_linked_folders(
+    root: &Path,
+    file_access: &dyn FileAccess,
+) -> Result<Vec<LinkedFolder>, FileAccessError> {
+    let root = normalize_path(root);
+    let real_root = file_access
+        .real_path(&root)?
+        .unwrap_or_else(|| root.clone());
+    let entries = match file_access.read_dir(&root) {
+        Ok(entries) => entries,
+        Err(FileAccessError::NotFound(_)) => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    let mut candidates: Vec<(String, PathBuf)> = Vec::new();
+    for entry in entries {
+        if entry.kind != EntryKind::Other || file_access.link_target(&entry.path)?.is_none() {
+            continue;
+        }
+        let Some(name) = entry
+            .path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+        else {
+            continue;
+        };
+        candidates.push((name, entry.path));
+    }
+    candidates.sort();
+    let mut linked: Vec<LinkedFolder> = Vec::new();
+    for (name, link) in candidates {
+        // A target this process may not read (a sandbox without its grant,
+        // a locked folder) is skipped like a dangling link, so one link never
+        // takes the whole workspace down.
+        let Ok(Some(target)) = file_access.real_path(&link) else {
+            continue;
+        };
+        let Ok(target_entry) = file_access.stat(&target) else {
+            continue;
+        };
+        let is_folder = target_entry.is_some_and(|entry| entry.kind == EntryKind::Directory);
+        let is_cycle = real_root.starts_with(&target);
+        let is_reached = linked.iter().any(|earlier| {
+            target.starts_with(&earlier.target) || earlier.target.starts_with(&target)
+        });
+        let is_claimed = is_inside_any_workspace(&target, file_access).unwrap_or(true);
+        if !is_folder || is_cycle || is_reached || is_claimed {
+            continue;
+        }
+        linked.push(LinkedFolder { name, link, target });
+    }
+    Ok(linked)
+}
+
+fn is_inside_any_workspace(
+    folder: &Path,
+    file_access: &dyn FileAccess,
+) -> Result<bool, FileAccessError> {
+    for ancestor in folder.ancestors() {
+        if file_access
+            .stat(&settings_path(ancestor))?
+            .is_some_and(|entry| entry.kind == EntryKind::File)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn settings_path(root: &Path) -> PathBuf {

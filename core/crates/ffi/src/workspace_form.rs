@@ -1,6 +1,6 @@
 //! The settings form of the onboarding Configure sheet, creating a workspace
-//! in a folder, discovering workspaces for a restore and the folder overlap
-//! rule. Records are plain; the Swift models copy them out so views never see
+//! in a folder, discovering workspaces for a restore, the folders linked into
+//! a root, the active flag and the folder placement rule. Records are plain; the Swift models copy them out so views never see
 //! them. Every write goes through `vault_base::workspace_form`, which keeps
 //! the keys this build does not know.
 
@@ -9,9 +9,11 @@ use std::path::{Path, PathBuf};
 use app_state::settings_guard::secret_like_fields;
 use domain::ticket::TicketPattern;
 use vault_base::{
-    FieldIssue, FolderClaim, PlainFileAccess, WorkspaceError, WorkspaceFormError, WorkspaceKind,
-    WorkspaceSet, WorkspaceSettings, check_folder_claim, create_settings_file, form_issues,
-    new_workspace_settings, read_note_prefill, update_settings_file, workspace::is_workspace_root,
+    FieldIssue, FolderRefusal, PlacedWorkspace, PlainFileAccess, WorkspaceError,
+    WorkspaceFormError, WorkspaceKind, WorkspaceSet, WorkspaceSettings, check_folder_for_workspace,
+    check_new_workspace_root, create_settings_file, find_workspace_root, form_issues,
+    linked_folders, new_workspace_settings, read_note_prefill, update_settings_file,
+    workspace::is_workspace_root,
 };
 
 use crate::CoreError;
@@ -70,17 +72,56 @@ pub struct WorkspaceBriefView {
     pub kind: WorkspaceKindView,
 }
 
-/// A folder already granted to a workspace.
+/// Where a workspace lives, for the placement rule.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
-pub struct FolderClaimView {
-    /// The folder.
-    pub path: String,
-    /// The id of the workspace that reads it.
-    pub workspace_id: String,
-    /// The workspace that reads it.
-    pub workspace_name: String,
+pub struct PlacedWorkspaceView {
+    /// The workspace id.
+    pub id: String,
+    /// Its name.
+    pub name: String,
     /// Work or life.
     pub kind: WorkspaceKindView,
+    /// The folder holding `.vaultday/`.
+    pub root: String,
+    /// The real folders its links point at.
+    pub linked_targets: Vec<String>,
+}
+
+/// Why a folder may not be placed where the user asked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FolderRefusalKindView {
+    /// It already is a workspace's root.
+    AlreadyAWorkspace,
+    /// It is already part of the workspace it was offered to.
+    AlreadyInWorkspace,
+    /// It lies inside another workspace.
+    BelongsTo,
+    /// It holds another workspace's files.
+    HoldsWorkspace,
+    /// Two client workspaces would nest.
+    OverlappingWork,
+}
+
+/// A refused folder, with the workspace it clashes with for the popup.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct FolderRefusalView {
+    /// What kind of clash.
+    pub kind: FolderRefusalKindView,
+    /// The workspace the folder clashes with.
+    pub workspace_name: String,
+    /// The whole reason, in words for the user.
+    pub message: String,
+}
+
+/// A folder linked into a workspace root.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct LinkedFolderView {
+    /// The link's name in the root.
+    pub name: String,
+    /// The link, `<root>/<name>`.
+    pub link: String,
+    /// The real folder it points at.
+    pub target: String,
 }
 
 /// Every problem with the form's values, one message per field, in field order.
@@ -116,17 +157,23 @@ pub fn create_workspace(
     kind: WorkspaceKindView,
 ) -> Result<WorkspaceFormView, CoreError> {
     let root = PathBuf::from(root);
-    if is_workspace_root(&root, &PlainFileAccess)
-        .map_err(|error| CoreError::FileAccess(error.to_string()))?
-    {
-        return Err(CoreError::Conflict(format!(
-            "{} already holds .vaultday/settings.json",
-            root.display()
-        )));
-    }
-    let prefill = read_note_prefill(&root, &PlainFileAccess)
+    refuse_existing_workspace(&root)?;
+    let settings = prefilled_settings(&root, &name, kind)?;
+    create_settings_file(&root, &settings, &PlainFileAccess).map_err(form_error)?;
+    Ok(form_view(&settings))
+}
+
+/// The manifest [`create_workspace`] writes: the note's values once, the
+/// name from the argument, the note or the folder, and nothing the form or
+/// the secret guard would refuse.
+fn prefilled_settings(
+    root: &Path,
+    name: &str,
+    kind: WorkspaceKindView,
+) -> Result<WorkspaceSettings, CoreError> {
+    let prefill = read_note_prefill(root, &PlainFileAccess)
         .map_err(|error| CoreError::FileAccess(error.to_string()))?;
-    let mut settings = new_workspace_settings(&name, core_kind(kind), prefill.as_ref());
+    let mut settings = new_workspace_settings(name, core_kind(kind), prefill.as_ref());
     if secret_issues(&settings)
         .iter()
         .any(|issue| issue.field == "name")
@@ -143,8 +190,93 @@ pub fn create_workspace(
         settings.ticket_pattern = None;
     }
     leave_out_secret_shaped_values(&mut settings);
+    Ok(settings)
+}
+
+/// The form a new workspace in `root` starts from, as [`create_workspace`]
+/// would write it, without writing anything: Configure shows it as a draft
+/// and only Done creates the workspace.
+///
+/// # Errors
+/// [`CoreError::Conflict`] when the folder already is a workspace,
+/// [`CoreError::FileAccess`] otherwise.
+#[uniffi::export]
+pub fn new_workspace_form(
+    root: String,
+    kind: WorkspaceKindView,
+) -> Result<WorkspaceFormView, CoreError> {
+    let root = PathBuf::from(root);
+    refuse_existing_workspace(&root)?;
+    Ok(form_view(&prefilled_settings(&root, "", kind)?))
+}
+
+/// Makes the folder a workspace with the form's values, the Done of a
+/// draft. Keys the form does not show take their defaults.
+///
+/// # Errors
+/// [`CoreError::InvalidSettings`] with the field messages, [`CoreError::Conflict`]
+/// when the folder already is a workspace, [`CoreError::FileAccess`] otherwise.
+#[uniffi::export]
+pub fn create_workspace_from_form(
+    root: String,
+    form: WorkspaceFormView,
+) -> Result<WorkspaceFormView, CoreError> {
+    let root = PathBuf::from(root);
+    refuse_existing_workspace(&root)?;
+    let issues = all_issues(&form);
+    if !issues.is_empty() {
+        return Err(CoreError::InvalidSettings(join_messages(&issues)));
+    }
+    let mut settings = settings_from_form(&form);
+    settings.name = settings.name.trim().to_owned();
     create_settings_file(&root, &settings, &PlainFileAccess).map_err(form_error)?;
     Ok(form_view(&settings))
+}
+
+/// Whether the workspace in `root` is active; a deactivated one stays in the
+/// app but leaves every surface and the CLI.
+///
+/// # Errors
+/// [`CoreError::NotAWorkspace`] without a manifest, [`CoreError::InvalidSettings`]
+/// when the manifest is refused.
+#[uniffi::export]
+pub fn workspace_is_active(root: String) -> Result<bool, CoreError> {
+    let workspace =
+        vault_base::Workspace::open(Path::new(&root), &PlainFileAccess).map_err(workspace_error)?;
+    Ok(workspace.settings.active)
+}
+
+/// Deactivates or reactivates the workspace in `root` by writing `active` in
+/// its manifest; every other key stays as it was.
+///
+/// # Errors
+/// [`CoreError::NotAWorkspace`] without a manifest, [`CoreError::InvalidSettings`]
+/// when the manifest is refused, [`CoreError::FileAccess`] otherwise.
+#[uniffi::export]
+pub fn set_workspace_active(root: String, is_active: bool) -> Result<(), CoreError> {
+    update_settings_file(Path::new(&root), &PlainFileAccess, |settings| {
+        settings.active = is_active;
+    })
+    .map_err(form_error)?;
+    Ok(())
+}
+
+/// The folders linked into the workspace root: its top-level symlinks to
+/// folders that belong to no workspace yet, by name.
+///
+/// # Errors
+/// [`CoreError::FileAccess`] when the root cannot be read.
+#[uniffi::export]
+pub fn workspace_linked_folders(root: String) -> Result<Vec<LinkedFolderView>, CoreError> {
+    let linked = linked_folders(Path::new(&root), &PlainFileAccess).map_err(workspace_error)?;
+    Ok(linked
+        .into_iter()
+        .map(|folder| LinkedFolderView {
+            name: folder.name,
+            link: folder.link.to_string_lossy().into_owned(),
+            target: folder.target.to_string_lossy().into_owned(),
+        })
+        .collect())
 }
 
 /// Writes the form into the folder's manifest. Keys this build does not know
@@ -207,35 +339,100 @@ pub fn discover_workspaces(folders: Vec<String>) -> Result<Vec<WorkspaceBriefVie
         .collect())
 }
 
-/// Whether a folder may be granted to a workspace, given the folders already granted.
+/// Whether `candidate` may become the root of a new workspace of `kind`;
+/// `None` when it may, else the refusal with the workspace it clashes with.
+#[uniffi::export]
+pub fn check_workspace_root_placement(
+    candidate: String,
+    kind: WorkspaceKindView,
+    workspaces: Vec<PlacedWorkspaceView>,
+) -> Option<FolderRefusalView> {
+    let placed = placed_workspaces(workspaces);
+    check_new_workspace_root(Path::new(&candidate), core_kind(kind), &placed)
+        .err()
+        .map(|refusal| refusal_view(&refusal))
+}
+
+/// Whether `candidate` may join the workspace `workspace_id`, linked or moved
+/// into its root; `None` when it may. A folder inside a workspace the app
+/// does not know yet (a `.vaultday/` at or above it) is refused too, except
+/// the root in `leaving_root`: a folder moving out of a root to another
+/// workspace, whose caller leaves that workspace's claim on it out of
+/// `workspaces`.
 ///
 /// # Errors
-/// [`CoreError::Conflict`] with the reason for the user.
+/// [`CoreError::FileAccess`] when the folders above it cannot be read,
+/// [`CoreError::InvalidSettings`] when such a workspace's manifest is refused.
 #[uniffi::export]
-pub fn check_folder_grant(
+pub fn check_folder_placement(
     candidate: String,
-    workspace_id: Option<String>,
-    workspace_name: String,
-    kind: WorkspaceKindView,
-    existing: Vec<FolderClaimView>,
-) -> Result<(), CoreError> {
-    let claims: Vec<FolderClaim> = existing
+    workspace_id: String,
+    workspaces: Vec<PlacedWorkspaceView>,
+    leaving_root: Option<String>,
+) -> Result<Option<FolderRefusalView>, CoreError> {
+    let candidate = PathBuf::from(candidate);
+    let placed = placed_workspaces(workspaces);
+    if let Err(refusal) = check_folder_for_workspace(&candidate, &workspace_id, &placed) {
+        return Ok(Some(refusal_view(&refusal)));
+    }
+    let Some(root) = find_workspace_root(&candidate, &PlainFileAccess).map_err(workspace_error)?
+    else {
+        return Ok(None);
+    };
+    let is_leaving =
+        leaving_root.is_some_and(|leaving| vault_base::normalize_path(Path::new(&leaving)) == root);
+    if is_leaving {
+        return Ok(None);
+    }
+    let workspace =
+        vault_base::Workspace::open(&root, &PlainFileAccess).map_err(workspace_error)?;
+    Ok(Some(refusal_view(&FolderRefusal::BelongsTo {
+        folder: vault_base::normalize_path(&candidate),
+        workspace: workspace.settings.name,
+    })))
+}
+
+fn placed_workspaces(workspaces: Vec<PlacedWorkspaceView>) -> Vec<PlacedWorkspace> {
+    workspaces
         .into_iter()
-        .map(|claim| FolderClaim {
-            path: PathBuf::from(claim.path),
-            workspace_id: claim.workspace_id,
-            workspace_name: claim.workspace_name,
-            kind: core_kind(claim.kind),
+        .map(|workspace| PlacedWorkspace {
+            id: workspace.id,
+            name: workspace.name,
+            kind: core_kind(workspace.kind),
+            root: PathBuf::from(workspace.root),
+            linked_targets: workspace
+                .linked_targets
+                .into_iter()
+                .map(PathBuf::from)
+                .collect(),
         })
-        .collect();
-    check_folder_claim(
-        Path::new(&candidate),
-        workspace_id.as_deref(),
-        &workspace_name,
-        core_kind(kind),
-        &claims,
-    )
-    .map_err(|refusal| CoreError::Conflict(refusal.to_string()))
+        .collect()
+}
+
+fn refusal_view(refusal: &FolderRefusal) -> FolderRefusalView {
+    FolderRefusalView {
+        kind: match refusal {
+            FolderRefusal::AlreadyAWorkspace { .. } => FolderRefusalKindView::AlreadyAWorkspace,
+            FolderRefusal::AlreadyInWorkspace { .. } => FolderRefusalKindView::AlreadyInWorkspace,
+            FolderRefusal::BelongsTo { .. } => FolderRefusalKindView::BelongsTo,
+            FolderRefusal::HoldsWorkspace { .. } => FolderRefusalKindView::HoldsWorkspace,
+            FolderRefusal::OverlappingWork { .. } => FolderRefusalKindView::OverlappingWork,
+        },
+        workspace_name: refusal.workspace_name().to_owned(),
+        message: refusal.to_string(),
+    }
+}
+
+fn refuse_existing_workspace(root: &Path) -> Result<(), CoreError> {
+    if is_workspace_root(root, &PlainFileAccess)
+        .map_err(|error| CoreError::FileAccess(error.to_string()))?
+    {
+        return Err(CoreError::Conflict(format!(
+            "{} already holds .vaultday/settings.json",
+            root.display()
+        )));
+    }
+    Ok(())
 }
 
 fn all_issues(form: &WorkspaceFormView) -> Vec<FieldIssueView> {
@@ -544,30 +741,88 @@ mod tests {
             !is_workspace_folder(folder.path().to_string_lossy().into_owned()).expect("is not")
         );
 
-        let claims = vec![FolderClaimView {
-            path: one.to_string_lossy().into_owned(),
-            workspace_id: "ws-one".to_owned(),
-            workspace_name: "One".to_owned(),
+        let placed = vec![PlacedWorkspaceView {
+            id: "ws-one".to_owned(),
+            name: "One".to_owned(),
             kind: WorkspaceKindView::Work,
+            root: one.to_string_lossy().into_owned(),
+            linked_targets: Vec::new(),
         }];
         let nested = one.join("docs").to_string_lossy().into_owned();
-        let refused = check_folder_grant(
-            nested.clone(),
+        let refused =
+            check_workspace_root_placement(nested.clone(), WorkspaceKindView::Work, placed.clone())
+                .expect("refused");
+        assert_eq!(refused.kind, FolderRefusalKindView::OverlappingWork);
+        assert_eq!(refused.workspace_name, "One");
+        assert!(refused.message.contains("overlap"), "{}", refused.message);
+        assert_eq!(
+            check_workspace_root_placement(nested.clone(), WorkspaceKindView::Life, placed.clone()),
             None,
-            "Other".to_owned(),
-            WorkspaceKindView::Work,
-            claims.clone(),
-        )
-        .expect_err("refused");
-        assert!(matches!(&refused, CoreError::Conflict(message) if message.contains("overlap")));
-        check_folder_grant(
-            nested,
+            "life nests"
+        );
+        let belongs = check_folder_placement(nested.clone(), "ws-other".to_owned(), placed, None)
+            .expect("checked")
+            .expect("refused");
+        assert_eq!(
+            check_folder_placement(
+                nested,
+                "ws-other".to_owned(),
+                Vec::new(),
+                Some(one.to_string_lossy().into_owned())
+            )
+            .expect("checked"),
             None,
-            "Other".to_owned(),
-            WorkspaceKindView::Life,
-            claims,
+            "a folder leaving its root is not held back by that root"
+        );
+        assert_eq!(belongs.kind, FolderRefusalKindView::BelongsTo);
+        let unknown = check_folder_placement(
+            two.join("notes").to_string_lossy().into_owned(),
+            "ws-one".to_owned(),
+            Vec::new(),
+            None,
         )
-        .expect("life nests");
+        .expect("checked")
+        .expect("a workspace the app does not know still owns its folder");
+        assert_eq!(unknown.workspace_name, "Two");
+    }
+
+    #[test]
+    fn a_draft_writes_nothing_until_it_is_created() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        let root = folder.path().join("Studio");
+        fs::create_dir_all(&root).expect("root");
+        let root_text = root.to_string_lossy().into_owned();
+        let mut draft =
+            new_workspace_form(root_text.clone(), WorkspaceKindView::Life).expect("draft");
+        assert_eq!(draft.name, "Studio");
+        assert!(!root.join(".vaultday").exists(), "a draft writes nothing");
+
+        draft.name = "  ".to_owned();
+        assert!(matches!(
+            create_workspace_from_form(root_text.clone(), draft.clone()),
+            Err(CoreError::InvalidSettings(_))
+        ));
+        assert!(!root.join(".vaultday").exists());
+        draft.name = "Studio Life".to_owned();
+        draft.accent = Some("green".to_owned());
+        let created = create_workspace_from_form(root_text.clone(), draft).expect("created");
+        assert_eq!(created.name, "Studio Life");
+        assert_eq!(written_settings(&root)["accent"], "green");
+        assert!(matches!(
+            new_workspace_form(root_text.clone(), WorkspaceKindView::Life),
+            Err(CoreError::Conflict(_))
+        ));
+
+        assert!(workspace_is_active(root_text.clone()).expect("read"));
+        set_workspace_active(root_text.clone(), false).expect("deactivated");
+        assert!(!workspace_is_active(root_text.clone()).expect("read"));
+        assert_eq!(
+            written_settings(&root)["accent"],
+            "green",
+            "other keys stay"
+        );
+        set_workspace_active(root_text.clone(), true).expect("reactivated");
+        assert!(written_settings(&root).get("active").is_none());
     }
 
     const SYNTHETIC_KEY: &str = "sk-ant-api03-synthetic-not-a-real-key";

@@ -149,7 +149,8 @@ impl Vault {
     /// Builds an index over the workspace root with `scope`, refreshes it at
     /// `now` and loads the notes. Folders that are workspaces of their own are
     /// never descended into, so a nested client workspace stays out of the
-    /// enclosing one.
+    /// enclosing one, and only the linked folders the workspace follows are
+    /// walked.
     ///
     /// # Errors
     /// Index or file errors.
@@ -159,6 +160,11 @@ impl Vault {
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<Vault, VaultError> {
+        // The workspace decides which links a walk follows, whatever the scope says.
+        let scope = IndexScope {
+            linked_targets: workspace.linked_targets(),
+            ..scope
+        };
         let mut index = FileIndex::new(&workspace.root, scope)?;
         index.refresh(file_access, now)?;
         Vault::load(&index, &workspace.settings.log_folder, file_access)

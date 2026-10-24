@@ -108,7 +108,8 @@ final class AppModel {
 	let backlog = BrowseModel()
 	/// The open workspace's folder, watched for changes made outside the app.
 	@ObservationIgnored let vaultChanges = VaultChangeMonitor()
-	@ObservationIgnored private var watchedWorkspaceRoot: String?
+	/// The open workspace's root and linked folders as last watched.
+	@ObservationIgnored private var watchedVaultKey: String?
 	/// Where peekable views sit, for the force click; not observed.
 	@ObservationIgnored let peekTargets = PeekTargetRegistry()
 	/// Browse takes the place of Today, Inbox and the side panel while shown (`gb`).
@@ -312,14 +313,32 @@ final class AppModel {
 	var grantMessage: String? { setup?.workspaces.message }
 
 	/// The workspaces changed in setup or Settings: the open workspace follows.
+	/// When it was removed or deactivated, a running timer on it stops first,
+	/// writing its day-log line as any stop does, and the next active
+	/// workspace opens.
 	func workspacesChanged() {
 		guard let workspace, let workspaces = setup?.workspaces else { return }
-		let isOpenOneGone = workspace.phase == .open && !workspaces.entries.contains { $0.id == workspace.workspaceId }
+		let isOpenOneGone = workspace.phase == .open && !workspaces.activeEntries.contains { $0.id == workspace.workspaceId }
+		if isOpenOneGone, sessions.openSession != nil {
+			stopTimer()
+			if sessions.openSession == nil {
+				Logger(subsystem: "com.eiluviann.vaultday", category: "timer").notice("stopped the timer: its workspace left the active list")
+				// The workspace closes once the stop's day-log line is written.
+				Task { [weak self] in
+					await self?.sessions.waitForDayLog()
+					self?.workspacesChanged()
+				}
+				return
+			}
+		}
 		if isOpenOneGone {
 			workspace.close()
 		}
 		if workspace.phase != .open {
 			workspace.restoreAtLaunch()
+		} else {
+			// A folder linked or unlinked in setup or Settings joins or leaves the open vault.
+			workspace.followLinkedFolders()
 		}
 		reloadWorkspaceContent()
 		refreshSetupSteps()
@@ -343,7 +362,7 @@ final class AppModel {
 	func finishSetup() {
 		mainWindow.showHome()
 		guard let setup, let workspace else { return }
-		setup.onboarding.finish(workspaces: setup.workspaces.entries)
+		setup.onboarding.finish(workspaces: setup.workspaces.activeEntries)
 		workspace.close()
 		workspace.restoreAtLaunch()
 		reloadWorkspaceContent()
@@ -820,13 +839,15 @@ final class AppModel {
 		return nil
 	}
 
-	/// Starts watching `workspace`'s folder once per workspace: a note
-	/// changed outside the app (Obsidian, a sync client) refreshes the Browse
-	/// snapshot, debounced, while Browse or the Backlog tab is shown;
-	/// otherwise opening either reads the vault anyway.
+	/// Starts watching `workspace`'s folder once per workspace and set of
+	/// linked folders, so a folder linked in setup or Settings is watched at
+	/// once: a note changed outside the app (Obsidian, a sync client)
+	/// refreshes the Browse snapshot, debounced, while Browse or the Backlog
+	/// tab is shown; otherwise opening either reads the vault anyway.
 	private func watchVault(of workspace: WorkspaceModel) {
-		guard watchedWorkspaceRoot != workspace.rootPath else { return }
-		watchedWorkspaceRoot = vaultChanges.start(workspace) ? workspace.rootPath : nil
+		let key = ([workspace.rootPath] + (currentEntry?.linkedTargets ?? [])).joined(separator: "\n")
+		guard watchedVaultKey != key else { return }
+		watchedVaultKey = vaultChanges.start(workspace) ? key : nil
 		vaultChanges.onChange = { [weak self] _ in self?.vaultChangedOutside() }
 	}
 
@@ -952,8 +973,9 @@ final class AppModel {
 	/// Whether the Today column shows every workspace together.
 	var isShowingAll: Bool { workspace?.scope == .all }
 
-	/// The workspaces in the sidebar's order: work first, then by name.
-	var workspaceEntries: [WorkspaceEntry] { setup?.workspaces.entries ?? [] }
+	/// The active workspaces in the sidebar's order: work first, then by name.
+	/// A deactivated workspace is listed only in setup and Settings.
+	var workspaceEntries: [WorkspaceEntry] { setup?.workspaces.activeEntries ?? [] }
 
 	/// The open workspace's sidebar entry.
 	var currentEntry: WorkspaceEntry? {

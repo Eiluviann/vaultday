@@ -74,44 +74,85 @@ pub struct WorkspacePrefill {
     pub story_template: Option<String>,
 }
 
-/// A folder already granted to a workspace, for the overlap rule.
+/// Where a workspace lives, for the placement rule: its root and the real
+/// targets of its linked folders.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FolderClaim {
-    /// The folder.
-    pub path: PathBuf,
-    /// The id of the workspace that reads it.
-    pub workspace_id: String,
-    /// The workspace that reads it.
-    pub workspace_name: String,
-    /// Whether that workspace is client work.
+pub struct PlacedWorkspace {
+    /// The workspace's id.
+    pub id: String,
+    /// The workspace's name.
+    pub name: String,
+    /// Whether the workspace is client work.
     pub kind: WorkspaceKind,
+    /// The folder holding `.vaultday/`.
+    pub root: PathBuf,
+    /// The folders linked into the root, with every symlink resolved.
+    pub linked_targets: Vec<PathBuf>,
 }
 
-/// A folder that may not be added.
+/// A folder that may not become a workspace root, or join a workspace.
+/// Each message names the folder and the workspace it clashes with.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FolderRefusal {
-    /// The same folder is already granted.
-    #[error("{folder} is already a folder of {workspace}")]
-    AlreadyGranted {
+    /// The folder already is a workspace's root.
+    #[error("{folder} is already the workspace {workspace}")]
+    AlreadyAWorkspace {
         /// The folder.
         folder: PathBuf,
-        /// Who has it.
+        /// The workspace rooted there.
         workspace: String,
     },
-    /// Two client workspaces would read nested folders.
+    /// The folder is already part of the workspace it is offered to.
+    #[error("{folder} is already part of {workspace}")]
+    AlreadyInWorkspace {
+        /// The folder.
+        folder: PathBuf,
+        /// The workspace.
+        workspace: String,
+    },
+    /// The folder lies inside another workspace's root or linked folder.
+    #[error("{folder} already belongs to {workspace}")]
+    BelongsTo {
+        /// The folder.
+        folder: PathBuf,
+        /// The workspace that holds it.
+        workspace: String,
+    },
+    /// The folder holds a workspace's root or linked folder, whose files
+    /// would then be read twice.
+    #[error("{folder} holds files of {workspace}")]
+    HoldsWorkspace {
+        /// The folder.
+        folder: PathBuf,
+        /// The workspace whose files it holds.
+        workspace: String,
+    },
+    /// Two client workspace roots would nest.
     #[error(
-        "{inner} and {outer} would overlap, and client workspaces may not share files: {inner_workspace} and {outer_workspace} are both work"
+        "{inner} and {outer} would overlap, and client workspaces may not share files: {workspace} is work too"
     )]
     OverlappingWork {
         /// The enclosing folder.
         outer: PathBuf,
         /// The enclosed folder.
         inner: PathBuf,
-        /// The workspace of the enclosing folder.
-        outer_workspace: String,
-        /// The workspace of the enclosed folder.
-        inner_workspace: String,
+        /// The client workspace already there.
+        workspace: String,
     },
+}
+
+impl FolderRefusal {
+    /// The name of the workspace the folder clashes with, for a popup's title.
+    #[must_use]
+    pub fn workspace_name(&self) -> &str {
+        match self {
+            FolderRefusal::AlreadyAWorkspace { workspace, .. }
+            | FolderRefusal::AlreadyInWorkspace { workspace, .. }
+            | FolderRefusal::BelongsTo { workspace, .. }
+            | FolderRefusal::HoldsWorkspace { workspace, .. }
+            | FolderRefusal::OverlappingWork { workspace, .. } => workspace,
+        }
+    }
 }
 
 /// Every problem with the form's values, in field order. Stricter than
@@ -321,58 +362,128 @@ pub fn update_settings_file(
     Ok(settings)
 }
 
-/// Whether `candidate` may be added as a folder of a workspace of `kind`
-/// named `workspace_name` (`workspace_id` is `None` for one not yet created),
-/// given the folders every workspace already holds.
+/// Whether `candidate` may become a new workspace root of `kind`, given the
+/// workspaces already placed.
 ///
-/// A folder may be granted once. A subfolder of another workspace's folder is
-/// fine (the deepest folder owns its files), except between two client
-/// workspaces, which may not nest. Folders of the same workspace may nest.
+/// A root may be taken once, and may not lie inside or hold another
+/// workspace's linked folder. Roots may nest (the nearest `.vaultday/` owns
+/// a file), except two client roots.
 ///
 /// # Errors
 /// The first [`FolderRefusal`] that applies.
-pub fn check_folder_claim(
+pub fn check_new_workspace_root(
     candidate: &Path,
-    workspace_id: Option<&str>,
-    workspace_name: &str,
     kind: WorkspaceKind,
-    existing: &[FolderClaim],
+    existing: &[PlacedWorkspace],
 ) -> Result<(), FolderRefusal> {
     let candidate = normalize_path(candidate);
-    for claim in existing {
-        let held = normalize_path(&claim.path);
-        if held == candidate {
-            return Err(FolderRefusal::AlreadyGranted {
-                folder: candidate,
-                workspace: claim.workspace_name.clone(),
-            });
-        }
+    if let Some(workspace) = existing
+        .iter()
+        .find(|workspace| normalize_path(&workspace.root) == candidate)
+    {
+        return Err(FolderRefusal::AlreadyAWorkspace {
+            folder: candidate,
+            workspace: workspace.name.clone(),
+        });
     }
-    for claim in existing {
-        let held = normalize_path(&claim.path);
-        let is_other_workspace = workspace_id != Some(claim.workspace_id.as_str());
-        let are_both_work = kind == WorkspaceKind::Work && claim.kind == WorkspaceKind::Work;
-        if !is_other_workspace || !are_both_work {
+    if let Some(refusal) = linked_folder_clash(&candidate, existing) {
+        return Err(refusal);
+    }
+    for workspace in existing {
+        if kind != WorkspaceKind::Work || workspace.kind != WorkspaceKind::Work {
             continue;
         }
-        if held.starts_with(&candidate) {
+        let root = normalize_path(&workspace.root);
+        if root.starts_with(&candidate) {
             return Err(FolderRefusal::OverlappingWork {
                 outer: candidate,
-                inner: held,
-                outer_workspace: workspace_name.to_owned(),
-                inner_workspace: claim.workspace_name.clone(),
+                inner: root,
+                workspace: workspace.name.clone(),
             });
         }
-        if candidate.starts_with(&held) {
+        if candidate.starts_with(&root) {
             return Err(FolderRefusal::OverlappingWork {
-                outer: held,
+                outer: root,
                 inner: candidate,
-                outer_workspace: claim.workspace_name.clone(),
-                inner_workspace: workspace_name.to_owned(),
+                workspace: workspace.name.clone(),
             });
         }
     }
     Ok(())
+}
+
+/// Whether `candidate` may join the workspace `workspace_id`, linked or
+/// moved into its root, given the workspaces already placed.
+///
+/// Each file belongs to at most one workspace, so the folder may not lie
+/// inside any workspace's root or linked folder (its own included: it is
+/// already part of it), and may not hold one.
+///
+/// # Errors
+/// The first [`FolderRefusal`] that applies.
+pub fn check_folder_for_workspace(
+    candidate: &Path,
+    workspace_id: &str,
+    existing: &[PlacedWorkspace],
+) -> Result<(), FolderRefusal> {
+    let candidate = normalize_path(candidate);
+    let holder = existing
+        .iter()
+        .flat_map(|workspace| areas(workspace).map(move |area| (workspace, area)))
+        .filter(|(_, area)| candidate.starts_with(area))
+        .max_by_key(|(_, area)| area.components().count());
+    if let Some((workspace, _)) = holder {
+        return Err(if workspace.id == workspace_id {
+            FolderRefusal::AlreadyInWorkspace {
+                folder: candidate,
+                workspace: workspace.name.clone(),
+            }
+        } else {
+            FolderRefusal::BelongsTo {
+                folder: candidate,
+                workspace: workspace.name.clone(),
+            }
+        });
+    }
+    if let Some(workspace) = existing
+        .iter()
+        .find(|workspace| areas(workspace).any(|area| area.starts_with(&candidate)))
+    {
+        return Err(FolderRefusal::HoldsWorkspace {
+            folder: candidate,
+            workspace: workspace.name.clone(),
+        });
+    }
+    Ok(())
+}
+
+/// The refusal when `candidate` lies inside or holds a workspace's linked folder.
+fn linked_folder_clash(candidate: &Path, existing: &[PlacedWorkspace]) -> Option<FolderRefusal> {
+    for workspace in existing {
+        for target in &workspace.linked_targets {
+            let target = normalize_path(target);
+            if candidate.starts_with(&target) {
+                return Some(FolderRefusal::BelongsTo {
+                    folder: candidate.to_path_buf(),
+                    workspace: workspace.name.clone(),
+                });
+            }
+            if target.starts_with(candidate) {
+                return Some(FolderRefusal::HoldsWorkspace {
+                    folder: candidate.to_path_buf(),
+                    workspace: workspace.name.clone(),
+                });
+            }
+        }
+    }
+    None
+}
+
+/// A workspace's root and linked targets, normalised.
+fn areas(workspace: &PlacedWorkspace) -> impl Iterator<Item = PathBuf> + '_ {
+    std::iter::once(&workspace.root)
+        .chain(&workspace.linked_targets)
+        .map(|path| normalize_path(path))
 }
 
 fn leave_out_refused_note_values(settings: &mut WorkspaceSettings) {
@@ -599,98 +710,65 @@ mod tests {
         ));
     }
 
-    fn claim(path: &str, workspace: &str, kind: WorkspaceKind) -> FolderClaim {
-        FolderClaim {
-            path: PathBuf::from(path),
-            workspace_id: format!("ws-{workspace}"),
-            workspace_name: workspace.to_owned(),
+    fn placed(root: &str, workspace: &str, kind: WorkspaceKind, links: &[&str]) -> PlacedWorkspace {
+        PlacedWorkspace {
+            id: format!("ws-{workspace}"),
+            name: workspace.to_owned(),
             kind,
+            root: PathBuf::from(root),
+            linked_targets: links.iter().map(PathBuf::from).collect(),
         }
     }
 
     #[test]
-    fn the_same_folder_is_granted_once() {
-        let existing = [claim("/v/a", "A", WorkspaceKind::Work)];
-        let error = check_folder_claim(
-            Path::new("/v/a/"),
-            Some("ws-B"),
-            "B",
-            WorkspaceKind::Life,
-            &existing,
-        )
-        .expect_err("refused");
-        assert!(matches!(error, FolderRefusal::AlreadyGranted { .. }));
-        assert!(error.to_string().contains("already a folder of A"));
+    fn a_root_is_taken_once() {
+        let existing = [placed("/v/a", "A", WorkspaceKind::Work, &[])];
+        let error = check_new_workspace_root(Path::new("/v/a/"), WorkspaceKind::Life, &existing)
+            .expect_err("refused");
+        assert!(matches!(error, FolderRefusal::AlreadyAWorkspace { .. }));
+        assert_eq!(error.to_string(), "/v/a is already the workspace A");
     }
 
     #[test]
-    fn client_workspaces_may_not_nest_either_way_round() {
-        let existing = [claim("/v/clients/a", "A", WorkspaceKind::Work)];
-        let inner = check_folder_claim(
+    fn client_roots_may_not_nest_either_way_round() {
+        let existing = [placed("/v/clients/a", "A", WorkspaceKind::Work, &[])];
+        let inner = check_new_workspace_root(
             Path::new("/v/clients/a/docs"),
-            Some("ws-B"),
-            "B",
             WorkspaceKind::Work,
             &existing,
         )
         .expect_err("inner refused");
         assert!(inner.to_string().contains("overlap"), "{inner}");
-        let outer = check_folder_claim(
-            Path::new("/v/clients"),
-            Some("ws-B"),
-            "B",
-            WorkspaceKind::Work,
-            &existing,
-        )
-        .expect_err("outer refused");
+        assert_eq!(inner.workspace_name(), "A");
+        let outer =
+            check_new_workspace_root(Path::new("/v/clients"), WorkspaceKind::Work, &existing)
+                .expect_err("outer refused");
         assert!(matches!(outer, FolderRefusal::OverlappingWork { .. }));
     }
 
     #[test]
-    fn nesting_is_fine_inside_one_workspace_and_around_life() {
+    fn a_folder_joins_one_workspace_only() {
         let existing = [
-            claim("/v/clients/a", "A", WorkspaceKind::Work),
-            claim("/v/life", "Home", WorkspaceKind::Life),
-        ];
-        assert!(
-            check_folder_claim(
-                Path::new("/v/clients/a/docs"),
-                Some("ws-A"),
+            placed(
+                "/v/clients/a",
                 "A",
                 WorkspaceKind::Work,
-                &existing
-            )
-            .is_ok()
-        );
-        assert!(
-            check_folder_claim(
-                Path::new("/v/life/notes"),
-                Some("ws-B"),
-                "B",
-                WorkspaceKind::Work,
-                &existing
-            )
-            .is_ok()
-        );
-        assert!(
-            check_folder_claim(
-                Path::new("/v"),
-                Some("ws-Home"),
-                "Home",
-                WorkspaceKind::Life,
-                &existing
-            )
-            .is_ok()
-        );
-        assert!(
-            check_folder_claim(
-                Path::new("/elsewhere"),
-                Some("ws-B"),
-                "B",
-                WorkspaceKind::Work,
-                &existing
-            )
-            .is_ok()
-        );
+                &["/elsewhere/specs"],
+            ),
+            placed("/v/life", "Home", WorkspaceKind::Life, &[]),
+        ];
+        assert!(check_folder_for_workspace(Path::new("/free"), "ws-A", &existing).is_ok());
+        assert!(matches!(
+            check_folder_for_workspace(Path::new("/v/clients/a/docs"), "ws-A", &existing),
+            Err(FolderRefusal::AlreadyInWorkspace { .. })
+        ));
+        assert!(matches!(
+            check_folder_for_workspace(Path::new("/elsewhere/specs/old"), "ws-Home", &existing),
+            Err(FolderRefusal::BelongsTo { .. })
+        ));
+        assert!(matches!(
+            check_folder_for_workspace(Path::new("/v"), "ws-Home", &existing),
+            Err(FolderRefusal::HoldsWorkspace { .. })
+        ));
     }
 }

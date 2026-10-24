@@ -84,7 +84,7 @@ export const USAGE = `Usage:
   vaultday status [--format text|json|sketchybar] [--json]
   vaultday mcp
 
-The workspace is the deepest .vaultday/ at or above the working directory.
+The workspace is the nearest .vaultday/ at or above the working directory.
 timer and status talk to the running Vaultday app over its localhost API.
 Text a model wrote (--ai, or AI_PROVENANCE_AUTHOR set) is marked as model text.`;
 

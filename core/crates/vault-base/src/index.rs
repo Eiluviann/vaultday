@@ -10,14 +10,16 @@ use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use thiserror::Error;
 
 use crate::file_access::{DirEntry, EntryKind, FileAccess, FileAccessError};
-use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME};
+use crate::workspace::{SETTINGS_FILE_NAME, WORKSPACE_DIR_NAME, trusted_linked_folders};
 
 /// Which files an index covers. Globs match root-relative paths with `/`
 /// separators; `*` does not cross a `/`, `**` does. A folder is pruned when an
 /// exclude pattern matches its path with a trailing `/` (so `**/Archive/**`
 /// prunes every `Archive` folder). Folders that are themselves workspaces
 /// (they hold `.vaultday/settings.json`) are always pruned: an index never
-/// reads another workspace's notes.
+/// reads another workspace's notes. The root's linked folders whose target
+/// is in [`IndexScope::linked_targets`] are walked through their links, so
+/// their files keep root-relative paths; no other symlink is followed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexScope {
     /// Glob patterns a file must match.
@@ -26,6 +28,9 @@ pub struct IndexScope {
     pub exclude: Vec<String>,
     /// Only files modified within this many days of the refresh time, when set.
     pub edited_within_days: Option<u32>,
+    /// The real targets of the root's linked folders a walk follows, as
+    /// [`crate::Workspace::linked_targets`] gives them; none by default.
+    pub linked_targets: Vec<PathBuf>,
 }
 
 /// What the index remembers about a file.
@@ -87,6 +92,7 @@ impl Default for IndexScope {
                 "**/node_modules/**".to_owned(),
             ],
             edited_within_days: None,
+            linked_targets: Vec::new(),
         }
     }
 }
@@ -187,7 +193,8 @@ impl FileIndex {
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<IndexDelta, FileAccessError> {
-        let seen = self.collect_below(&self.root, file_access, now)?;
+        let links = self.followed_links(file_access)?;
+        let seen = self.collect_below(&self.root, &links, file_access, now)?;
         let mut delta = IndexDelta::default();
         for (path, stamp) in &seen {
             match self.entries.get(path) {
@@ -220,12 +227,15 @@ impl FileIndex {
         now: SystemTime,
     ) -> Result<IndexDelta, FileAccessError> {
         let mut delta = IndexDelta::default();
+        let links = self.followed_links(file_access)?;
         for relative in relative_paths {
             let absolute = self.root.join(relative);
-            let seen = if self.is_inside_foreign_workspace(relative, file_access)? {
+            let seen = if self.is_through_unfollowed_link(relative, &links, file_access)?
+                || self.is_inside_foreign_workspace(relative, file_access)?
+            {
                 BTreeMap::new()
             } else {
-                self.collect_changed(relative, &absolute, file_access, now)?
+                self.collect_changed(relative, &absolute, &links, file_access, now)?
             };
             let stale: Vec<PathBuf> = self
                 .entries
@@ -271,10 +281,24 @@ impl FileIndex {
         Ok(index)
     }
 
+    /// The links of the root's trusted linked folders, the only symlinks a walk follows.
+    fn followed_links(
+        &self,
+        file_access: &dyn FileAccess,
+    ) -> Result<Vec<PathBuf>, FileAccessError> {
+        Ok(
+            trusted_linked_folders(&self.root, file_access, &self.scope.linked_targets)?
+                .into_iter()
+                .map(|linked| linked.link)
+                .collect(),
+        )
+    }
+
     /// Walks `start` (a folder below the root) and stamps every file in scope.
     fn collect_below(
         &self,
         start: &Path,
+        links: &[PathBuf],
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<BTreeMap<PathBuf, FileStamp>, FileAccessError> {
@@ -284,6 +308,8 @@ impl FileIndex {
             let entries = match file_access.read_dir(&folder) {
                 Ok(entries) => entries,
                 Err(FileAccessError::NotFound(_)) => continue,
+                // A linked folder this process may not read is left out, not fatal.
+                Err(_) if links.iter().any(|link| folder.starts_with(link)) => continue,
                 Err(error) => return Err(error),
             };
             for entry in entries {
@@ -302,7 +328,12 @@ impl FileIndex {
                             seen.insert(relative.to_path_buf(), stamp_of(&entry));
                         }
                     }
-                    EntryKind::Other => {}
+                    EntryKind::Other => {
+                        let is_excluded = self.exclude.is_match(format!("{}/", glob_key(relative)));
+                        if !is_excluded && links.contains(&entry.path) {
+                            pending.push(entry.path.clone());
+                        }
+                    }
                 }
             }
         }
@@ -315,13 +346,14 @@ impl FileIndex {
         &self,
         relative: &Path,
         absolute: &Path,
+        links: &[PathBuf],
         file_access: &dyn FileAccess,
         now: SystemTime,
     ) -> Result<BTreeMap<PathBuf, FileStamp>, FileAccessError> {
         let mut seen = BTreeMap::new();
         match file_access.stat(absolute)? {
             Some(entry) if entry.kind == EntryKind::Directory => {
-                seen = self.collect_below(absolute, file_access, now)?;
+                seen = self.collect_below(absolute, links, file_access, now)?;
             }
             Some(entry) if entry.kind == EntryKind::File => {
                 if self.is_in_scope(relative, entry.modified, now) {
@@ -331,6 +363,27 @@ impl FileIndex {
             _ => {}
         }
         Ok(seen)
+    }
+
+    /// True when `relative` or a folder above it, below the root, is a
+    /// symlink other than a linked folder's link. A walk never enters one, and
+    /// a watcher that follows links (inotify does) reports the files below it.
+    fn is_through_unfollowed_link(
+        &self,
+        relative: &Path,
+        links: &[PathBuf],
+        file_access: &dyn FileAccess,
+    ) -> Result<bool, FileAccessError> {
+        for folder in relative.ancestors() {
+            if folder.as_os_str().is_empty() {
+                break;
+            }
+            let absolute = self.root.join(folder);
+            if file_access.link_target(&absolute)?.is_some() && !links.contains(&absolute) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// True when `relative` or a folder above it, below the root, holds
@@ -429,6 +482,7 @@ mod tests {
                 include: vec!["Archive/*.md".to_owned()],
                 exclude: Vec::new(),
                 edited_within_days: None,
+                linked_targets: Vec::new(),
             },
         )
         .expect("index");

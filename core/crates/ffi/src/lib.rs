@@ -177,19 +177,30 @@ impl WorkspaceHandle {
 
 vault_base::binding_records!(derive(Debug, Clone, PartialEq, Eq, uniffi::Record));
 
-/// Opens the workspace rooted exactly at `path`.
+/// Opens the workspace rooted exactly at `path`, following the links in the
+/// root whose target is one of `linked_targets`: the folders this device
+/// granted to the workspace as linked folders. Every other link is left out,
+/// so one planted in a synced vault never widens what the app reads or writes.
 ///
 /// # Errors
 /// [`CoreError::NotAWorkspace`] without a manifest, [`CoreError::InvalidSettings`]
 /// when the manifest is refused, [`CoreError::FileAccess`] otherwise.
-#[uniffi::export]
-pub fn open_workspace(path: String) -> Result<Arc<WorkspaceHandle>, CoreError> {
-    let workspace = Workspace::open(path.as_ref(), &PlainFileAccess).map_err(OpError::from)?;
+#[uniffi::export(default(linked_targets = []))]
+pub fn open_workspace(
+    path: String,
+    linked_targets: Vec<String>,
+) -> Result<Arc<WorkspaceHandle>, CoreError> {
+    let linked_targets: Vec<std::path::PathBuf> = linked_targets
+        .into_iter()
+        .map(std::path::PathBuf::from)
+        .collect();
+    let workspace = Workspace::open_trusting(path.as_ref(), &PlainFileAccess, &linked_targets)
+        .map_err(OpError::from)?;
     Ok(Arc::new(WorkspaceHandle { workspace }))
 }
 
-/// Opens the workspace holding `path` (a file or folder): the deepest
-/// `.vaultday/` at or above it wins.
+/// Opens the workspace holding `path` (a file or folder): the nearest
+/// `.vaultday/` at or above it wins. No link in its root is followed.
 ///
 /// # Errors
 /// [`CoreError::NotAWorkspace`] outside any workspace, otherwise as [`open_workspace`].
@@ -493,7 +504,9 @@ impl From<OpError> for CoreError {
     fn from(error: OpError) -> Self {
         let message = error.to_string();
         match error {
-            OpError::NotAWorkspace(_) => CoreError::NotAWorkspace(message),
+            OpError::NotAWorkspace(_) | OpError::InactiveWorkspace(_) => {
+                CoreError::NotAWorkspace(message)
+            }
             OpError::InvalidSettings(_) => CoreError::InvalidSettings(message),
             OpError::InvalidDate(_) => CoreError::InvalidDate(message),
             OpError::InvalidInput(_) => CoreError::InvalidInput(message),
@@ -519,7 +532,7 @@ mod tests {
 
     #[test]
     fn the_mock_vault_opens_and_lists_open_work() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         assert_eq!(workspace.name(), "Mock Studio");
         let view = today(&workspace, Some("2026-10-22".to_owned())).unwrap();
         let numbers: Vec<Option<&str>> = view
@@ -541,27 +554,27 @@ mod tests {
 
     #[test]
     fn a_folder_without_a_manifest_is_refused() {
-        let error = open_workspace(env!("CARGO_MANIFEST_DIR").to_owned()).unwrap_err();
+        let error = open_workspace(env!("CARGO_MANIFEST_DIR").to_owned(), Vec::new()).unwrap_err();
         assert!(matches!(error, CoreError::NotAWorkspace(_)));
     }
 
     #[test]
     fn a_malformed_date_is_refused() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let error = today(&workspace, Some("yesterday".to_owned())).unwrap_err();
         assert!(matches!(error, CoreError::InvalidDate(_)));
     }
 
     #[test]
     fn the_local_day_is_the_default() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let view = today(&workspace, None).unwrap();
         assert_eq!(view.date, local_today().unwrap().to_string());
     }
 
     #[test]
     fn today_lists_the_waiting_on_items() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let view = today(&workspace, Some("2026-10-22".to_owned())).unwrap();
         let who: Vec<&str> = view
             .waiting_on
@@ -585,7 +598,7 @@ mod tests {
 
     #[test]
     fn a_task_and_a_client_report_come_back_as_records() {
-        let workspace = open_workspace(mock_vault()).unwrap();
+        let workspace = open_workspace(mock_vault(), Vec::new()).unwrap();
         let task = task_by_id(&workspace, "task-6".to_owned()).unwrap();
         assert_eq!(task.section.as_deref(), Some("pending-input"));
         let missing = task_by_id(&workspace, "task-999".to_owned()).unwrap_err();

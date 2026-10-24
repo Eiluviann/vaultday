@@ -40,6 +40,10 @@ pub enum OpError {
     /// The workspace manifest was refused.
     #[error("the workspace settings are invalid: {0}")]
     InvalidSettings(String),
+    /// The workspace holding the path is deactivated; it keeps its files, so
+    /// no outer workspace takes them instead.
+    #[error("{0} is inactive; reactivate it in Vaultday")]
+    InactiveWorkspace(String),
     /// A date or time argument is malformed.
     #[error("{0}")]
     InvalidDate(String),
@@ -65,6 +69,7 @@ impl OpError {
         match self {
             OpError::NotAWorkspace(_) => "not-a-workspace",
             OpError::InvalidSettings(_) => "invalid-settings",
+            OpError::InactiveWorkspace(_) => "inactive-workspace",
             OpError::InvalidDate(_) => "invalid-date",
             OpError::InvalidInput(_) => "invalid-input",
             OpError::NotFound(_) => "not-found",
@@ -305,16 +310,22 @@ pub struct Report {
     pub home_folder: String,
 }
 
-/// Resolves the workspace holding `start` (a file or folder): the deepest
-/// `.vaultday/` at or above it wins.
+/// Resolves the workspace holding `start` (a file or folder): the nearest
+/// `.vaultday/` at or above it wins. A path through one of the root's linked
+/// folders resolves to the root's workspace, since the link lies in the root.
 ///
 /// # Errors
-/// [`OpError::NotAWorkspace`] outside any workspace, [`OpError::InvalidSettings`]
-/// for a refused manifest, [`OpError::FileAccess`] otherwise.
+/// [`OpError::NotAWorkspace`] outside any workspace, [`OpError::InactiveWorkspace`]
+/// for a deactivated one, [`OpError::InvalidSettings`] for a refused manifest,
+/// [`OpError::FileAccess`] otherwise.
 pub fn resolve_workspace(start: &Path, file_access: &dyn FileAccess) -> Result<Workspace, OpError> {
     let root = find_workspace_root(start, file_access)?
         .ok_or_else(|| OpError::NotAWorkspace(crate::workspace::normalize_path(start)))?;
-    Ok(Workspace::open(&root, file_access)?)
+    let workspace = Workspace::open(&root, file_access)?;
+    if !workspace.settings.active {
+        return Err(OpError::InactiveWorkspace(workspace.settings.name));
+    }
+    Ok(workspace)
 }
 
 /// Loads the vault of `workspace` with the default index scope.
