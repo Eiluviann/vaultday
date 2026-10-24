@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { addDays, type IsoDate, type PlaygroundCalendar } from './calendar.ts';
-import { type DayLog, renderDayLogs } from './day-log.ts';
+import { type DayLog, doneMoments, renderDayLogs } from './day-log.ts';
 import type { WorkspaceBuild } from './mock-studio.ts';
 import {
 	type PlannedProject,
@@ -9,7 +9,7 @@ import {
 	renderProjectNote,
 	renderTaskLines,
 } from './notes.ts';
-import { settleTasksAfter } from './vault-text.ts';
+import { holdNoteToCutoff } from './vault-text.ts';
 
 export const PERSONAL_FOLDER = 'Personal';
 
@@ -126,7 +126,13 @@ export function buildPersonal(
 	calendar: PlaygroundCalendar,
 ): WorkspaceBuild {
 	const dateOf = (offset: number) => addDays(calendar.today, offset);
-	const settle = (text: string) => settleTasksAfter(text, calendar.today);
+	const days = personalDayLogs(dateOf);
+	const cutoff = {
+		today: calendar.today,
+		now: calendar.now,
+		doneTimes: doneMoments(days),
+	};
+	const settle = (text: string) => holdNoteToCutoff(text, cutoff);
 	return {
 		folderName: PERSONAL_FOLDER,
 		files: [
@@ -151,7 +157,7 @@ export function buildPersonal(
 				path: `Projects/${project.title}/${project.title}.md`,
 				content: settle(renderProjectNote(project, dateOf)),
 			})),
-			...renderDayLogs(personalDayLogs(dateOf), {
+			...renderDayLogs(days, {
 				logFolder: LOG_FOLDER,
 				today: calendar.today,
 				now: calendar.now,

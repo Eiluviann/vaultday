@@ -4,6 +4,7 @@ import {
 	type IsoDate,
 	minutesOfDay,
 } from './calendar.ts';
+import type { DoneMoment } from './vault-text.ts';
 
 /** What a log line is about: a story by number, or a project hub by title. */
 export type LogSubject = { story: string } | { project: string };
@@ -100,6 +101,19 @@ export function formatDuration(minutes: number): string {
 	const rest = minutes % 60;
 	if (hours === 0) return `${rest}m`;
 	return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+}
+
+/** The day and time each task's done line is written at, by task id; the last one wins. */
+export function doneMoments(days: DayLog[]): Map<string, DoneMoment> {
+	return new Map(
+		days.flatMap((day) =>
+			day.entries.flatMap((entry) =>
+				entry.kind === 'done' && entry.taskId !== undefined
+					? [[entry.taskId, { date: day.date, time: entry.time }] as const]
+					: [],
+			),
+		),
+	);
 }
 
 /** The time a session's line carries: the moment it stopped. */

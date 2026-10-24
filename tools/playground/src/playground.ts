@@ -8,7 +8,6 @@ import type { PlaygroundPlan } from './write-playground.ts';
 /** Where the playground goes, the dates it is built around, and the fixtures it derives from. */
 export type PlaygroundInput = {
 	outDirectory: string;
-	archiveDirectory: string;
 	calendar: PlaygroundCalendar;
 	/** `core/fixtures`. */
 	fixturesRoot: string;
@@ -18,7 +17,6 @@ export type PlaygroundInput = {
 export function buildPlaygroundPlan(input: PlaygroundInput): PlaygroundPlan {
 	return {
 		outDirectory: input.outDirectory,
-		archiveDirectory: input.archiveDirectory,
 		workspaces: [
 			buildMockStudio(
 				path.join(input.fixturesRoot, 'mock-vault'),

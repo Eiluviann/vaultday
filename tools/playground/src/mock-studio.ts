@@ -1,10 +1,14 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { addDays, type PlaygroundCalendar } from './calendar.ts';
-import { type PlaygroundFile, renderDayLogs } from './day-log.ts';
+import { doneMoments, type PlaygroundFile, renderDayLogs } from './day-log.ts';
 import { mockStudioDayLogs, NEW_STORIES } from './mock-studio-plan.ts';
 import { renderStoryNote, type StorySource } from './notes.ts';
-import { adaptFixtureNote, settleTasksAfter } from './vault-text.ts';
+import {
+	adaptFixtureNote,
+	holdNoteToCutoff,
+	type NoteCutoff,
+} from './vault-text.ts';
 
 /** One generated workspace root: its folder name under the playground and its files. */
 export type WorkspaceBuild = {
@@ -19,8 +23,12 @@ const TRACKER: StorySource = {
 	host: 'tracker.example.test',
 	ticketUrl: (ticket) => `https://tracker.example.test/browse/${ticket}`,
 };
-/** The fixture's folders the playground writes itself, and the files no playground needs. */
-const SKIPPED_FIXTURE_PATHS = new Set(['.vaultday', LOG_FOLDER, '.DS_Store']);
+/**
+ * The fixture's folders the playground writes itself: settings, the logs, and
+ * `.obsidian`, which the writer only adds when missing so a reset keeps
+ * Obsidian's own state.
+ */
+const SKIPPED_FIXTURE_PATHS = new Set(['.vaultday', '.obsidian', LOG_FOLDER]);
 
 /**
  * The work workspace: the mock vault's client "Mock Studio" with its stories
@@ -35,25 +43,25 @@ export function buildMockStudio(
 	calendar: PlaygroundCalendar,
 ): WorkspaceBuild {
 	const dateOf = (offset: number) => addDays(calendar.focusMonday, offset);
+	const days = mockStudioDayLogs().map((day) => ({
+		date: dateOf(day.day),
+		entries: day.entries,
+	}));
+	const cutoff: NoteCutoff = {
+		today: calendar.today,
+		now: calendar.now,
+		doneTimes: doneMoments(days),
+	};
 	const storyFiles = NEW_STORIES.map((story) => ({
 		path: `Projects/${story.projectFolder}/${story.number} ${story.title}/${story.number} ${story.title}.md`,
-		content: settleTasksAfter(
-			renderStoryNote(story, TRACKER, dateOf),
-			calendar.today,
-		),
+		content: holdNoteToCutoff(renderStoryNote(story, TRACKER, dateOf), cutoff),
 	}));
-	const logFiles = renderDayLogs(
-		mockStudioDayLogs().map((day) => ({
-			date: dateOf(day.day),
-			entries: day.entries,
-		})),
-		{
-			logFolder: LOG_FOLDER,
-			today: calendar.today,
-			now: calendar.now,
-			firstSessionNumber: 101,
-		},
-	);
+	const logFiles = renderDayLogs(days, {
+		logFolder: LOG_FOLDER,
+		today: calendar.today,
+		now: calendar.now,
+		firstSessionNumber: 101,
+	});
 	return {
 		folderName: MOCK_STUDIO_FOLDER,
 		files: [
@@ -61,7 +69,7 @@ export function buildMockStudio(
 				path: '.vaultday/settings.json',
 				content: mockStudioSettings(fixtureRoot),
 			},
-			...readFixtureNotes(fixtureRoot, calendar),
+			...readFixtureNotes(fixtureRoot, calendar.fixtureShiftDays, cutoff),
 			...storyFiles,
 			...logFiles,
 		],
@@ -100,17 +108,13 @@ function mockStudioSettings(fixtureRoot: string): string {
 
 function readFixtureNotes(
 	fixtureRoot: string,
-	calendar: PlaygroundCalendar,
+	shiftDays: number,
+	cutoff: NoteCutoff,
 ): PlaygroundFile[] {
 	return listFixtureFiles(fixtureRoot, '').map((relativePath) => {
 		const text = readFileSync(path.join(fixtureRoot, relativePath), 'utf8');
 		const content = relativePath.endsWith('.md')
-			? adaptFixtureNote(
-					relativePath,
-					text,
-					calendar.fixtureShiftDays,
-					calendar.today,
-				)
+			? adaptFixtureNote(relativePath, text, shiftDays, cutoff)
 			: text;
 		return { path: relativePath, content };
 	});

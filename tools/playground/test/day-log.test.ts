@@ -71,6 +71,32 @@ describe('renderDayLogs', () => {
 		expect(renderDayLogs(days, OPTIONS)).toEqual([]);
 	});
 
+	it('leaves out a session still running at now', () => {
+		const days: DayLog[] = [
+			{
+				date: '2026-10-21',
+				entries: [
+					{
+						kind: 'session',
+						start: '11:30',
+						minutes: 60,
+						text: 'Running',
+						subject: { story: 'WEB-142' },
+					},
+					{
+						kind: 'note',
+						time: '11:45',
+						text: 'Mid-session note',
+						subject: { story: 'WEB-142' },
+					},
+				],
+			},
+		];
+		const [file] = renderDayLogs(days, OPTIONS);
+		expect(file?.content).toContain('- 11:45 note · Mid-session note');
+		expect(file?.content).not.toContain('session · Running');
+	});
+
 	it('refuses two sessions that overlap', () => {
 		const days: DayLog[] = [
 			{
