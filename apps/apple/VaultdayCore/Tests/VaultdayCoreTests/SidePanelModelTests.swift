@@ -202,9 +202,10 @@ final class SidePanelModelTests: XCTestCase {
 	}
 
 	func testEndedEventsBecomeMeetingSessionsOnceAndCountInHours() throws {
-		// The meetings sit on the day before the injected clock, which the
-		// panel records alongside today: they have ended whatever the hour.
-		let now = Date()
+		// The meetings sit on the day before the fixed clock, which the panel
+		// records alongside today; the core, on the wall clock, sees them
+		// ended too, since that day is past.
+		let now = Self.friday
 		let day = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: now))
 		let minutesToday = 14 * 60
 		let store = FakeEventStore(sources: [iCloud, exchange])
@@ -228,9 +229,10 @@ final class SidePanelModelTests: XCTestCase {
 	}
 
 	func testDeclinedAndFreeEventsAreNoMeetingAndOverlapsCountOnce() throws {
-		// The meetings sit on the day before the injected clock, which the
-		// panel records alongside today: they have ended whatever the hour.
-		let now = Date()
+		// The meetings sit on the day before the fixed clock, which the panel
+		// records alongside today; the core, on the wall clock, sees them
+		// ended too, since that day is past.
+		let now = Self.friday
 		let day = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: now))
 		let minutesToday = 14 * 60
 		let store = FakeEventStore(sources: [iCloud, exchange])
@@ -254,9 +256,10 @@ final class SidePanelModelTests: XCTestCase {
 	}
 
 	func testARenamedAndMovedMeetingKeepsItsOneSession() throws {
-		// The meetings sit on the day before the injected clock, which the
-		// panel records alongside today: they have ended whatever the hour.
-		let now = Date()
+		// The meetings sit on the day before the fixed clock, which the panel
+		// records alongside today; the core, on the wall clock, sees them
+		// ended too, since that day is past.
+		let now = Self.friday
 		let day = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: now))
 		let minutesToday = 14 * 60
 		let store = FakeEventStore(sources: [iCloud, exchange])
