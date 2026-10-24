@@ -952,7 +952,8 @@ pub(crate) mod tests {
             path: "/tmp/mock".to_owned(),
         })
         .unwrap();
-        app.set_keyboard_scheme(KeyboardSchemeView::Vim).unwrap();
+        app.set_keyboard_scheme(KeyboardSchemeView::Standard)
+            .unwrap();
         app.save().unwrap();
 
         let reopened = open_app_state(plain_sync_files(), dir, keychain).unwrap();
@@ -960,7 +961,7 @@ pub(crate) mod tests {
         assert_eq!(reopened.connections().len(), 1);
         assert_eq!(reopened.sources("mock-studio".to_owned()).len(), 1);
         assert_eq!(reopened.folder_grants()[0].bookmark, [1, 2, 3]);
-        assert_eq!(reopened.keyboard_scheme(), KeyboardSchemeView::Vim);
+        assert_eq!(reopened.keyboard_scheme(), KeyboardSchemeView::Standard);
 
         reopened.remove_connection("con-1".to_owned()).unwrap();
         assert!(reopened.folder_grants().is_empty());

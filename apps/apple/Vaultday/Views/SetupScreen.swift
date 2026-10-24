@@ -6,6 +6,7 @@ import VaultdayCore
 /// and the sticky footer.
 struct SetupScreen: View {
 	let app: AppModel
+	@FocusState private var hasKeyFocus: Bool
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -26,6 +27,18 @@ struct SetupScreen: View {
 		}
 		.background(Tokens.Colors.surfaceWindow)
 		.ignoresSafeArea(.container, edges: .top)
+		// Vim motions walk the steps and their controls; under Standard the
+		// model is absent and AppKit's own keys stay as they were.
+		.environment(\.setupKeyboard, app.dispatcher.scheme == .vim ? app.setupKeyboard : nil)
+		// Under Standard the setup keeps AppKit's own focus, as before.
+		.focusable(app.dispatcher.scheme == .vim)
+		.focusEffectDisabled()
+		.focused($hasKeyFocus)
+		.defaultFocus($hasKeyFocus, true)
+		.onKeyPress(phases: .down) { press in
+			app.handleSetupKey(KeyStroke(press), isTyping: isTypingInTextField) ? .handled : .ignored
+		}
+		.onAppear { hasKeyFocus = true }
 	}
 
 	private var titleBar: some View {

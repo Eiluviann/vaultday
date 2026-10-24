@@ -2,7 +2,12 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { generateKeymapDoc, readText } from './generate.ts';
-import { KEYMAP_DOC_PATH, KEYMAP_PATH, REPOSITORY_ROOT } from './paths.ts';
+import {
+	KEYMAP_DOC_PATH,
+	KEYMAP_NOTES_PATH,
+	KEYMAP_PATH,
+	REPOSITORY_ROOT,
+} from './paths.ts';
 
 const USAGE = 'usage: tsx src/main.ts [--check]';
 
@@ -16,6 +21,7 @@ function main(argv: string[]): number {
 	}
 	const generated = generateKeymapDoc(
 		path.resolve(REPOSITORY_ROOT, KEYMAP_PATH),
+		path.resolve(REPOSITORY_ROOT, KEYMAP_NOTES_PATH),
 	);
 	if (!generated.ok) {
 		console.error(generated.error);

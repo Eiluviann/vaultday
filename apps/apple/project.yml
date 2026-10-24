@@ -85,6 +85,9 @@ targets:
       # The bundled faces, so the tests measure what the app draws.
       - path: Vaultday/Fonts
         buildPhase: resources
+      # The setup's fields are Vim fields, ringed by the keyboard highlight.
+      - path: Vaultday/Views/Keyboard/VimTextField.swift
+      - path: Vaultday/Views/Keyboard/KeyboardHighlight.swift
     dependencies:
       - package: VaultdayCore
     settings:

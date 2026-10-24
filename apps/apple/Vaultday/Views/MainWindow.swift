@@ -28,5 +28,6 @@ struct MainWindow: View {
 			}
 		}
 		.environment(\.mainWindow, app.mainWindow)
+		.environment(\.keyScheme, app.dispatcher.scheme)
 	}
 }

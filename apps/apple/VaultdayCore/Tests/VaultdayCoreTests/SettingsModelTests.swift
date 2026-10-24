@@ -8,17 +8,17 @@ final class SettingsModelTests: XCTestCase {
 	func testKeyboardSchemeHoverSelectsAndShortcutCapsPersist() throws {
 		let harness = try OnboardingHarness(self)
 		let settings = SettingsModel(session: harness.session)
-		XCTAssertEqual(settings.keyboardScheme, .standard)
+		XCTAssertEqual(settings.keyboardScheme, .vimMotions, "Vim motions until the user picks a scheme")
 		XCTAssertTrue(settings.hoverSelects)
 		XCTAssertEqual(settings.shortcutCaps, .animated)
 
-		settings.setKeyboardScheme(.vimMotions)
+		settings.setKeyboardScheme(.standard)
 		settings.setHoverSelects(false)
 		settings.setShortcutCaps(.instant)
 		XCTAssertNil(settings.errorMessage)
 
 		let reopened = SettingsModel(session: try harness.relaunched().session)
-		XCTAssertEqual(reopened.keyboardScheme, .vimMotions)
+		XCTAssertEqual(reopened.keyboardScheme, .standard)
 		XCTAssertFalse(reopened.hoverSelects)
 		XCTAssertEqual(reopened.shortcutCaps, .instant)
 	}

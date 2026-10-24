@@ -32,6 +32,7 @@ struct SetupButtonStyle: ButtonStyle {
 				}
 			}
 			.contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.radiusSm))
+			.setupKeyOption()
 	}
 
 	private var foreground: Color {
@@ -205,6 +206,7 @@ struct SegmentedChoice<Value: Hashable>: View {
 						.contentShape(Rectangle())
 				}
 				.buttonStyle(.plain)
+				.setupKeyOption { selection = option.value }
 				.accessibilityAddTraits(isSelected ? .isSelected : [])
 			}
 		}
@@ -417,6 +419,7 @@ struct ScopeChip: View {
 			.overlay(Capsule().strokeBorder(isOn ? Tokens.Colors.inkMuted : Tokens.Colors.lineControl, lineWidth: 1))
 		}
 		.buttonStyle(.plain)
+		.setupKeyOption(cornerRadius: Tokens.Size.sizeControlSm / 2, activate: toggle)
 		.accessibilityAddTraits(isOn ? .isSelected : [])
 	}
 }
@@ -455,6 +458,7 @@ struct ChoiceCard: View {
 			.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusLg).strokeBorder(isSelected ? Tokens.Colors.primary : Tokens.Colors.line, lineWidth: isSelected ? 2 : 1))
 		}
 		.buttonStyle(.plain)
+		.setupKeyOption(cornerRadius: Tokens.Radius.radiusLg, activate: choose)
 		.accessibilityAddTraits(isSelected ? .isSelected : [])
 	}
 }

@@ -38,7 +38,7 @@ scripts/gates.sh --full        # once, before opening or updating the PR
 | a crate `crates/node` depends on (`vault-base`, `domain`) | also the napi binding and the CLI's typecheck and vitest |
 | root `package.json`, `pnpm-lock.yaml`, `tsconfig.base.json` | every Node gate |
 | a `.ts`, `.js`, `.json` or `.css` file | biome |
-| `apps/apple/Keymap.yaml` | `pnpm --filter @vaultday/keymap-doc check` |
+| `apps/apple/Keymap.yaml`, `apps/apple/KEYMAP.notes.md` | `pnpm --filter @vaultday/keymap-doc check` |
 | `design/tokens.json`, `tools/tokens/`, `Tokens.swift` | `pnpm --filter @vaultday/tokens check` |
 
 A change to a crate the FFI links (`domain`, say) runs its Rust tests and the Swift tests, since the package tests exercise the core through the XCFramework. `swift test` in `apps/apple/VaultdayCore` still works for a quick run of the package alone, but no gate needs it: the scheme runs the package tests.

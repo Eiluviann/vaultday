@@ -28,6 +28,7 @@ const KNOWN_FIELDS: ReadonlySet<string> = new Set([
 	'tip',
 	'menu',
 	'pane',
+	'fallback',
 ]);
 
 /**

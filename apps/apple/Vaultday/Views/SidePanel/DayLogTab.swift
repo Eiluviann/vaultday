@@ -95,14 +95,14 @@ struct DayLogTab: View {
 	private var append: some View {
 		VStack(alignment: .leading, spacing: Tokens.Spacing.space4) {
 			HStack(spacing: Tokens.Spacing.space8) {
-				TextField("Append to today's log", text: Bindable(model).draft)
+				VimTextField("Append to today's log", text: Bindable(model).draft, focusRequest: app.dayLogFocusRequest)
 					.textFieldStyle(.plain)
 					.focused($isAppendFocused)
-					.onChange(of: app.dayLogFocusRequest) { isAppendFocused = true }
 					.padding(.horizontal, 10)
 					.frame(height: 30)
 					.background(Tokens.Colors.surfaceRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd))
 					.overlay(RoundedRectangle(cornerRadius: Tokens.Radius.radiusMd).strokeBorder(Tokens.Colors.line))
+					.vimModeLineBelow()
 					.onSubmit(submit)
 				Button("Add", action: submit)
 					.buttonStyle(.borderedProminent)

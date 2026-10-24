@@ -7,19 +7,29 @@ import {
 import { err, ok, type Result } from './result.ts';
 
 /**
- * Reads Keymap.yaml at `keymapPath` and renders the key table page.
+ * Reads Keymap.yaml at `keymapPath` and renders the key table page, with
+ * the hand-written notes at `notesPath` (focus, Esc, Vim inside fields)
+ * after the table.
  *
  * @param keymapPath - Absolute path of Keymap.yaml.
- * @returns The page, or why the keymap could not be read or rendered.
+ * @param notesPath - Absolute path of the notes page; none when omitted.
+ * @returns The page, or why the keymap or the notes could not be read or rendered.
  */
-export function generateKeymapDoc(keymapPath: string): Result<string> {
+export function generateKeymapDoc(
+	keymapPath: string,
+	notesPath?: string,
+): Result<string> {
 	const text = readText(keymapPath);
 	if (!text.ok) return text;
 	const entries = parseKeymapEntries(text.value);
 	if (!entries.ok) return entries;
 	const rows = buildKeyTable(entries.value);
 	if (!rows.ok) return rows;
-	return ok(renderKeymapMarkdown(rows.value));
+	const table = renderKeymapMarkdown(rows.value);
+	if (notesPath === undefined) return ok(table);
+	const notes = readText(notesPath);
+	if (!notes.ok) return notes;
+	return ok(`${table}\n${notes.value.trimEnd()}\n`);
 }
 
 /**

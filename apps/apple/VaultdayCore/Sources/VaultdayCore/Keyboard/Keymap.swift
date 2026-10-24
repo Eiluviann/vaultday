@@ -25,6 +25,13 @@ public enum Pane: Int, CaseIterable, Sendable, Codable {
 	public static let homeOrder: [Pane] = [.sidebar, .today, .inbox, .sidePanel]
 	/// The story screen's panes: the note (held by the main area's pane) and its panel.
 	public static let storyOrder: [Pane] = [.today, .storyPanel]
+	/// The screens' pane sets: two panes share a screen when one set holds both.
+	public static let screens: [[Pane]] = [homeOrder, storyOrder]
+
+	/// Whether `self` and `other` can be on screen together.
+	public func sharesScreen(with other: Pane) -> Bool {
+		Self.screens.contains { $0.contains(self) && $0.contains(other) }
+	}
 
 	/// The pane named `name` in Keymap.yaml's `pane:` field.
 	init?(keymapName name: String) {
@@ -54,7 +61,7 @@ public enum KeyAction: Hashable, Sendable {
 	case moveHalfPageUp
 	case open
 	case toggleSidebar
-	/// ⌘0: every workspace together.
+	/// ⌘ and the key left of 1 (§, or ` on an ANSI keyboard): every workspace together.
 	case showAllWorkspaces
 	/// ⌘1 to ⌘9: the workspace at that place in the sidebar, counted from 1.
 	case showWorkspace(Int)
@@ -83,6 +90,8 @@ public enum KeyAction: Hashable, Sendable {
 	case previousDay
 	case nextDay
 	case showToday
+	/// The Today header's span switch: the list, three days or the week.
+	case showSpan(CalendarSpan)
 	/// Esc: closes the toast, the palette or the confirmation.
 	case dismiss
 	/// `yy`: the selected task into the register, its id onto the pasteboard.
@@ -247,6 +256,9 @@ public enum KeyAction: Hashable, Sendable {
 		"day.previous": .previousDay,
 		"day.next": .nextDay,
 		"day.today": .showToday,
+		"view.list": .showSpan(.list),
+		"view.three-days": .showSpan(.threeDays),
+		"view.week": .showSpan(.week),
 		"dismiss": .dismiss,
 		"register.yank": .yank,
 		"register.cut": .cut,
@@ -347,7 +359,15 @@ public struct KeyStroke: Hashable, Sendable, CustomStringConvertible {
 		self.init(key: key, modifiers: modifiers)
 	}
 
-	static let namedKeys: Set<String> = ["return", "escape", "tab", "space", "up", "down", "left", "right", "pageup", "pagedown", "delete"]
+	static let namedKeys: Set<String> = ["return", "escape", "tab", "space", "up", "down", "left", "right", "pageup", "pagedown", "delete", leftOfOneKey]
+
+	/// The key left of 1, named by its place rather than its character: §
+	/// on an ISO keyboard, ` on an ANSI one. The app matches it by key code.
+	public static let leftOfOneKey = "left-of-1"
+
+	/// The character the current layout prints on the key left of 1, for its
+	/// cap. The app sets it once at launch, before any view reads a cap.
+	nonisolated(unsafe) public static var leftOfOneCap = "§"
 
 	/// The stroke as a key cap shows it: `⌘K`, `⌥↑`, `Space`, `x`.
 	public var capText: String {
@@ -372,6 +392,7 @@ public struct KeyStroke: Hashable, Sendable, CustomStringConvertible {
 		case "pageup": "⇞"
 		case "pagedown": "⇟"
 		case "delete": "⌫"
+		case Self.leftOfOneKey: Self.leftOfOneCap
 		default: modifiers.isEmpty ? key : key.uppercased()
 		}
 		let shown = Self.shiftedSymbols.contains(key) ? parts.filter { $0 != "⇧" } : parts
@@ -404,6 +425,9 @@ public struct KeyBinding: Hashable, Sendable {
 	/// The pane whose focus the keys need (bare `1` to `7` on the side
 	/// panel's rail); `nil` when they act wherever focus is.
 	public let pane: Pane?
+	/// Whether the keys also reach ``pane`` from another pane of its screen
+	/// that binds nothing to them, as `[` `]` step the only tabbed pane's tabs.
+	public let isFallback: Bool
 
 	public init(
 		action: KeyAction,
@@ -413,6 +437,7 @@ public struct KeyBinding: Hashable, Sendable {
 		tip: String? = nil,
 		isInItemMenu: Bool = false,
 		pane: Pane? = nil,
+		isFallback: Bool = false,
 	) {
 		self.action = action
 		self.sequences = sequences
@@ -421,7 +446,16 @@ public struct KeyBinding: Hashable, Sendable {
 		self.tip = tip
 		self.isInItemMenu = isInItemMenu
 		self.pane = pane
+		self.isFallback = isFallback
 	}
+}
+
+/// One key sequence of one scheme, with where it acts.
+public struct BoundSequence: Sendable {
+	public let sequence: [KeyStroke]
+	public let action: KeyAction
+	public let pane: Pane?
+	public let isFallback: Bool
 }
 
 /// One action of the key table: its label and every key sequence that runs
@@ -507,10 +541,10 @@ public struct Keymap: Sendable {
 	}
 
 	/// The bindings of one scheme as sequences, each with the pane it needs focused.
-	public func sequences(for scheme: KeyScheme) -> [(sequence: [KeyStroke], action: KeyAction, pane: Pane?)] {
+	public func sequences(for scheme: KeyScheme) -> [BoundSequence] {
 		bindings.compactMap { binding in
 			guard let sequence = binding.sequences[scheme], !sequence.isEmpty else { return nil }
-			return (sequence, binding.action, binding.pane)
+			return BoundSequence(sequence: sequence, action: binding.action, pane: binding.pane, isFallback: binding.isFallback)
 		}
 	}
 
@@ -555,7 +589,7 @@ public struct Keymap: Sendable {
 		bindings.compactMap { binding in binding.tip.map { ($0, binding.action) } }
 	}
 
-	private static let knownFields: Set<String> = ["action", "vim", "standard", "label", "group", "tip", "menu", "pane"]
+	private static let knownFields: Set<String> = ["action", "vim", "standard", "label", "group", "tip", "menu", "pane", "fallback"]
 
 	private static func bindings(from entries: [(line: Int, fields: [String: String])]) -> Result<[(line: Int, binding: KeyBinding)], KeymapError> {
 		var bindings: [(line: Int, binding: KeyBinding)] = []
@@ -576,6 +610,10 @@ public struct Keymap: Sendable {
 			guard menu == "true" || menu == "false" else {
 				return .failure(KeymapError(line: entry.line, reason: "`menu` is `true` or `false`"))
 			}
+			let fallback = entry.fields["fallback"] ?? "false"
+			guard fallback == "true" || fallback == "false" else {
+				return .failure(KeymapError(line: entry.line, reason: "`fallback` is `true` or `false`"))
+			}
 			let label = entry.fields["label"].flatMap { $0.isEmpty ? nil : $0 }
 			var pane: Pane?
 			if let paneName = entry.fields["pane"], !paneName.isEmpty {
@@ -583,6 +621,9 @@ public struct Keymap: Sendable {
 					return .failure(KeymapError(line: entry.line, reason: "unknown pane `\(paneName)`"))
 				}
 				pane = named
+			}
+			if fallback == "true", pane == nil {
+				return .failure(KeymapError(line: entry.line, reason: "a `fallback` binding needs the `pane` it falls back to"))
 			}
 			let binding = KeyBinding(
 				action: action,
@@ -592,6 +633,7 @@ public struct Keymap: Sendable {
 				tip: entry.fields["tip"].flatMap { $0.isEmpty ? nil : $0 },
 				isInItemMenu: menu == "true",
 				pane: pane,
+				isFallback: fallback == "true",
 			)
 			bindings.append((entry.line, binding))
 		}
@@ -613,6 +655,7 @@ public struct Keymap: Sendable {
 			// Each sequence with the line and pane of every binding of it; two
 			// bindings of one sequence clash when they can act at once.
 			var seen: [[KeyStroke]: [(line: Int, pane: Pane?)]] = [:]
+			var fallbacks: [[KeyStroke]: [(line: Int, pane: Pane)]] = [:]
 			for (line, binding) in bindings {
 				guard let sequence = binding.sequences[scheme], let first = sequence.first else { continue }
 				if first.isBare, let kept = directionalKeys[first.key], sequence.count > 1 || binding.action != kept {
@@ -622,6 +665,14 @@ public struct Keymap: Sendable {
 					return .failure(KeymapError(line: line, reason: "`\(spelled(sequence))` is bound twice under \(scheme.rawValue) (line \(earlier.line) too)"))
 				}
 				seen[sequence, default: []].append((line, binding.pane))
+				// A fallback acts from every pane of its screen, so two of one
+				// sequence on one screen would each claim the other's panes.
+				if binding.isFallback, let pane = binding.pane {
+					if let earlier = fallbacks[sequence]?.first(where: { $0.pane != pane && $0.pane.sharesScreen(with: pane) }) {
+						return .failure(KeymapError(line: line, reason: "`\(spelled(sequence))` falls back to two panes of one screen under \(scheme.rawValue) (line \(earlier.line) too)"))
+					}
+					fallbacks[sequence, default: []].append((line, pane))
+				}
 			}
 			// A sequence that starts a longer one would fire before the longer one could be typed.
 			for (sequence, longer) in seen {

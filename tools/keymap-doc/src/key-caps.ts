@@ -52,6 +52,8 @@ const NAMED_KEY_CAPS: Readonly<Record<string, string>> = {
 	pageup: '⇞',
 	pagedown: '⇟',
 	delete: '⌫',
+	// The key left of 1, by its place: § on an ISO keyboard, ` on an ANSI one.
+	'left-of-1': '§',
 };
 
 const MODIFIER_CAPS: readonly (readonly [Modifier, string])[] = [

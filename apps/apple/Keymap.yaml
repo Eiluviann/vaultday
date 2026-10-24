@@ -6,7 +6,9 @@
 # Keys are strokes separated by spaces; a stroke is a key with optional
 # modifiers joined by `+` (`ctrl+cmd+s`). Key names: a single character,
 # `return`, `escape`, `tab`, `space`, `delete`, `up`, `down`, `left`,
-# `right`, `pageup`, `pagedown`. A symbol typed with Shift (`>`, `:`, `}`)
+# `right`, `pageup`, `pagedown`, and `left-of-1`, the key left of 1 by its
+# place (§ on an ISO keyboard, ` on an ANSI one), matched by key code so the
+# layout's character does not matter. A symbol typed with Shift (`>`, `:`, `}`)
 # carries Shift by itself; a capital is `shift+` its letter (`shift+g` is G).
 # An empty value leaves the action unbound under that scheme.
 #
@@ -19,14 +21,22 @@
 # from the side panel, so the Inbox keeps its digit keys for the signal outcomes). Only a binding
 # scoped to a pane outside the Home window (the story panel, the menu-bar
 # extra) may reuse keys bound everywhere: it wins while that pane holds focus.
+# `fallback: true` on a scoped binding lets its keys reach that pane from
+# the other panes of its screen too, but only from a pane that binds
+# nothing to the same keys itself: the focused pane's meaning always wins.
+# `[` `]` use it: they step the focused pane's tabs, and from a pane without
+# tabs the only tabbed pane on screen (the side panel on Home, the story
+# panel on the story screen). Two fallbacks of one sequence on one screen
+# are refused, so "the only tabbed pane" is checked when the file loads.
 # An action bound twice carries its label once, on its first entry.
 #
 # Rules from the design note, enforced when the file loads: bare `h` `j` `k`
 # `l` are directional movement in every view and never bound to anything
 # else, nor start a chord; no sequence is bound twice for the same pane (or
 # twice unscoped), or hides a longer one, within a scheme where both can
-# act; every action has a label. Pane jumps are `g` plus the pane number
-# (`g0` sidebar, `g1` Today, `g2` Inbox, `g3` side panel); `]` `[` and `1`
+# act; every action has a label. Pane jumps are `g` plus the pane number,
+# counted from the left with the sidebar first (`g1` sidebar, `g2` Today,
+# `g3` Inbox, `g4` side panel; `g0` is free); `]` `[` and `1`
 # to `8` reach the side panel's rail, and on the story screen `]` `[` and `1`
 # to `3` reach the story panel's tabs while it holds focus; the Reports tab's copy
 # and Claude Code keys are scoped to the story panel and the side panel.
@@ -291,34 +301,43 @@ bindings:
     vim: "cmd+,"
     standard: "cmd+,"
   # Panes and tabs
+  # Pane jumps count from the left, the sidebar being the first panel.
   - action: pane.sidebar
     label: "Sidebar"
     group: "Panes and tabs"
-    vim: "g 0"
-    standard: "ctrl+0"
+    vim: "g 1"
+    standard: "ctrl+1"
   - action: pane.today
     label: "Today"
     group: "Panes and tabs"
-    vim: "g 1"
-    standard: "ctrl+1"
+    vim: "g 2"
+    standard: "ctrl+2"
   - action: pane.inbox
     label: "Inbox"
     group: "Panes and tabs"
-    vim: "g 2"
-    standard: "ctrl+2"
+    vim: "g 3"
+    standard: "ctrl+3"
   - action: pane.side-panel
     label: "Side panel"
     group: "Panes and tabs"
-    vim: "g 3"
-    standard: "ctrl+3"
+    vim: "g 4"
+    standard: "ctrl+4"
+  # `[` `]` act on the focused pane's tabs. The side panel is the only
+  # Home pane with tabs, so from a pane that binds nothing to them they
+  # fall back to it; a pane that gets tabs or its own `[` `]` binds them
+  # scoped to itself and wins there.
   - action: side-panel.next
     label: "Next side panel tab"
     group: "Panes and tabs"
+    pane: "side-panel"
+    fallback: true
     vim: "]"
     standard: "ctrl+tab"
   - action: side-panel.previous
     label: "Previous side panel tab"
     group: "Panes and tabs"
+    pane: "side-panel"
+    fallback: true
     vim: "["
     standard: "ctrl+shift+tab"
   # The side panel's tabs by their place on the rail: Calendar, Hours,
@@ -395,19 +414,21 @@ bindings:
     pane: "side-panel"
     vim: "8"
     standard: ""
-  # The story screen's panel (PR 15): its tabs step and switch only while
-  # the panel holds focus. These bindings are scoped to it, so they shadow
-  # the side panel's unscoped keys there and nowhere else.
+  # The story screen's panel (PR 15): the story screen's only tabbed pane,
+  # so its `[` `]` fall back to it from the note as the side panel's do on
+  # Home; its digits switch tabs only while the panel holds focus.
   - action: story-panel.next
     label: "Next story panel tab"
     group: "Panes and tabs"
     pane: "story-panel"
+    fallback: true
     vim: "]"
     standard: "ctrl+tab"
   - action: story-panel.previous
     label: "Previous story panel tab"
     group: "Panes and tabs"
     pane: "story-panel"
+    fallback: true
     vim: "["
     standard: "ctrl+shift+tab"
   - action: story-panel.tab.1
@@ -503,6 +524,24 @@ bindings:
     group: "Day and workspace"
     vim: "g d"
     standard: "cmd+t"
+  # The Today header's span switch has no keys of its own: the palette
+  # lists it, and the header is reached as a section (`k` above the first
+  # card, `h` `l` across its controls, ⏎ to press one).
+  - action: view.list
+    label: "Show the day as a list"
+    group: "Day and workspace"
+    vim: ""
+    standard: ""
+  - action: view.three-days
+    label: "Show three days"
+    group: "Day and workspace"
+    vim: ""
+    standard: ""
+  - action: view.week
+    label: "Show the week"
+    group: "Day and workspace"
+    vim: ""
+    standard: ""
   - action: daylog.open
     label: "Day log"
     group: "Day and workspace"
@@ -528,11 +567,13 @@ bindings:
     group: "Day and workspace"
     vim: "g shift+t"
     standard: "ctrl+cmd+["
+  # ⌘ and the key left of 1, by its place: § on an ISO keyboard, ` on an
+  # ANSI one; ⌘1 to ⌘9 stay the workspaces in sidebar order.
   - action: workspace.all
     label: "All workspaces"
     group: "Day and workspace"
-    vim: "cmd+0"
-    standard: "cmd+0"
+    vim: "cmd+left-of-1"
+    standard: "cmd+left-of-1"
   - action: workspace.1
     label: "Workspace 1"
     group: "Day and workspace"
