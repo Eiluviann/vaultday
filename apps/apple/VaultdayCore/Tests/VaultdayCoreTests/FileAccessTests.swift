@@ -2,19 +2,23 @@ import Foundation
 import XCTest
 @testable import VaultdayCore
 
-/// Security-scoped bookmarks round-trip in a plain test process too (no
-/// sandbox needed to make or resolve one). They go through ScopedBookmarkAgent
-/// and the login keychain, which can block a headless CI runner, so the
-/// bookmark tests run on a Mac only.
+/// Bookmarks round-trip in a plain test process (no sandbox needed to make or
+/// resolve one). By default the tests make plain bookmarks: a security-scoped
+/// one goes through ScopedBookmarkAgent and the login keychain, which prompts
+/// on a developer's Mac and can block a headless CI runner (docs/building.md,
+/// "Quiet tests"). `VAULTDAY_SCOPED_BOOKMARK_TESTS=1` runs them scoped, by
+/// hand, on a Mac whose login keychain may be asked.
 final class FileAccessTests: XCTestCase {
-	private func skipOnCI() throws {
-		try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil, "security-scoped bookmarks need ScopedBookmarkAgent and a login keychain")
+	private static let usesSecurityScope = ProcessInfo.processInfo.environment["VAULTDAY_SCOPED_BOOKMARK_TESTS"] == "1"
+		&& ProcessInfo.processInfo.environment["CI"] == nil
+
+	private func makeGrants() -> FolderGrants {
+		FolderGrants(usesSecurityScope: Self.usesSecurityScope)
 	}
 
 	func testABookmarkRoundTripsToTheSameFolder() throws {
-		try skipOnCI()
 		let folder = try TestFixtures.temporaryFolder(self, "granted")
-		let grants = FolderGrants()
+		let grants = makeGrants()
 		let bookmark = try grants.makeBookmark(for: folder)
 
 		guard case let .resolved(url, refreshed) = grants.resolve(bookmark) else {
@@ -26,11 +30,10 @@ final class FileAccessTests: XCTestCase {
 	}
 
 	func testAMovedFolderStillResolvesAndAStaleBookmarkIsRefreshed() throws {
-		try skipOnCI()
 		let parent = try TestFixtures.temporaryFolder(self, "parent")
 		let folder = parent.appending(path: "Vault", directoryHint: .isDirectory)
 		try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-		let grants = FolderGrants()
+		let grants = makeGrants()
 		let bookmark = try grants.makeBookmark(for: folder)
 		let moved = parent.appending(path: "Renamed vault", directoryHint: .isDirectory)
 		try FileManager.default.moveItem(at: folder, to: moved)
@@ -46,9 +49,8 @@ final class FileAccessTests: XCTestCase {
 	}
 
 	func testABookmarkToADeletedFolderOrGarbageIsUnresolvable() throws {
-		try skipOnCI()
 		let folder = try TestFixtures.temporaryFolder(self, "gone")
-		let grants = FolderGrants()
+		let grants = makeGrants()
 		let bookmark = try grants.makeBookmark(for: folder)
 		try FileManager.default.removeItem(at: folder)
 

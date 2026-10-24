@@ -10,6 +10,8 @@ import XCTest
 @MainActor
 final class TogglTests: XCTestCase {
 	private static let token = "synthetic-toggl-token-0042"
+	/// A fixed day for the reads that need one, never the wall clock.
+	private static let thursday = "2026-10-22"
 
 	private func openWorkspace(_ harness: OnboardingHarness) throws -> WorkspaceModel {
 		let workspace = WorkspaceModel(session: harness.session)
@@ -219,15 +221,14 @@ final class TogglTests: XCTestCase {
 		let harness = try OnboardingHarness(self)
 		let workspace = try openWorkspace(harness)
 		setHourly(workspace, harness)
-		let today = DayText.string(Date())
 		let hours = HoursModel()
-		hours.load(from: workspace, date: today)
+		hours.load(from: workspace, date: Self.thursday)
 		XCTAssertFalse(hours.togglWeek.isConnected)
 		XCTAssertEqual(hours.togglWeek.statusText, "Toggl not connected")
 		XCTAssertEqual(hours.togglWeek.visibleDays, [])
 
 		TogglSettingsModel(session: harness.session, workspaceId: workspace.workspaceId, workspaceName: workspace.name).setEnabled(true)
-		hours.load(from: workspace, date: today)
+		hours.load(from: workspace, date: Self.thursday)
 		XCTAssertTrue(hours.togglWeek.isConnected)
 		XCTAssertEqual(hours.togglWeek.statusText, "Nothing for Toggl this week yet")
 		XCTAssertEqual(hours.togglWeek.days.count, 7)
@@ -236,9 +237,14 @@ final class TogglTests: XCTestCase {
 		sessions.load(from: workspace)
 		XCTAssertTrue(sessions.start(taskId: "task-2", story: "WEB-142", minutesAgo: 1))
 		XCTAssertTrue(sessions.stop())
-		hours.load(from: workspace, date: today)
+		// The core stamps the session with its own clock and queues it on the
+		// local day it started, so the week to read is that day's, not the
+		// day the test began: a minute before midnight they differ.
+		let startedAt = try XCTUnwrap(sessions.sessions.last?.startedAt)
+		let sessionDay = DayText.string(startedAt)
+		hours.load(from: workspace, date: sessionDay)
 		let day = try XCTUnwrap(hours.togglWeek.visibleDays.first)
-		XCTAssertEqual(day.date, today)
+		XCTAssertEqual(day.date, sessionDay)
 		XCTAssertEqual(day.state, .queued)
 		XCTAssertEqual(day.stateText, "Queued")
 		XCTAssertNil(hours.togglWeek.statusText)

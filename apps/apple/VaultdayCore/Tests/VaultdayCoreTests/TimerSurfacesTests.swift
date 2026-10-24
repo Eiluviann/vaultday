@@ -37,12 +37,19 @@ final class TimerSurfacesTests: XCTestCase {
 		return (workspace, vault)
 	}
 
+	/// The session's lines in every day log, not only today's: the core logs
+	/// a session on the local day it started, which is yesterday for one
+	/// stopped just after midnight.
 	private func sessionLines(in vault: URL, sessionId: String) throws -> [String] {
-		let log = vault.appending(path: "Log/\(DayText.string(Date())).md")
-		guard FileManager.default.fileExists(atPath: log.path) else { return [] }
-		return try String(contentsOf: log, encoding: .utf8)
-			.components(separatedBy: "\n")
-			.filter { $0.contains("[id:: \(sessionId)]") }
+		let logFolder = vault.appending(path: "Log", directoryHint: .isDirectory)
+		let logs = try FileManager.default.contentsOfDirectory(at: logFolder, includingPropertiesForKeys: nil)
+			.filter { $0.pathExtension == "md" }
+			.sorted { $0.lastPathComponent < $1.lastPathComponent }
+		return try logs.flatMap { log in
+			try String(contentsOf: log, encoding: .utf8)
+				.components(separatedBy: "\n")
+				.filter { $0.contains("[id:: \(sessionId)]") }
+		}
 	}
 
 	func testSpacePausesAndResumesAsOneSession() throws {

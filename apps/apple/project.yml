@@ -8,7 +8,8 @@
 # docs/signing.md has the recipe for a free Personal Team and a paid team.
 # The bundle id, App Group and Keychain access group come from
 # Signing.xcconfig too, so a Personal Team signs with identifiers of its own
-# (Signing.personal-team.xcconfig). CI builds with signing disabled.
+# (Signing.personal-team.xcconfig). CI and scripts/gates.sh build with signing
+# disabled, and no test target is hosted by the app (docs/building.md).
 name: Vaultday
 options:
   bundleIdPrefix: com.eiluviann
@@ -94,12 +95,36 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.vaultday.tests
         GENERATE_INFOPLIST_FILE: YES
+        # Logic tests in a plain xctest process, never inside the app: no
+        # window, no activation, no Keychain item of the app's (docs/building.md,
+        # "Quiet tests"). gates.sh refuses a run that sets a test host.
+        TEST_HOST: ""
+        # QuietTestProcess keeps the xctest process out of the Dock and from
+        # ever activating while the hosting views render.
+        INFOPLIST_KEY_NSPrincipalClass: VaultdayQuietTestProcess
+  # Tests that put real windows on screen (sheets need a window server). CI
+  # runs them; gates.sh skips them outside CI so no window appears on a
+  # developer's screen.
+  VaultdayWindowTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VaultdayWindowTests
+      - path: Vaultday/Views/Setup/FolderPicker.swift
+    dependencies:
+      - package: VaultdayCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.vaultday.window-tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: ""
 schemes:
   Vaultday:
     build:
       targets:
         Vaultday: all
         VaultdayTests: [test]
+        VaultdayWindowTests: [test]
     run:
       config: Debug
     test:
@@ -109,4 +134,5 @@ schemes:
       # `swift test` would compile the package a second time in its own .build.
       targets:
         - VaultdayTests
+        - VaultdayWindowTests
         - package: VaultdayCore/VaultdayCoreTests

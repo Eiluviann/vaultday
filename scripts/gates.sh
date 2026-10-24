@@ -21,7 +21,9 @@
 #          (Cargo.toml, Cargo.lock, fixtures, lint config) or the toolchain
 #          pin changed, or when the crates cannot be worked out
 #   Apple  the XCFramework, xcodegen and `xcodebuild test` (app, app tests and
-#          the VaultdayCore package tests) when apps/apple, crates/uniffi-bindgen
+#          the VaultdayCore package tests; the window tests only on a GitHub
+#          runner, and a signing or test-host setting refuses the run
+#          anywhere else) when apps/apple, crates/uniffi-bindgen
 #          or a crate the FFI links changed (crates/ffi and every crate it
 #          depends on), or the whole workspace is selected
 #   Node   the napi binding, typecheck and vitest for the changed pnpm
@@ -47,6 +49,9 @@ core_dir="$repo_root/core"
 apple_dir="$repo_root/apps/apple"
 log_dir="${TMPDIR:-/tmp}/vaultday-gates/$(basename "$repo_root")"
 failure_tail_lines=40
+# Every local xcodebuild that builds or tests the app: unsigned, so test
+# processes use no Keychain item of a signed identity (docs/building.md).
+quiet_build_settings=(CODE_SIGNING_ALLOWED=NO)
 
 mode=""
 base_ref="origin/main"
@@ -153,18 +158,60 @@ function run_apple_gates() {
 		return
 	fi
 	run_gate xcodegen bash -c "cd '$apple_dir' && xcodegen generate --quiet"
+	# Quiet tests (docs/building.md): off a GitHub runner the run is unsigned,
+	# hosts no app and skips the tests that put windows on screen, so it never
+	# asks for the login keychain and never shows a window. Keyed on
+	# GITHUB_ACTIONS, not CI: tools and agent shells set CI=1 on a developer's
+	# Mac to mean "non-interactive", which must not bring the windows back.
+	local skip_flags=()
+	local expected_bundles=(VaultdayTests VaultdayCoreTests)
+	if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+		expected_bundles+=(VaultdayWindowTests)
+	else
+		skip_flags+=(-skip-testing:VaultdayWindowTests)
+		if ! run_gate quiet-tests check_quiet_test_settings; then
+			skip_gate xcodebuild-test 'the test run would sign or host the app'
+			return
+		fi
+	fi
 	# One Swift compile: the scheme's test action holds the app tests and the
 	# VaultdayCore package tests. Debug only, for the machine's own
 	# architecture, without the index store Xcode's editor uses, into a
-	# DerivedData folder that is kept between runs. Then both test bundles
-	# must have run (scripts/check-test-bundles.sh).
+	# DerivedData folder that is kept between runs. Then every test bundle
+	# the run holds must have run (scripts/check-test-bundles.sh).
 	run_gate xcodebuild-test bash -c "cd '$apple_dir' && xcodebuild test \
 		-project Vaultday.xcodeproj -scheme Vaultday -configuration Debug \
 		-destination 'platform=macOS,arch=$(uname -m)' -derivedDataPath build \
 		-skipPackagePluginValidation -skipMacroValidation -parallelizeTargets -quiet \
-		CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES \
+		${skip_flags[*]:-} ${quiet_build_settings[*]} ONLY_ACTIVE_ARCH=YES \
 		COMPILER_INDEX_STORE_ENABLE=NO DEBUG_INFORMATION_FORMAT=dwarf \
-		&& '$repo_root/scripts/check-test-bundles.sh' build"
+		&& '$repo_root/scripts/check-test-bundles.sh' build ${expected_bundles[*]}"
+}
+
+# Refuses a local test run whose effective build settings sign a target
+# (ad hoc or with a team) or host a test bundle in the app: a signed test
+# process asks for the login keychain once per item and signature, and a
+# hosted one launches the app into the foreground. Reads the settings the
+# test action resolves with the same overrides, so an XCODE_XCCONFIG_FILE or
+# a project.yml change that brings signing or a host back is caught too.
+function check_quiet_test_settings() {
+	local offending
+	offending="$(cd "$apple_dir" && xcodebuild test -showBuildSettings -json \
+		-project Vaultday.xcodeproj -scheme Vaultday -configuration Debug \
+		-skipPackagePluginValidation -skipMacroValidation "${quiet_build_settings[@]}" 2>/dev/null |
+		jq -r '.[] | select(.buildSettings.CODE_SIGNING_ALLOWED != "NO" or (.buildSettings.TEST_HOST // "") != "")
+			| "\(.target): CODE_SIGNING_ALLOWED=\(.buildSettings.CODE_SIGNING_ALLOWED) TEST_HOST=\(.buildSettings.TEST_HOST // "")"')" || {
+		echo "could not read the test action's build settings" >&2
+		return 1
+	}
+	if [[ -n "$offending" ]]; then
+		echo "$offending" >&2
+		echo "Local test runs are unsigned and unhosted (docs/building.md, \"Quiet tests\"):" >&2
+		echo "a signed or hosted test process prompts for the login keychain or opens the app's window." >&2
+		echo "Remove the signing or TEST_HOST setting; only CI may run signed or hosted tests." >&2
+		return 1
+	fi
+	echo "every target unsigned, no test host"
 }
 
 # --- Node ---------------------------------------------------------------------

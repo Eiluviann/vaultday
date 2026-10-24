@@ -137,7 +137,9 @@ jobs:
         working-directory: apps/apple
       # Signing disabled: the App Group and Keychain entitlements need a
       # development certificate, which CI does not have. The tests do not run
-      # inside the app, so they need neither.
+      # inside the app, so they need neither. The window tests
+      # (VaultdayWindowTests) run here only; local runs skip them
+      # (docs/building.md, "Quiet tests").
       # The scheme's test action holds the app tests and the VaultdayCore
       # package tests (models, Keychain store over the in-memory backend, file
       # access, calendar source, keyboard), so this one step compiles and
